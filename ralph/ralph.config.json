@@ -1,52 +1,24 @@
 {
-  "version": "1.0",
-  "project": {
-    "name": "cachebash",
-    "displayName": "CacheBash",
-    "description": "Mobile companion app for Claude Code - Answer questions on the go, monitor progress from anywhere"
+  "project": "cachebash",
+  "git": {
+    "strategy": "single-branch",
+    "baseBranch": "main",
+    "branchPrefix": "ralph/"
   },
-  "repository": {
-    "type": "github",
-    "owner": "feelgreatfoodie",
-    "name": "cachebash"
-  },
-  "author": {
-    "name": "Christian Bourlier",
-    "email": "chrisbourlier@hotmail.com"
-  },
-  "stack": {
-    "mobile": "flutter",
-    "backend": "firebase",
-    "database": "firestore",
-    "push": "fcm",
-    "mcpServer": "typescript"
-  },
-  "components": [
-    {
-      "name": "mcp-server",
-      "path": "./mcp-server",
-      "tech": "typescript",
-      "description": "MCP server for Claude Code integration"
-    },
-    {
-      "name": "firebase-functions",
-      "path": "./firebase/functions",
-      "tech": "typescript",
-      "description": "Cloud Functions for push notifications and analytics"
-    },
-    {
-      "name": "mobile-app",
-      "path": "./app",
-      "tech": "flutter",
-      "description": "iOS and Android mobile application"
+  "quality": {
+    "autoDetect": true,
+    "commands": {
+      "lint": null,
+      "typecheck": null,
+      "test": null,
+      "build": null
     }
-  ],
-  "domains": ["auth", "api", "realtime", "notifications", "analytics"],
-  "scope": "full",
-  "execution": {
-    "mode": "autonomous",
-    "commitStrategy": "per-story",
-    "qualityGates": ["lint", "typecheck", "test", "build"]
   },
-  "createdAt": "2026-01-23T00:00:00Z"
+  "iterations": {
+    "max": 30,
+    "delaySeconds": 2
+  },
+  "claude": {
+    "model": "sonnet"
+  }
 }
