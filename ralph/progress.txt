@@ -1,0 +1,52 @@
+# CacheBash - Ralph Progress Tracker
+# Mobile companion app for Claude Code
+# Started: 2026-01-23
+
+## Current Status
+PHASE: Planning Complete
+STORY: None started
+
+## Project Stats
+Total Stories: 20
+Estimated Hours: 53-75
+Components: MCP Server, Firebase Backend, Flutter App
+
+## Completed Stories
+(none yet)
+
+## Pending Stories
+
+### Epic 1: MCP Server Foundation (12-17h)
+- US-001: MCP Server Setup (3-4h)
+- US-002: Ask Question Tool (3-4h)
+- US-003: Get Response Tool (2-3h)
+- US-004: Update Status Tool (2-3h)
+- US-005: Pin/Resume Task Tools (2-3h)
+
+### Epic 2: Firebase Backend (7-10h)
+- US-006: Firestore Schema Setup (2-3h)
+- US-007: Cloud Functions for Push (3-4h)
+- US-008: API Key Authentication (2-3h)
+
+### Epic 3: Flutter Mobile App (25-35h)
+- US-009: App Project Setup (2-3h)
+- US-010: Device Registration & Auth (3-4h)
+- US-011: Sessions List View (3-4h)
+- US-012: Session Detail View (3-4h)
+- US-013: Questions Queue View (4-5h)
+- US-014: Question Response Flow (3-4h)
+- US-015: Push Notification Handling (3-4h)
+- US-016: Offline Support (3-4h)
+
+### Epic 4: Analytics Dashboard (5-7h)
+- US-017: Analytics Data Collection (2-3h)
+- US-018: Analytics View (3-4h)
+
+### Epic 5: Distribution (4-6h)
+- US-019: TestFlight Setup (2-3h)
+- US-020: Android Internal Testing (2-3h)
+
+## Session Log
+[2026-01-23] Project initialized from /kickoff flow
+[2026-01-23] PRD created with 20 user stories
+[2026-01-23] Architecture defined: Flutter + Firebase + MCP Server
