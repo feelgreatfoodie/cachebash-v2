@@ -19,6 +19,6 @@
     "delaySeconds": 2
   },
   "claude": {
-    "model": "sonnet"
+    "model": "opus"
   }
 }

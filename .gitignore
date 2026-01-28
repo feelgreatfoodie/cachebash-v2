@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+.dart_tool/
+.pub-cache/
+.pub/
+
+# Build outputs
+dist/
+build/
+# Note: Don't exclude lib/ - Flutter uses app/lib for source code
+*.js.map
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Flutter
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+
+# Secrets - NEVER commit these
+*.pem
+*.p12
+*.key
+google-services.json
+GoogleService-Info.plist
+firebase_options.dart
+service-account*.json
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Local configuration
+.claude/
