@@ -84,11 +84,12 @@ Users can send messages to active Claude sessions:
 
 ## Quick Start for New Session
 
-### 1. Check for Pending Tasks
-When starting a new Claude Code session with CacheBash MCP:
+### 1. Check for Pending Tasks (REQUIRED)
+**ALWAYS check for pending tasks at the start of every session:**
 ```
 Use the get_pending_tasks tool to check if there's work waiting.
 ```
+This allows the user to create tasks from the mobile app that Claude will automatically pick up and work on without manual notification.
 
 ### 2. Resume from Context
 Read these files:

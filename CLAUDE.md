@@ -2,6 +2,18 @@
 
 > Mobile companion app for Claude Code - Answer questions on the go, monitor progress from anywhere.
 
+## IMPORTANT: Check for Pending Tasks
+
+**At the start of every session**, use the `get_pending_tasks` MCP tool to check if there are tasks waiting. If tasks are found, claim and work on them.
+
+```
+Use get_pending_tasks to check for work from the mobile app.
+```
+
+This enables the user to create tasks from their phone that Claude will automatically pick up.
+
+---
+
 ## Project Overview
 
 CacheBash enables asynchronous communication between Claude Code sessions and users via push notifications. When Claude needs clarification, it sends a question to the user's phone. The user can respond from anywhere, and Claude continues working.
