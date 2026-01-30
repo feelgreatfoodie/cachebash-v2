@@ -2,6 +2,8 @@ import { Router, Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { authMiddleware, AuthenticatedRequest } from "../middleware/auth";
 import { logger } from "../lib/logger";
+import { handleToolCall, toolDefinitions } from "../mcp/protocol";
+import { ToolResponse } from "../mcp/types";
 
 const router = Router();
 
@@ -148,6 +150,48 @@ router.get("/sse", authMiddleware, (req: Request, res: Response) => {
       action: "sse_error",
     });
   });
+});
+
+// POST /messages - Handle MCP tool calls
+router.post("/messages", authMiddleware, (req: Request, res: Response) => {
+  const authReq = req as AuthenticatedRequest;
+  const userId = authReq.auth.userId;
+
+  logger.info("MCP message received", {
+    userId,
+    action: "mcp_message",
+  });
+
+  // Handle list_tools request
+  const body = req.body as Record<string, unknown>;
+  if (body.method === "tools/list") {
+    res.json({
+      jsonrpc: "2.0",
+      id: body.id,
+      result: { tools: toolDefinitions },
+    });
+    return;
+  }
+
+  // Handle tool calls asynchronously
+  handleToolCall(userId, body)
+    .then((response: ToolResponse) => {
+      // Also broadcast the response to any active SSE connections for this user
+      broadcastToUser(userId, "tool-response", response);
+      res.json(response);
+    })
+    .catch((error: unknown) => {
+      logger.error("MCP message handler error", {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+        action: "mcp_message_error",
+      });
+      res.status(500).json({
+        jsonrpc: "2.0",
+        id: body.id ?? null,
+        error: { code: -32603, message: "Internal error" },
+      });
+    });
 });
 
 export { router as sseRouter, activeConnections };

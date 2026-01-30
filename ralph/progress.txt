@@ -4,11 +4,11 @@
 
 ## Current Status
 PHASE: Phase 2 - Cloud-Hosted MCP Server
-STORY: US-005 - Implement MCP protocol over SSE
+STORY: US-006 - Implement rate limiting middleware
 
 ## Project Stats
 Phase 2 Stories: 17
-Completed: 5
+Completed: 6
 Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 
 ## Phase 1 Completed
@@ -26,7 +26,7 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 - [x] US-002: Implement health check endpoint
 - [x] US-003: Implement authentication middleware
 - [x] US-004: Implement SSE endpoint base
-- [ ] US-005: Implement MCP protocol over SSE
+- [x] US-005: Implement MCP protocol over SSE
 - [ ] US-006: Implement rate limiting middleware
 - [ ] US-007: Implement input validation
 - [x] US-008: Add structured logging
@@ -64,3 +64,10 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
   - Connection tracking, broadcast to user, graceful close
   - Structured JSON logging with sensitive data masking
   - 21 tests passing
+[2026-01-30] US-005 complete - MCP protocol over SSE
+  - All 5 MCP tools: ask_question, get_response, update_status, pin_task, resume_task
+  - POST /v1/messages endpoint for tool calls with JSON-RPC 2.0 format
+  - Zod validation for all tool inputs
+  - MCP error codes for proper error handling
+  - Tool responses broadcast to SSE connections
+  - 39 tests passing
