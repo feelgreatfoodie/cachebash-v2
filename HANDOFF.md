@@ -25,13 +25,16 @@
 - [x] Haptic feedback system across all interactive elements
 - [x] Pull-to-refresh on Questions and Projects screens
 - [x] End-to-end encryption (AES-256-CBC with PBKDF2 key derivation)
+  - Questions: encrypted on send, decrypted on display
+  - Responses: encrypted on submit, decrypted by MCP server
+  - Tasks: title & instructions encrypted (tested & verified)
 - [x] Gmail-style session management (Active/Inactive/Archived)
 - [x] Session detail screen with interrupt messaging
 - [x] Task queue system (App → Claude communication)
 - [x] Git history cleanup (author: feelgreatfoodie)
+- [x] E2E encryption tested and verified working
 
 #### In Progress / Next
-- [ ] Test task queue workflow end-to-end (restart Claude to get new MCP tools)
 - [ ] Answer streaks system
 - [ ] Staggered list animations
 - [ ] Shimmer loading states
@@ -176,11 +179,11 @@ cd app && flutter run -d "iPhone"
 ## Recent Commits
 
 ```
+f286cd1 Add Firestore indexes for tasks collection
+8fe4007 Add E2E encryption for tasks
+4eb5867 Fix E2E encryption by using correct storage key
+c3744a1 Update HANDOFF.md with Phase 3 status and new features
 cb6a179 Update documentation for Phase 3 features
-5d1fd03 Add Gmail-style session management and task queue feature
-c02c1bd Add Active Sessions interactivity and interrupt messaging
-370fd08 Add end-to-end encryption for questions and responses
-4ee4341 [Phase 3] Add premium UX enhancements
 ```
 
 ---
