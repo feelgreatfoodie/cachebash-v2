@@ -3,12 +3,12 @@
 # Started: 2026-01-23
 
 ## Current Status
-PHASE: Phase 2 - Cloud-Hosted MCP Server
-STORY: US-013 - Deploy to Cloud Run (waiting for approval)
+PHASE: Phase 2 - Cloud-Hosted MCP Server - COMPLETE!
+STORY: All 17 stories complete
 
 ## Project Stats
 Phase 2 Stories: 17
-Completed: 16
+Completed: 17
 Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 
 ## Phase 1 Completed
@@ -36,9 +36,9 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 - [x] US-010: Update Flutter app API key screen
 - [x] US-011: Add Test Connection button to app
 
-### Epic 3: Testing & Deployment (US-012 to US-013)
+### Epic 3: Testing & Deployment (US-012 to US-013) - COMPLETE!
 - [x] US-012: Write unit tests for Cloud Run
-- [ ] US-013: Deploy to Cloud Run
+- [x] US-013: Deploy to Cloud Run
 
 ### Epic 4: Projects Feature (US-014 to US-017) - COMPLETE!
 - [x] US-014: Add Projects feature to organize questions
@@ -121,3 +121,12 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
   - Toggle default on/off with menu action
   - Snackbar confirmation when setting default
   - Epic 4 (Projects Feature) COMPLETE!
+[2026-01-30] US-013 complete - Deploy to Cloud Run
+  - Created new GCP project: cache-bash-app
+  - Enabled Cloud Build, Cloud Run, Container Registry APIs
+  - Built and pushed Docker image via Cloud Build
+  - Deployed to Cloud Run us-central1 region
+  - Service URL: https://cachebash-mcp-94772408270.us-central1.run.app
+  - Health endpoint verified: {"status":"ok","version":"1.0.0"}
+  - Updated Flutter app with production Cloud Run URL
+  - PHASE 2 COMPLETE! All 17 stories done!

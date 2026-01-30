@@ -166,7 +166,7 @@
         "Logs visible in Cloud Console"
       ],
       "priority": 4,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-014",
@@ -228,6 +228,6 @@
   "metadata": {
     "createdAt": "2026-01-29T00:00:00Z",
     "totalStories": 17,
-    "completedStories": 16
+    "completedStories": 17
   }
 }

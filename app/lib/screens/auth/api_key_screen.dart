@@ -9,7 +9,7 @@ import 'package:http/http.dart' as http;
 
 import '../../providers/auth_provider.dart';
 
-const String cloudMcpBaseUrl = 'https://mcp.cachebash.app';
+const String cloudMcpBaseUrl = 'https://cachebash-mcp-94772408270.us-central1.run.app';
 
 class ApiKeyScreen extends ConsumerStatefulWidget {
   const ApiKeyScreen({super.key});
