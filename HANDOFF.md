@@ -1,185 +1,194 @@
 # CacheBash Session Handoff
 
-**Last Updated:** 2026-01-29
-**Status:** Phase 1 Complete - TestFlight submission in progress
+**Last Updated:** 2026-01-30
+**Status:** Phase 3 - Premium UX Enhancements - IN PROGRESS
+**Branch:** `ralph/phase3-ux-enhancements`
 
 ---
 
 ## Current Status
 
-### Phase 1: TestFlight Deployment - COMPLETE
+### Phase 1: MVP - COMPLETE
+- Local MCP server, Firebase backend, Flutter app
+- Push notifications working
+- TestFlight deployed
 
-All code changes for TestFlight are done and pushed to GitHub.
+### Phase 2: Cloud-Hosted MCP Server - COMPLETE
+- Cloud Run deployment at `https://cachebash-mcp-94772408270.us-central1.run.app`
+- SSE transport with Bearer token auth
+- All 17 stories complete
+- Projects feature with archive/delete
+
+### Phase 3: Premium UX Enhancements - IN PROGRESS
 
 #### Completed
-- [x] APS environment changed to `production` in `Runner.entitlements`
-- [x] Firebase Crashlytics integrated for crash reporting
-- [x] Custom app icons generated from design (iOS + Android, all sizes)
-- [x] Theme system created with dark/light mode (`app/lib/theme/`)
-- [x] Color palette applied (cyan/purple/violet gradient theme)
-- [x] IPA built and uploaded to App Store Connect
-- [x] Export compliance answered (no custom encryption)
+- [x] Haptic feedback system across all interactive elements
+- [x] Pull-to-refresh on Questions and Projects screens
+- [x] End-to-end encryption (AES-256-CBC with PBKDF2 key derivation)
+- [x] Gmail-style session management (Active/Inactive/Archived)
+- [x] Session detail screen with interrupt messaging
+- [x] Task queue system (App → Claude communication)
+- [x] Git history cleanup (author: feelgreatfoodie)
 
-#### Pending (Manual Steps)
-- [ ] Wait for App Store Connect build processing (~10-30 min)
-- [ ] Add tester to TestFlight internal testing
-- [ ] Download app via TestFlight on iPhone
-- [ ] Test push notifications end-to-end (see `TEST_PUSH_NOTIFICATIONS.md`)
-
-#### Known Issue - GoogleService-Info.plist
-Current plist has bundle ID `com.example.cachebash` instead of `com.cachebash.app`. Should be fixed:
-1. Firebase Console → Project Settings → iOS app
-2. Verify bundle ID is `com.cachebash.app`
-3. Download fresh plist → replace `app/ios/Runner/GoogleService-Info.plist`
+#### In Progress / Next
+- [ ] Test task queue workflow end-to-end (restart Claude to get new MCP tools)
+- [ ] Answer streaks system
+- [ ] Staggered list animations
+- [ ] Shimmer loading states
 
 ---
 
-## Phase 2: Cloud-Hosted MCP Server (Next)
+## New Features This Session
 
-### Goal
-Enable zero-friction adoption: users copy one config snippet, no local installation.
+### Gmail-Style Session Management
+Sessions now have intelligent state management:
+- **Active** - Working/blocked sessions updated in last 30 minutes
+- **Inactive** - Stale sessions (30+ min without update) shown separately
+- **Archived** - User-archived sessions, viewable/restorable
 
-### Target User Experience
-```json
-{
-  "mcpServers": {
-    "cachebash": {
-      "type": "sse",
-      "url": "https://mcp.cachebash.app/v1/sse",
-      "headers": {
-        "Authorization": "Bearer YOUR_API_KEY"
-      }
-    }
-  }
-}
-```
+**Gestures:**
+- Swipe left → Archive session
+- Swipe right on archived → Restore
+- "Archive All" button for batch archiving inactive sessions
 
-### Architecture
-```
-┌─────────────────┐     HTTPS/SSE      ┌─────────────────┐
-│   Claude Code   │◄──────────────────►│  Cloud Run      │
-│   (Any User)    │                    │  (SSE Server)   │
-└─────────────────┘                    └────────┬────────┘
-                                                │
-                                                ▼
-                                       ┌─────────────────┐
-                                       │    Firestore    │
-                                       └────────┬────────┘
-                                                │ (triggers)
-                                                ▼
-                                       ┌─────────────────┐
-                                       │ Cloud Functions │
-                                       └────────┬────────┘
-                                                │
-                                                ▼
-                                       ┌─────────────────┐
-                                       │   Mobile App    │
-                                       └─────────────────┘
-```
+### Task Queue (Bidirectional Communication)
+Users can now create tasks from the app for Claude to work on:
 
-### Implementation Tasks
+**App Side:**
+- Create tasks with title, markdown instructions, priority
+- View tasks by status (pending/in-progress/complete)
+- Cancel or delete tasks
 
-#### 2.1 Cloud MCP Server (Cloud Run)
-- [ ] Create `cloud-run/` directory structure
-- [ ] Create Dockerfile for MCP SSE server
-- [ ] Implement MCP protocol over HTTP/SSE transport
-- [ ] Add `/v1/sse` endpoint with auto-reconnection
-- [ ] Add `/v1/health` endpoint
-- [ ] Add authentication middleware
-- [ ] Add rate limiting middleware
-- [ ] Add input validation
-- [ ] Add structured logging
-- [ ] Deploy to Cloud Run
-- [ ] Set up custom domain `mcp.cachebash.app`
+**MCP Tools (Claude Side):**
+- `get_pending_tasks` - Check for work waiting
+- `claim_task` - Start working on a task
+- `complete_task` - Mark task done
 
-#### 2.2 App Updates
-- [ ] Update API key screen with cloud MCP config snippet
-- [ ] Add "Test Connection" button
-- [ ] Add "Copy full config" button
-- [ ] Add connection status indicator
+**Workflow:**
+1. User creates task in app → Firestore (status: pending)
+2. Claude calls `get_pending_tasks` → sees waiting tasks
+3. Claude calls `claim_task` → status: in_progress
+4. Claude works on it
+5. Claude calls `complete_task` → status: complete
 
-#### 2.3 Documentation
-- [ ] Setup guide with screenshots
-- [ ] Video walkthrough
-- [ ] Troubleshooting FAQ
-- [ ] Privacy policy
-
-### Files to Create
-```
-cloud-run/
-├── Dockerfile
-├── package.json
-├── tsconfig.json
-└── src/
-    ├── server.ts
-    ├── mcp/protocol.ts
-    ├── middleware/
-    │   ├── auth.ts
-    │   ├── rateLimit.ts
-    │   └── validate.ts
-    └── routes/
-        ├── sse.ts
-        └── health.ts
-```
-
-### Security Requirements
-- Rate limits per API key:
-  - SSE connections: 2 concurrent max
-  - ask_question: 100/hour
-  - get_response: 500/hour
-  - update_status: 200/hour
-- Input validation limits:
-  - Question: 2000 chars, Context: 500 chars, Status: 200 chars
-  - Options: max 5, 100 chars each
-- Request timestamps with 5-minute validity
-- Questions auto-expire after 48 hours
-
-### SSE Reconnection
-- Buffer messages 5 min max per connection
-- Event IDs for resumption
-- Exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s max
-- Graceful shutdown: send `server-restarting` event
-
----
-
-## Priority Matrix
-
-| Task | Priority | Reason |
-|------|----------|--------|
-| Fix GoogleService-Info.plist | High | Ensures FCM works |
-| Test push notifications | High | Validate E2E flow |
-| Custom domain | High | Trust factor |
-| Cloud Run SSE server | High | Core Phase 2 |
-| Rate limiting | High | Security |
-| Documentation | High | Adoption |
-
----
-
-## Reference
-
-### Configuration
-- **Bundle ID:** `com.cachebash.app`
-- **Team ID:** `FKFQ6KS8ZA`
-- **Firebase Project:** `cachebash-app`
-- **Version:** `1.0.0+1`
-
-### Key Files
-- `app/lib/theme/` - Theme system
-- `app/lib/screens/auth/api_key_screen.dart` - Needs Phase 2 update
-- `mcp-server/` - Local MCP (to be replaced by Cloud Run)
-- `TEST_PUSH_NOTIFICATIONS.md` - E2E test procedure
-
-### Recent Commits
-```
-ff48b5e Add push notification test docs and improve FCM error logging
-48e4738 Prepare for TestFlight deployment
-dba2696 Implement CacheBash MVP - Full stack working
-```
+### Session Interrupts
+Users can send messages to active Claude sessions:
+- Message input on session detail screen
+- Messages stored in `/sessions/{id}/interrupts`
+- Claude checks with `get_interrupts` MCP tool
 
 ---
 
 ## Quick Start for New Session
 
-1. **Check TestFlight status** - App Store Connect → TestFlight tab
-2. **Test push notifications** - Follow `TEST_PUSH_NOTIFICATIONS.md`
-3. **Start Phase 2** - Create `cloud-run/` directory, begin with Dockerfile
+### 1. Check for Pending Tasks
+When starting a new Claude Code session with CacheBash MCP:
+```
+Use the get_pending_tasks tool to check if there's work waiting.
+```
+
+### 2. Resume from Context
+Read these files:
+- `CLAUDE.md` - Project overview, MCP tools, Firestore schema
+- `ralph/progress.txt` - Detailed session log
+- This file (`HANDOFF.md`) - Current status
+
+### 3. Current Working Directory
+```
+/Users/christianbourlier/1P projects/cachebash
+```
+
+### 4. Run the App
+```bash
+cd app && flutter run -d "iPhone"
+```
+
+### 5. Test Account
+- **Email:** `cachebashapp+test@gmail.com`
+- **Password:** `cachebashtest`
+
+---
+
+## Architecture
+
+```
+┌─────────────────┐                    ┌─────────────────┐
+│   Claude Code   │◄───── MCP ────────►│  MCP Server     │
+│   (Desktop)     │    (stdio/SSE)     │  (Local/Cloud)  │
+└─────────────────┘                    └────────┬────────┘
+                                                │
+                                                ▼
+                                       ┌─────────────────┐
+                                       │    Firestore    │
+                                       │                 │
+                                       │  - questions    │
+                                       │  - sessions     │
+                                       │  - tasks        │◄── NEW
+                                       │  - interrupts   │◄── NEW
+                                       │  - projects     │
+                                       └────────┬────────┘
+                                                │
+                                                ▼
+                                       ┌─────────────────┐
+                                       │  CacheBash App  │
+                                       │    (Flutter)    │
+                                       └─────────────────┘
+```
+
+---
+
+## MCP Tools Reference
+
+| Tool | Direction | Description |
+|------|-----------|-------------|
+| `ask_question` | Claude → User | Send question to mobile |
+| `get_response` | Claude ← User | Check for answer |
+| `update_status` | Claude → User | Update progress in app |
+| `pin_task` | Claude | Save context for later |
+| `resume_task` | Claude | Resume saved context |
+| `get_interrupts` | Claude ← User | Check for messages from app |
+| `get_pending_tasks` | Claude ← User | Check for tasks to work on |
+| `claim_task` | Claude | Start working on a task |
+| `complete_task` | Claude | Mark task as done |
+
+---
+
+## Key Files
+
+### App
+- `app/lib/screens/tasks/` - Task queue UI
+- `app/lib/screens/sessions/` - Session management
+- `app/lib/providers/tasks_provider.dart` - Task state
+- `app/lib/providers/sessions_provider.dart` - Session state with archive
+- `app/lib/services/encryption_service.dart` - E2E encryption
+
+### MCP Server
+- `mcp-server/src/tools/getTasks.ts` - Task queue tools
+- `mcp-server/src/tools/getInterrupts.ts` - Interrupt checking
+- `mcp-server/src/encryption/crypto.ts` - Encryption matching Flutter
+
+### Config
+- `firebase/firestore.rules` - Security rules (includes tasks, interrupts)
+- `firebase/firestore.indexes.json` - Query indexes
+
+---
+
+## Recent Commits
+
+```
+cb6a179 Update documentation for Phase 3 features
+5d1fd03 Add Gmail-style session management and task queue feature
+c02c1bd Add Active Sessions interactivity and interrupt messaging
+370fd08 Add end-to-end encryption for questions and responses
+4ee4341 [Phase 3] Add premium UX enhancements
+```
+
+---
+
+## Configuration
+
+- **Bundle ID:** `com.cachebash.app`
+- **Firebase Project:** `cachebash-app`
+- **Cloud Run:** `cache-bash-app` (GCP project)
+- **GitHub:** `feelgreatfoodie/cachebash`
+- **Git Author:** `feelgreatfoodie <chrisbourlier@hotmail.com>`
