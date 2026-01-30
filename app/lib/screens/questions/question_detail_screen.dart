@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/questions_provider.dart';
+import '../../services/haptic_service.dart';
 
 class QuestionDetailScreen extends ConsumerStatefulWidget {
   final String questionId;
@@ -48,6 +49,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
           );
 
       if (mounted) {
+        HapticService.success();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Response sent!')),
         );
@@ -55,6 +57,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
+        HapticService.error();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
         );
@@ -240,6 +243,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
                             label: Text(option),
                             selected: _selectedOption == option,
                             onSelected: (selected) {
+                              HapticService.selection();
                               setState(() {
                                 _selectedOption = selected ? option : null;
                               });
@@ -280,7 +284,12 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
 
                   // Submit button
                   FilledButton(
-                    onPressed: _isSubmitting ? null : _submitResponse,
+                    onPressed: _isSubmitting
+                        ? null
+                        : () {
+                            HapticService.medium();
+                            _submitResponse();
+                          },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: _isSubmitting

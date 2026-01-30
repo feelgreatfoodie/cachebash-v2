@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../providers/auth_provider.dart';
+import '../../services/haptic_service.dart';
 
 void _log(String message) {
   debugPrint('[SettingsScreen] $message');
@@ -65,14 +66,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             leading: const Icon(Icons.lock_outline),
             title: const Text('Change Password'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.go('/settings/change-password'),
+            onTap: () {
+              HapticService.light();
+              context.go('/settings/change-password');
+            },
           ),
           ListTile(
             leading: const Icon(Icons.key),
             title: const Text('API Key'),
             subtitle: const Text('Manage your MCP API key'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.go('/api-key'),
+            onTap: () {
+              HapticService.light();
+              context.go('/api-key');
+            },
           ),
 
           const Divider(height: 32),
@@ -84,7 +91,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             title: const Text('Notifications'),
             subtitle: const Text('Push notification settings'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.go('/settings/notifications'),
+            onTap: () {
+              HapticService.light();
+              context.go('/settings/notifications');
+            },
           ),
 
           const Divider(height: 32),
@@ -98,7 +108,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               style: TextStyle(color: theme.colorScheme.error),
             ),
             subtitle: const Text('Permanently delete your account'),
-            onTap: () => context.go('/settings/delete-account'),
+            onTap: () {
+              HapticService.light();
+              context.go('/settings/delete-account');
+            },
           ),
 
           const Divider(height: 32),
@@ -109,13 +122,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             leading: const Icon(Icons.help_outline),
             title: const Text('Help & FAQ'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => _showHelpDialog(context),
+            onTap: () {
+              HapticService.light();
+              _showHelpDialog(context);
+            },
           ),
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('About'),
             subtitle: Text('Version $_appVersion'),
-            onTap: () => _showAboutDialog(context),
+            onTap: () {
+              HapticService.light();
+              _showAboutDialog(context);
+            },
           ),
 
           const Divider(height: 32),
@@ -124,7 +143,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: OutlinedButton.icon(
-              onPressed: () => _signOut(context),
+              onPressed: () {
+                HapticService.medium();
+                _signOut(context);
+              },
               icon: const Icon(Icons.logout),
               label: const Text('Sign Out'),
               style: OutlinedButton.styleFrom(
@@ -176,7 +198,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       subtitle: Text(email),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () => context.go('/settings/profile'),
+      onTap: () {
+        HapticService.light();
+        context.go('/settings/profile');
+      },
     );
   }
 

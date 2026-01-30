@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../providers/auth_provider.dart';
+import '../../services/haptic_service.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -33,7 +34,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
 
     if (success && mounted) {
+      HapticService.success();
       context.go('/home');
+    } else if (!success && mounted) {
+      HapticService.error();
     }
   }
 
@@ -151,7 +155,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   // Login button
                   FilledButton(
-                    onPressed: isLoading ? null : _handleLogin,
+                    onPressed: isLoading
+                        ? null
+                        : () {
+                            HapticService.medium();
+                            _handleLogin();
+                          },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: isLoading
@@ -167,7 +176,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   // Register link
                   TextButton(
-                    onPressed: () => context.go('/register'),
+                    onPressed: () {
+                      HapticService.light();
+                      context.go('/register');
+                    },
                     child: const Text("Don't have an account? Sign Up"),
                   ),
                 ],

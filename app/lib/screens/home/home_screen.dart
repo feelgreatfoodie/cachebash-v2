@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/questions_provider.dart';
 import '../../providers/sessions_provider.dart';
+import '../../services/haptic_service.dart';
 import '../../widgets/question_card.dart';
 import '../../widgets/session_card.dart';
 
@@ -27,7 +28,10 @@ class HomeScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () => context.go('/settings'),
+            onPressed: () {
+              HapticService.light();
+              context.go('/settings');
+            },
             tooltip: 'Settings',
           ),
         ],
@@ -282,7 +286,10 @@ class HomeScreen extends ConsumerWidget {
   ) {
     return Card(
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          HapticService.light();
+          onTap();
+        },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),

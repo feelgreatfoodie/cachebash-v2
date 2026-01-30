@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/project_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/projects_provider.dart';
+import '../../services/haptic_service.dart';
 
 void _log(String message) {
   debugPrint('[ProjectsScreen] $message');
@@ -27,91 +28,127 @@ class ProjectsScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => _showCreateProjectDialog(context, ref),
+            onPressed: () {
+              HapticService.light();
+              _showCreateProjectDialog(context, ref);
+            },
             tooltip: 'Create Project',
           ),
         ],
       ),
-      body: projectsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) {
-          _log('ERROR loading projects: $error');
-          _log('STACK: $stack');
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                  const SizedBox(height: 16),
-                  const Text('Error loading projects', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Text(
-                    error.toString().length > 300 ? '${error.toString().substring(0, 300)}...' : error.toString(),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          );
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(projectsWithCountsProvider);
         },
-        data: (projects) {
-          if (projects.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.folder_outlined,
-                    size: 64,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No projects yet',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Create a project to organize your questions',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        child: projectsAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, stack) {
+            _log('ERROR loading projects: $error');
+            _log('STACK: $stack');
+            return SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height - 150,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                        const SizedBox(height: 16),
+                        const Text('Error loading projects', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        Text(
+                          error.toString().length > 300 ? '${error.toString().substring(0, 300)}...' : error.toString(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12),
                         ),
+                        const SizedBox(height: 16),
+                        const Text('Pull down to retry', style: TextStyle(color: Colors.grey)),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: () => _showCreateProjectDialog(context, ref),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Create Project'),
-                  ),
-                ],
+                ),
               ),
             );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: projects.length,
-            itemBuilder: (context, index) {
-              final project = projects[index];
-              return _ProjectListTile(
-                project: project,
-                onTap: () => context.go('/projects/${project.id}'),
-                onRename: project.isUncategorized
-                    ? null
-                    : () => _showRenameProjectDialog(context, ref, project),
-                onSetDefault: project.isUncategorized
-                    ? null
-                    : () => _setDefaultProject(context, ref, project),
-                onDelete: project.isUncategorized
-                    ? null
-                    : () => _showDeleteProjectDialog(context, ref, project),
+          },
+          data: (projects) {
+            if (projects.isEmpty) {
+              return SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height - 150,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.folder_outlined,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No projects yet',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Create a project to organize your questions',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                        const SizedBox(height: 24),
+                        FilledButton.icon(
+                          onPressed: () {
+                            HapticService.medium();
+                            _showCreateProjectDialog(context, ref);
+                          },
+                          icon: const Icon(Icons.add),
+                          label: const Text('Create Project'),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Pull down to refresh',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               );
-            },
-          );
-        },
+            }
+
+            return ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: projects.length,
+              itemBuilder: (context, index) {
+                final project = projects[index];
+                return _ProjectListTile(
+                  project: project,
+                  onTap: () {
+                    HapticService.light();
+                    context.go('/projects/${project.id}');
+                  },
+                  onRename: project.isUncategorized
+                      ? null
+                      : () => _showRenameProjectDialog(context, ref, project),
+                  onSetDefault: project.isUncategorized
+                      ? null
+                      : () => _setDefaultProject(context, ref, project),
+                  onDelete: project.isUncategorized
+                      ? null
+                      : () => _showDeleteProjectDialog(context, ref, project),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

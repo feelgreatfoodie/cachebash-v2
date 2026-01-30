@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/question_model.dart';
+import '../services/haptic_service.dart';
 
 class QuestionCard extends StatelessWidget {
   final QuestionModel question;
@@ -17,7 +18,10 @@ class QuestionCard extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          HapticService.light();
+          onTap?.call();
+        },
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
