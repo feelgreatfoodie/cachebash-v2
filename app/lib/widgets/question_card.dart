@@ -6,23 +6,18 @@ import '../services/haptic_service.dart';
 class QuestionCard extends StatelessWidget {
   final QuestionModel question;
   final VoidCallback? onTap;
+  final bool handleTap; // If false, parent handles tap (e.g., SelectableCard)
 
   const QuestionCard({
     super.key,
     required this.question,
     this.onTap,
+    this.handleTap = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          HapticService.light();
-          onTap?.call();
-        },
-        child: Padding(
+    final content = Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -140,8 +135,19 @@ class QuestionCard extends StatelessWidget {
               ],
             ],
           ),
-        ),
-      ),
+        );
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: handleTap
+          ? InkWell(
+              onTap: () {
+                HapticService.light();
+                onTap?.call();
+              },
+              child: content,
+            )
+          : content,
     );
   }
 

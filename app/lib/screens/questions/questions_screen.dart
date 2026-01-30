@@ -307,7 +307,7 @@ class QuestionsScreen extends ConsumerWidget {
                               },
                               child: QuestionCard(
                                 question: question,
-                                onTap: () {}, // Handled by SelectableCard
+                                handleTap: false, // SelectableCard handles tap
                               ),
                             ),
                           ),

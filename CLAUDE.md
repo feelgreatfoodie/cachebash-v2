@@ -46,6 +46,166 @@ Tasks have an `action` field that controls how/when Claude should handle them:
 
 ---
 
+## AFK Mode Protocol
+
+When the user says "I'm going AFK" (or similar: "keep working", "brb", "going to lunch"), enter AFK mode for autonomous operation with mobile communication.
+
+### Entering AFK Mode
+
+1. **Acknowledge** - Confirm you'll continue working
+2. **Set status** - Keep under 50 chars for mobile display:
+   ```typescript
+   update_status({
+     status: "AFK: Implementing auth",  // Short!
+     state: "working"
+   })
+   ```
+3. **Summarize** - Tell user what you'll work on and what questions might arise
+
+### Decision Framework
+
+| Decide Autonomously | Ask via Mobile |
+|---------------------|----------------|
+| Following existing codebase patterns | Multiple valid approaches with tradeoffs |
+| Clear bug fixes | Unclear or ambiguous requirements |
+| Well-specified features | Changes to user-facing behavior |
+| Reversible changes | Adding new dependencies |
+| Previously approved approaches | Anything that feels "risky" |
+
+**Rule of thumb:** If you'd normally ask the user, send it to mobile. Don't over-think.
+
+### Question Priority Guide
+
+| Priority | Use When | Example |
+|----------|----------|---------|
+| `high` | Work is **blocked**, cannot continue | "REST or GraphQL for the API?" |
+| `normal` | Need answer soon, can do other work | "Include rate limiting?" |
+| `low` | Nice-to-have, will use reasonable default | "Prefer tabs or spaces?" |
+
+**Always include context:**
+```typescript
+ask_question({
+  question: "Should auth use JWT or sessions?",
+  options: ["JWT (stateless)", "Sessions (simpler)", "Need more info"],
+  priority: "high",
+  context: "Building auth system. JWT better for mobile, sessions simpler. Blocks API work."
+})
+```
+
+**Multiple questions:** If 2+ questions arise close together, send them separately but mention "I have 2 questions" in the context. Don't batch into awkward multi-option formats.
+
+### Polling Schedule
+
+**Escalating intervals for pending questions:**
+
+| Time Since Question | Poll Interval |
+|---------------------|---------------|
+| 0-2 min | Every 30 seconds |
+| 2-10 min | Every 1 minute |
+| 10+ min | Every 2 minutes |
+
+**Also check at natural work breakpoints:**
+- After completing a file
+- After running tests (pass or fail)
+- After a commit
+- Before starting work that depends on a pending answer
+
+### While Waiting
+
+- **Continue polling indefinitely** at the scheduled intervals (30s → 1min → 2min)
+- If parallel work exists, do it while polling
+- After 30 min with no response, send ONE status reminder: "Still need: [question]"
+- **Don't spam.** One reminder max. Never stop polling unless user returns or explicitly cancels.
+
+### Error Handling in AFK Mode
+
+If build fails, tests fail, or critical error occurs:
+
+1. **Immediately notify** with high priority:
+   ```typescript
+   ask_question({
+     question: "Build failed: [brief error]. Debug or wait?",
+     options: ["Keep debugging", "Wait for me", "Show full error"],
+     priority: "high",
+     context: "[First 200 chars of error message]"
+   })
+   ```
+2. If "Keep debugging" → attempt fix, **max 3 attempts**
+3. If still failing → pin task with full error log in context
+
+### When to Pin Task
+
+Only pin when:
+- User explicitly says to pause/stop ("stop working", "I'll get back to you tomorrow")
+- Session is ending (user closing terminal)
+- Switching to a different major task
+
+**Never pin just because a question is unanswered.** Keep polling indefinitely.
+
+When pinning, use this template:
+
+```typescript
+pin_task({
+  taskId: "session_id",
+  questionId: "q123",
+  context: `## Current State
+- Branch: feature/auth
+- Last commit: abc123 - "Add user model"
+- Working on: Authentication system
+
+## Completed This Session
+- [x] User model
+- [x] Routes setup
+- [ ] Auth middleware (blocked)
+
+## Blocked On
+JWT vs sessions decision - question q123
+
+## To Resume
+1. Get response to question
+2. Implement chosen auth approach
+3. Add middleware to protected routes
+
+## Files Modified (uncommitted)
+- src/models/user.ts
+- src/routes/auth.ts`
+})
+
+update_status({ status: "Pinned: waiting for auth", state: "pinned" })
+```
+
+### Handling Interrupts
+
+Check `get_interrupts` for messages from the mobile app:
+- **"I'm back" / "back" / "here"** → Exit AFK mode, provide summary
+- **"Stop" / "Wait" / "Hold on"** → Pause current action, acknowledge
+- **Course correction** → Adjust approach, acknowledge
+- **Additional info** → Integrate and continue
+
+### Detecting User Return
+
+**Exit AFK mode when:**
+- User types anything in Claude Code terminal
+- User sends "I'm back" / "back" / "here" via interrupt
+- User answers with "Let's discuss" or asks follow-up questions
+
+**Do NOT exit AFK mode for:**
+- Simple yes/no answers to questions (user may still be AFK, just checking phone)
+- Selecting an option without additional commentary
+
+### Exiting AFK Mode
+
+When user returns:
+
+1. Update status to `working`
+2. Provide concise summary:
+   - Work completed
+   - Decisions made autonomously (and why)
+   - Questions asked/answered
+   - Current state and next steps
+
+---
+
 ## Asking Questions via Mobile
 
 When you need clarification from the user and they may not be at their computer, use the `ask_question` MCP tool to send the question to their mobile device. This is especially useful for:

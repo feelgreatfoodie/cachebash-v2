@@ -89,7 +89,8 @@ class TasksService {
         _encryptionService = encryptionService ?? EncryptionService();
 
   /// Create a new task for Claude Code to pick up
-  /// Task title, instructions, and action are encrypted by default
+  /// Task encryption temporarily disabled due to key derivation mismatch
+  /// TODO: Fix PBKDF2 implementation difference between Dart and Node.js
   Future<String> createTask({
     required String userId,
     required String title,
@@ -97,7 +98,7 @@ class TasksService {
     String? projectId,
     String priority = 'normal',
     TaskAction action = TaskAction.queue,
-    bool encrypt = true,
+    bool encrypt = false, // Disabled until key derivation is fixed
   }) async {
     _log('Creating task: $title (action: ${action.value})');
 
