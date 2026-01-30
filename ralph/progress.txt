@@ -4,11 +4,11 @@
 
 ## Current Status
 PHASE: Phase 2 - Cloud-Hosted MCP Server
-STORY: US-009 - Implement graceful shutdown
+STORY: US-012 - Write unit tests for Cloud Run (Epic 1 Complete!)
 
 ## Project Stats
 Phase 2 Stories: 17
-Completed: 8
+Completed: 9
 Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 
 ## Phase 1 Completed
@@ -21,7 +21,7 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 
 ## Phase 2 Progress
 
-### Epic 1: Cloud Run MCP Server (US-001 to US-009)
+### Epic 1: Cloud Run MCP Server (US-001 to US-009) - COMPLETE!
 - [x] US-001: Initialize Cloud Run project structure
 - [x] US-002: Implement health check endpoint
 - [x] US-003: Implement authentication middleware
@@ -30,7 +30,7 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 - [x] US-006: Implement rate limiting middleware
 - [x] US-007: Implement input validation
 - [x] US-008: Add structured logging
-- [ ] US-009: Implement graceful shutdown
+- [x] US-009: Implement graceful shutdown
 
 ### Epic 2: Flutter App Updates (US-010 to US-011)
 - [ ] US-010: Update Flutter app API key screen
@@ -77,3 +77,9 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
   - Input sanitization: strips control chars, normalizes Unicode
   - Zod schemas with max lengths: question 2000, context 500, status 200
   - 83 tests passing
+[2026-01-30] US-009 complete - Graceful shutdown
+  - SIGTERM/SIGINT handlers with 5s grace period
+  - Notifies all SSE clients with server-restarting event
+  - Uncaught exception and unhandled rejection handlers
+  - Force exit timeout if server.close() hangs
+  - Epic 1 (Cloud Run MCP Server) COMPLETE!

@@ -115,7 +115,7 @@
         "No dropped messages during shutdown"
       ],
       "priority": 3,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-010",
@@ -228,6 +228,6 @@
   "metadata": {
     "createdAt": "2026-01-29T00:00:00Z",
     "totalStories": 17,
-    "completedStories": 8
+    "completedStories": 9
   }
 }
