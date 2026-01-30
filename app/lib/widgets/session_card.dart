@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
 
 import '../models/session_model.dart';
+import '../services/haptic_service.dart';
 
 class SessionCard extends StatelessWidget {
   final SessionModel session;
   final VoidCallback? onTap;
+  final VoidCallback? onArchive;
+  final VoidCallback? onUnarchive;
+  final bool showSwipeHint;
 
   const SessionCard({
     super.key,
     required this.session,
     this.onTap,
+    this.onArchive,
+    this.onUnarchive,
+    this.showSwipeHint = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    final card = Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -36,6 +43,25 @@ class SessionCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (session.isStale && !session.isArchived)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withAlpha(51),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Inactive',
+                        style: TextStyle(
+                          color: Colors.orange.shade700,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
                 ],
               ),
 
@@ -69,24 +95,120 @@ class SessionCard extends StatelessWidget {
 
               // Last update
               const SizedBox(height: 8),
-              Text(
-                'Updated ${_formatTime(session.lastUpdate)}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Updated ${_formatTime(session.lastUpdate)}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                     ),
+                  ),
+                  if (showSwipeHint)
+                    Text(
+                      '← swipe to archive',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontStyle: FontStyle.italic,
+                          ),
+                    ),
+                ],
               ),
             ],
           ),
         ),
       ),
     );
+
+    // Wrap in Dismissible if archive handler provided
+    if (onArchive != null && !session.isArchived) {
+      return Dismissible(
+        key: Key('session_${session.id}'),
+        direction: DismissDirection.endToStart,
+        confirmDismiss: (direction) async {
+          HapticService.medium();
+          return true;
+        },
+        onDismissed: (direction) {
+          onArchive?.call();
+        },
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade600,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Icon(Icons.archive, color: Colors.white),
+              SizedBox(width: 8),
+              Text(
+                'Archive',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        child: card,
+      );
+    }
+
+    // For archived sessions, swipe to unarchive
+    if (onUnarchive != null && session.isArchived) {
+      return Dismissible(
+        key: Key('session_${session.id}'),
+        direction: DismissDirection.startToEnd,
+        confirmDismiss: (direction) async {
+          HapticService.medium();
+          return true;
+        },
+        onDismissed: (direction) {
+          onUnarchive?.call();
+        },
+        background: Container(
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.only(left: 20),
+          decoration: BoxDecoration(
+            color: Colors.green.shade600,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              Icon(Icons.unarchive, color: Colors.white),
+              SizedBox(width: 8),
+              Text(
+                'Restore',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        child: card,
+      );
+    }
+
+    return card;
   }
 
   Widget _buildStateIndicator(BuildContext context) {
     Color color;
     IconData icon;
 
-    switch (session.state) {
+    final displayState = session.displayState;
+
+    switch (displayState) {
       case 'working':
         color = Colors.green;
         icon = Icons.play_circle;
@@ -102,6 +224,14 @@ class SessionCard extends StatelessWidget {
       case 'complete':
         color = Colors.grey;
         icon = Icons.check_circle;
+        break;
+      case 'inactive':
+        color = Colors.orange.shade300;
+        icon = Icons.access_time;
+        break;
+      case 'archived':
+        color = Colors.grey.shade400;
+        icon = Icons.archive;
         break;
       default:
         color = Colors.grey;

@@ -11,7 +11,7 @@ void _log(String message) {
 
 final firestore = FirebaseFirestore.instance;
 
-/// Stream provider for active sessions
+/// Stream provider for active sessions (not stale, not archived)
 final activeSessionsProvider = StreamProvider<List<SessionModel>>((ref) {
   final user = ref.watch(currentUserProvider);
   if (user == null) {
@@ -20,15 +20,59 @@ final activeSessionsProvider = StreamProvider<List<SessionModel>>((ref) {
 
   return firestore
       .collection('users/${user.uid}/sessions')
-      .where('state', whereIn: ['working', 'blocked', 'pinned'])
+      .where('archived', isNotEqualTo: true)
+      .orderBy('archived')
       .orderBy('lastUpdate', descending: true)
-      .limit(10)
+      .limit(20)
+      .snapshots()
+      .map((snapshot) {
+    final sessions =
+        snapshot.docs.map((doc) => SessionModel.fromFirestore(doc)).toList();
+    // Filter to only active (not stale) sessions
+    return sessions.where((s) => s.isActive).toList();
+  });
+});
+
+/// Stream provider for inactive/stale sessions (stale but not archived)
+final inactiveSessionsProvider = StreamProvider<List<SessionModel>>((ref) {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) {
+    return Stream.value([]);
+  }
+
+  return firestore
+      .collection('users/${user.uid}/sessions')
+      .where('archived', isNotEqualTo: true)
+      .orderBy('archived')
+      .orderBy('lastUpdate', descending: true)
+      .limit(50)
+      .snapshots()
+      .map((snapshot) {
+    final sessions =
+        snapshot.docs.map((doc) => SessionModel.fromFirestore(doc)).toList();
+    // Filter to only stale sessions
+    return sessions.where((s) => s.isStale && !s.isComplete).toList();
+  });
+});
+
+/// Stream provider for archived sessions
+final archivedSessionsProvider = StreamProvider<List<SessionModel>>((ref) {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) {
+    return Stream.value([]);
+  }
+
+  return firestore
+      .collection('users/${user.uid}/sessions')
+      .where('archived', isEqualTo: true)
+      .orderBy('archivedAt', descending: true)
+      .limit(50)
       .snapshots()
       .map((snapshot) =>
           snapshot.docs.map((doc) => SessionModel.fromFirestore(doc)).toList());
 });
 
-/// Stream provider for all sessions
+/// Stream provider for all non-archived sessions (for sessions screen)
 final allSessionsProvider = StreamProvider<List<SessionModel>>((ref) {
   final user = ref.watch(currentUserProvider);
   if (user == null) {
@@ -38,7 +82,7 @@ final allSessionsProvider = StreamProvider<List<SessionModel>>((ref) {
   return firestore
       .collection('users/${user.uid}/sessions')
       .orderBy('lastUpdate', descending: true)
-      .limit(50)
+      .limit(100)
       .snapshots()
       .map((snapshot) =>
           snapshot.docs.map((doc) => SessionModel.fromFirestore(doc)).toList());
@@ -74,8 +118,6 @@ class SessionsService {
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
   /// Send an interrupt message to a session
-  /// This creates a document in the session's interrupts subcollection
-  /// which the MCP server will pick up
   Future<void> sendInterrupt({
     required String userId,
     required String sessionId,
@@ -94,6 +136,95 @@ class SessionsService {
     });
 
     _log('Interrupt sent with ID ${interruptRef.id}');
+  }
+
+  /// Archive a session
+  Future<void> archiveSession({
+    required String userId,
+    required String sessionId,
+  }) async {
+    _log('Archiving session $sessionId');
+
+    await _firestore.doc('users/$userId/sessions/$sessionId').update({
+      'archived': true,
+      'archivedAt': FieldValue.serverTimestamp(),
+    });
+
+    _log('Session $sessionId archived');
+  }
+
+  /// Unarchive a session
+  Future<void> unarchiveSession({
+    required String userId,
+    required String sessionId,
+  }) async {
+    _log('Unarchiving session $sessionId');
+
+    await _firestore.doc('users/$userId/sessions/$sessionId').update({
+      'archived': false,
+      'archivedAt': null,
+    });
+
+    _log('Session $sessionId unarchived');
+  }
+
+  /// Mark a session as complete
+  Future<void> markComplete({
+    required String userId,
+    required String sessionId,
+  }) async {
+    _log('Marking session $sessionId as complete');
+
+    await _firestore.doc('users/$userId/sessions/$sessionId').update({
+      'state': 'complete',
+      'progress': 100,
+    });
+
+    _log('Session $sessionId marked complete');
+  }
+
+  /// Archive all stale/inactive sessions
+  Future<int> archiveAllStale({required String userId}) async {
+    _log('Archiving all stale sessions');
+
+    final snapshot = await _firestore
+        .collection('users/$userId/sessions')
+        .where('archived', isNotEqualTo: true)
+        .get();
+
+    final staleSessions = snapshot.docs
+        .map((doc) => SessionModel.fromFirestore(doc))
+        .where((s) => s.isStale && !s.isComplete)
+        .toList();
+
+    if (staleSessions.isEmpty) {
+      _log('No stale sessions to archive');
+      return 0;
+    }
+
+    final batch = _firestore.batch();
+    for (final session in staleSessions) {
+      batch.update(_firestore.doc('users/$userId/sessions/${session.id}'), {
+        'archived': true,
+        'archivedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+
+    _log('Archived ${staleSessions.length} stale sessions');
+    return staleSessions.length;
+  }
+
+  /// Delete a session permanently
+  Future<void> deleteSession({
+    required String userId,
+    required String sessionId,
+  }) async {
+    _log('Deleting session $sessionId');
+
+    await _firestore.doc('users/$userId/sessions/$sessionId').delete();
+
+    _log('Session $sessionId deleted');
   }
 }
 

@@ -16,11 +16,70 @@ void _log(String message) {
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
+  Future<void> _archiveSession(
+    BuildContext context,
+    WidgetRef ref,
+    String sessionId,
+  ) async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+
+    try {
+      await ref.read(sessionsServiceProvider).archiveSession(
+            userId: user.uid,
+            sessionId: sessionId,
+          );
+      HapticService.success();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Session archived')),
+        );
+      }
+    } catch (e) {
+      HapticService.error();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _archiveAllInactive(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+
+    HapticService.medium();
+
+    try {
+      final count = await ref.read(sessionsServiceProvider).archiveAllStale(
+            userId: user.uid,
+          );
+      HapticService.success();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Archived $count session(s)')),
+        );
+      }
+    } catch (e) {
+      HapticService.error();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final pendingQuestions = ref.watch(pendingQuestionsProvider);
     final activeSessions = ref.watch(activeSessionsProvider);
+    final inactiveSessions = ref.watch(inactiveSessionsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -40,6 +99,7 @@ class HomeScreen extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(pendingQuestionsProvider);
           ref.invalidate(activeSessionsProvider);
+          ref.invalidate(inactiveSessionsProvider);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -91,6 +151,7 @@ class HomeScreen extends ConsumerWidget {
               context,
               'Active Sessions',
               Icons.terminal,
+              onViewAll: () => context.go('/sessions'),
             ),
             const SizedBox(height: 12),
             activeSessions.when(
@@ -121,9 +182,60 @@ class HomeScreen extends ConsumerWidget {
                                 HapticService.light();
                                 context.go('/sessions/${s.id}');
                               },
+                              onArchive: () =>
+                                  _archiveSession(context, ref, s.id),
                             ),
                           ))
                       .toList(),
+                );
+              },
+            ),
+
+            // Inactive Sessions Section (stale sessions)
+            inactiveSessions.when(
+              loading: () => const SizedBox.shrink(),
+              error: (error, stack) => const SizedBox.shrink(),
+              data: (sessions) {
+                if (sessions.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 24),
+                    _buildSectionHeader(
+                      context,
+                      'Inactive (${sessions.length})',
+                      Icons.access_time,
+                      actionWidget: TextButton.icon(
+                        onPressed: () => _archiveAllInactive(context, ref),
+                        icon: const Icon(Icons.archive, size: 16),
+                        label: const Text('Archive All'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Sessions not updated in 30+ minutes',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...sessions.take(5).map((s) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: SessionCard(
+                            session: s,
+                            showSwipeHint: sessions.indexOf(s) == 0,
+                            onTap: () {
+                              HapticService.light();
+                              context.go('/sessions/${s.id}');
+                            },
+                            onArchive: () =>
+                                _archiveSession(context, ref, s.id),
+                          ),
+                        )),
+                  ],
                 );
               },
             ),
@@ -138,12 +250,35 @@ class HomeScreen extends ConsumerWidget {
                 Expanded(
                   child: _buildActionCard(
                     context,
+                    Icons.add_task,
+                    'New Task',
+                    () => context.push('/tasks/new'),
+                    isPrimary: true,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildActionCard(
+                    context,
+                    Icons.task_alt,
+                    'Tasks',
+                    () => context.go('/tasks'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildActionCard(
+                    context,
                     Icons.folder,
                     'Projects',
                     () => context.go('/projects'),
                   ),
                 ),
-                const SizedBox(width: 12),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
                 Expanded(
                   child: _buildActionCard(
                     context,
@@ -156,11 +291,13 @@ class HomeScreen extends ConsumerWidget {
                 Expanded(
                   child: _buildActionCard(
                     context,
-                    Icons.settings,
-                    'Settings',
-                    () => context.go('/settings'),
+                    Icons.archive,
+                    'Archived',
+                    () => context.go('/sessions/archived'),
                   ),
                 ),
+                const SizedBox(width: 12),
+                const Expanded(child: SizedBox()), // Spacer
               ],
             ),
 
@@ -186,6 +323,7 @@ class HomeScreen extends ConsumerWidget {
     String title,
     IconData icon, {
     VoidCallback? onViewAll,
+    Widget? actionWidget,
   }) {
     return Row(
       children: [
@@ -198,6 +336,7 @@ class HomeScreen extends ConsumerWidget {
               ),
         ),
         const Spacer(),
+        if (actionWidget != null) actionWidget,
         if (onViewAll != null)
           TextButton(
             onPressed: onViewAll,
@@ -272,7 +411,9 @@ class HomeScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              errorMessage.length > 200 ? '${errorMessage.substring(0, 200)}...' : errorMessage,
+              errorMessage.length > 200
+                  ? '${errorMessage.substring(0, 200)}...'
+                  : errorMessage,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onErrorContainer,
                 fontSize: 12,
@@ -288,9 +429,11 @@ class HomeScreen extends ConsumerWidget {
     BuildContext context,
     IconData icon,
     String label,
-    VoidCallback onTap,
-  ) {
+    VoidCallback onTap, {
+    bool isPrimary = false,
+  }) {
     return Card(
+      color: isPrimary ? Theme.of(context).colorScheme.primaryContainer : null,
       child: InkWell(
         onTap: () {
           HapticService.light();
@@ -301,9 +444,22 @@ class HomeScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              Icon(icon, size: 32, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                icon,
+                size: 32,
+                color: isPrimary
+                    ? Theme.of(context).colorScheme.onPrimaryContainer
+                    : Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(height: 8),
-              Text(label, style: Theme.of(context).textTheme.labelLarge),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: isPrimary
+                          ? Theme.of(context).colorScheme.onPrimaryContainer
+                          : null,
+                    ),
+              ),
             ],
           ),
         ),

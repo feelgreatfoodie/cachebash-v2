@@ -14,6 +14,7 @@ import { getResponse } from "./tools/getResponse.js";
 import { updateStatus } from "./tools/updateStatus.js";
 import { pinTask, resumeTask } from "./tools/pinTask.js";
 import { getInterrupts } from "./tools/getInterrupts.js";
+import { getPendingTasks, claimTask, completeTask } from "./tools/getTasks.js";
 
 async function main() {
   // Get API key from environment
@@ -180,6 +181,60 @@ async function main() {
             required: ["sessionId"],
           },
         },
+        {
+          name: "get_pending_tasks",
+          description:
+            "Get pending tasks created by the user in the mobile app. Use this to check if there's work waiting for you to pick up.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              status: {
+                type: "string",
+                enum: ["pending", "in_progress", "all"],
+                description: "Filter by task status (default: pending)",
+                default: "pending",
+              },
+              limit: {
+                type: "number",
+                description: "Maximum number of tasks to return (default: 10)",
+                default: 10,
+              },
+            },
+          },
+        },
+        {
+          name: "claim_task",
+          description:
+            "Claim a pending task to start working on it. This marks the task as in_progress.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              taskId: {
+                type: "string",
+                description: "The ID of the task to claim",
+              },
+              sessionId: {
+                type: "string",
+                description: "Optional session ID to associate with this task",
+              },
+            },
+            required: ["taskId"],
+          },
+        },
+        {
+          name: "complete_task",
+          description: "Mark a task as complete when you've finished working on it.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              taskId: {
+                type: "string",
+                description: "The ID of the task to mark as complete",
+              },
+            },
+            required: ["taskId"],
+          },
+        },
       ],
     };
   });
@@ -202,6 +257,12 @@ async function main() {
           return await resumeTask(authContext, args as any);
         case "get_interrupts":
           return await getInterrupts(authContext, args as any);
+        case "get_pending_tasks":
+          return await getPendingTasks(authContext, args as any);
+        case "claim_task":
+          return await claimTask(authContext, args as any);
+        case "complete_task":
+          return await completeTask(authContext, args as any);
         default:
           return {
             content: [{ type: "text", text: `Unknown tool: ${name}` }],

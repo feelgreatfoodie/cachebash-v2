@@ -17,6 +17,10 @@ import 'screens/settings/change_password_screen.dart';
 import 'screens/settings/delete_account_screen.dart';
 import 'screens/settings/notifications_screen.dart';
 import 'screens/sessions/session_detail_screen.dart';
+import 'screens/sessions/sessions_screen.dart';
+import 'screens/sessions/archived_sessions_screen.dart';
+import 'screens/tasks/tasks_screen.dart';
+import 'screens/tasks/create_task_screen.dart';
 import 'theme/app_theme.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -55,11 +59,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const HomeScreen(),
       ),
       GoRoute(
+        path: '/sessions',
+        builder: (context, state) => const SessionsScreen(),
+      ),
+      GoRoute(
+        path: '/sessions/archived',
+        builder: (context, state) => const ArchivedSessionsScreen(),
+      ),
+      GoRoute(
         path: '/sessions/:id',
         builder: (context, state) {
           final sessionId = state.pathParameters['id']!;
           return SessionDetailScreen(sessionId: sessionId);
         },
+      ),
+      GoRoute(
+        path: '/tasks',
+        builder: (context, state) => const TasksScreen(),
+      ),
+      GoRoute(
+        path: '/tasks/new',
+        builder: (context, state) => const CreateTaskScreen(),
       ),
       GoRoute(
         path: '/questions',
