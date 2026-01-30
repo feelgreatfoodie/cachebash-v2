@@ -40,7 +40,7 @@
         "Rate limits auth failures"
       ],
       "priority": 1,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-004",
@@ -228,6 +228,6 @@
   "metadata": {
     "createdAt": "2026-01-29T00:00:00Z",
     "totalStories": 17,
-    "completedStories": 2
+    "completedStories": 3
   }
 }

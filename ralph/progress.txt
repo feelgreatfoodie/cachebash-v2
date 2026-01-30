@@ -4,11 +4,11 @@
 
 ## Current Status
 PHASE: Phase 2 - Cloud-Hosted MCP Server
-STORY: US-003 - Implement authentication middleware
+STORY: US-004 - Implement SSE endpoint base
 
 ## Project Stats
 Phase 2 Stories: 17
-Completed: 2
+Completed: 3
 Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 
 ## Phase 1 Completed
@@ -24,7 +24,7 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 ### Epic 1: Cloud Run MCP Server (US-001 to US-009)
 - [x] US-001: Initialize Cloud Run project structure
 - [x] US-002: Implement health check endpoint
-- [ ] US-003: Implement authentication middleware
+- [x] US-003: Implement authentication middleware
 - [ ] US-004: Implement SSE endpoint base
 - [ ] US-005: Implement MCP protocol over SSE
 - [ ] US-006: Implement rate limiting middleware
@@ -54,3 +54,7 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
   - Express server with /v1/health returning {status: 'ok', version: '1.0.0'}
   - Structured logging (logger.ts) already in place (US-008 partially done)
   - Tests passing, lint clean, typecheck clean
+[2026-01-30] US-003 complete - Authentication middleware
+  - Bearer token auth with SHA-256 hashed API keys
+  - Rate limiting for auth failures (10 attempts/hour per IP)
+  - 11 tests passing
