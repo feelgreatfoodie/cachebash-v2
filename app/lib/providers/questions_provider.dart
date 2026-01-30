@@ -12,9 +12,21 @@ void _log(String message) {
   debugPrint('[QuestionsProvider] $message');
 }
 
+/// Helper to decrypt a list of question documents
+Future<List<QuestionModel>> _decryptQuestions(
+  List<QueryDocumentSnapshot> docs,
+  EncryptionService encryptionService,
+) async {
+  final questions = await Future.wait(
+    docs.map((doc) => QuestionModel.fromFirestoreDecrypted(doc, encryptionService)),
+  );
+  return questions;
+}
+
 /// Stream provider for pending questions
 final pendingQuestionsProvider = StreamProvider<List<QuestionModel>>((ref) {
   final user = ref.watch(currentUserProvider);
+  final encryptionService = ref.watch(encryptionServiceProvider);
   _log('pendingQuestionsProvider: user=${user?.uid}');
   if (user == null) {
     _log('pendingQuestionsProvider: No user, returning empty');
@@ -27,9 +39,9 @@ final pendingQuestionsProvider = StreamProvider<List<QuestionModel>>((ref) {
       .where('status', isEqualTo: 'pending')
       .orderBy('createdAt', descending: true)
       .snapshots()
-      .map((snapshot) {
+      .asyncMap((snapshot) async {
         _log('pendingQuestionsProvider: Got ${snapshot.docs.length} docs');
-        return snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
+        return await _decryptQuestions(snapshot.docs, encryptionService);
       })
       .handleError((error, stackTrace) {
         _log('pendingQuestionsProvider ERROR: $error');
@@ -41,6 +53,7 @@ final pendingQuestionsProvider = StreamProvider<List<QuestionModel>>((ref) {
 /// Stream provider for all questions (recent, excluding deleted)
 final allQuestionsProvider = StreamProvider<List<QuestionModel>>((ref) {
   final user = ref.watch(currentUserProvider);
+  final encryptionService = ref.watch(encryptionServiceProvider);
   _log('allQuestionsProvider: user=${user?.uid}');
   if (user == null) {
     _log('allQuestionsProvider: No user, returning empty');
@@ -54,9 +67,9 @@ final allQuestionsProvider = StreamProvider<List<QuestionModel>>((ref) {
       .orderBy('createdAt', descending: true)
       .limit(50)
       .snapshots()
-      .map((snapshot) {
+      .asyncMap((snapshot) async {
         _log('allQuestionsProvider: Got ${snapshot.docs.length} docs');
-        return snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
+        return await _decryptQuestions(snapshot.docs, encryptionService);
       })
       .handleError((error, stackTrace) {
         _log('allQuestionsProvider ERROR: $error');
@@ -68,6 +81,7 @@ final allQuestionsProvider = StreamProvider<List<QuestionModel>>((ref) {
 /// Stream provider for active (non-archived) questions
 final activeQuestionsProvider = StreamProvider<List<QuestionModel>>((ref) {
   final user = ref.watch(currentUserProvider);
+  final encryptionService = ref.watch(encryptionServiceProvider);
   _log('activeQuestionsProvider: user=${user?.uid}');
   if (user == null) {
     _log('activeQuestionsProvider: No user, returning empty');
@@ -82,9 +96,9 @@ final activeQuestionsProvider = StreamProvider<List<QuestionModel>>((ref) {
       .orderBy('createdAt', descending: true)
       .limit(50)
       .snapshots()
-      .map((snapshot) {
+      .asyncMap((snapshot) async {
         _log('activeQuestionsProvider: Got ${snapshot.docs.length} docs');
-        return snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
+        return await _decryptQuestions(snapshot.docs, encryptionService);
       })
       .handleError((error, stackTrace) {
         _log('activeQuestionsProvider ERROR: $error');
@@ -97,6 +111,7 @@ final activeQuestionsProvider = StreamProvider<List<QuestionModel>>((ref) {
 final questionsByProjectProvider =
     StreamProvider.family<List<QuestionModel>, String?>((ref, projectId) {
   final user = ref.watch(currentUserProvider);
+  final encryptionService = ref.watch(encryptionServiceProvider);
   _log('questionsByProjectProvider: user=${user?.uid}, projectId=$projectId');
   if (user == null) {
     _log('questionsByProjectProvider: No user, returning empty');
@@ -121,9 +136,9 @@ final questionsByProjectProvider =
       .orderBy('createdAt', descending: true)
       .limit(50)
       .snapshots()
-      .map((snapshot) {
+      .asyncMap((snapshot) async {
         _log('questionsByProjectProvider: Got ${snapshot.docs.length} docs for project $projectId');
-        return snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
+        return await _decryptQuestions(snapshot.docs.cast<QueryDocumentSnapshot>(), encryptionService);
       })
       .handleError((error, stackTrace) {
         _log('questionsByProjectProvider ERROR: $error');
@@ -136,6 +151,7 @@ final questionsByProjectProvider =
 final questionProvider =
     StreamProvider.family<QuestionModel?, String>((ref, questionId) {
   final user = ref.watch(currentUserProvider);
+  final encryptionService = ref.watch(encryptionServiceProvider);
   if (user == null) {
     return Stream.value(null);
   }
@@ -143,7 +159,10 @@ final questionProvider =
   return firestore
       .doc('users/${user.uid}/questions/$questionId')
       .snapshots()
-      .map((doc) => doc.exists ? QuestionModel.fromFirestore(doc) : null);
+      .asyncMap((doc) async {
+        if (!doc.exists) return null;
+        return await QuestionModel.fromFirestoreDecrypted(doc, encryptionService);
+      });
 });
 
 /// Service for answering questions

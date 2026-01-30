@@ -2,6 +2,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+// Debug API key for simulator testing - reads from temp file
+const _debugApiKeyPath = '/tmp/cachebash_debug_api_key.txt';
+
 /// Service for secure local storage using flutter_secure_storage
 /// Falls back to in-memory storage on desktop platforms for development
 class SecureStorageService {
@@ -41,6 +44,19 @@ class SecureStorageService {
 
   /// Retrieve the stored API key
   Future<String?> getApiKey() async {
+    // DEBUG ONLY: Hard-coded API key for simulator testing
+    // TODO: Remove this before production!
+    if (kDebugMode && Platform.isIOS) {
+      const debugApiKey = 'KKgV5Sj4OWovlbwbLD6k6qh+crWJ7Nkq2k34zVxjQ4g=';
+      final storedKey = _useMemoryStorage
+          ? _memoryStorage[_apiKeyKey]
+          : await _storage?.read(key: _apiKeyKey);
+      if (storedKey == null || storedKey.isEmpty) {
+        debugPrint('SecureStorage: DEBUG - Using hard-coded API key for testing');
+        return debugApiKey;
+      }
+    }
+
     if (_useMemoryStorage) {
       return _memoryStorage[_apiKeyKey];
     }

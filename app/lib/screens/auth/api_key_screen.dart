@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 
 import '../../providers/auth_provider.dart';
+import '../../services/secure_storage_service.dart';
 
 const String cloudMcpBaseUrl = 'https://cachebash-mcp-94772408270.us-central1.run.app';
 
@@ -27,6 +28,7 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
   bool _isTesting = false;
   String? _testResult;
   bool? _testSuccess;
+  bool _isRestoring = false;
 
   @override
   void initState() {
@@ -41,6 +43,112 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
         _apiKey = key;
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _restoreApiKey() async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Restore API Key'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Paste your existing API key to restore it. '
+              'This is useful if you reinstalled the app or are setting up a new device.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'API Key',
+                hintText: 'Paste your API key here',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && controller.text.isNotEmpty) {
+      setState(() => _isRestoring = true);
+      final apiKey = controller.text.trim();
+
+      // Store the API key locally
+      final user = ref.read(currentUserProvider);
+      if (user != null) {
+        try {
+          // Validate the key by testing connection
+          final testResponse = await http.post(
+            Uri.parse('$cloudMcpBaseUrl/v1/messages'),
+            headers: {
+              'Authorization': 'Bearer $apiKey',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'jsonrpc': '2.0',
+              'method': 'tools/list',
+              'id': 1,
+            }),
+          ).timeout(const Duration(seconds: 10));
+
+          if (testResponse.statusCode == 200) {
+            // Key is valid, store it
+            final secureStorage = SecureStorageService();
+            await secureStorage.storeApiKey(apiKey);
+
+            if (mounted) {
+              setState(() {
+                _apiKey = apiKey;
+                _isRestoring = false;
+                _showKey = true;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('API key restored successfully!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          } else {
+            if (mounted) {
+              setState(() => _isRestoring = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Invalid API key (status ${testResponse.statusCode})'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() => _isRestoring = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error: ${e.toString().split('\n').first}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      }
     }
   }
 
@@ -418,15 +526,41 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
                   ],
                   const SizedBox(height: 32),
 
+                  // Restore button (shown prominently when no key exists)
+                  if (_apiKey == null) ...[
+                    FilledButton.icon(
+                      onPressed: _isRestoring ? null : _restoreApiKey,
+                      icon: _isRestoring
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.key),
+                      label: Text(_isRestoring ? 'Restoring...' : 'Restore Existing API Key'),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Use this if you reinstalled the app or are on a new device',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
                   // Regenerate button
                   OutlinedButton.icon(
                     onPressed: _regenerateKey,
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Regenerate API Key'),
+                    label: Text(_apiKey == null ? 'Generate New API Key' : 'Regenerate API Key'),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Regenerating will invalidate your current key',
+                    _apiKey == null
+                        ? 'Create a new API key (you\'ll need to update your MCP config)'
+                        : 'Regenerating will invalidate your current key',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),

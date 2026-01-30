@@ -5,7 +5,8 @@ import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart' as enc;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import 'secure_storage_service.dart';
 
 void _log(String message) {
   debugPrint('[EncryptionService] $message');
@@ -17,12 +18,12 @@ class EncryptionService {
   static const _keyIterations = 100000;
   static const _keyLength = 32; // 256 bits for AES-256
 
-  final FlutterSecureStorage _storage;
+  final SecureStorageService _storage;
   enc.Key? _cachedKey;
   String? _cachedApiKeyHash;
 
-  EncryptionService({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+  EncryptionService({SecureStorageService? storage})
+      : _storage = storage ?? SecureStorageService();
 
   /// Derive encryption key from API key using PBKDF2
   Future<enc.Key> _deriveKey(String apiKey) async {
@@ -33,9 +34,13 @@ class EncryptionService {
     }
 
     _log('Deriving encryption key...');
+    _log('API key hash: ${apiKeyHash.substring(0, 16)}...');
 
     // Create salt from prefix + hash of API key (deterministic)
-    final salt = utf8.encode(_saltPrefix + apiKeyHash.substring(0, 16));
+    final saltString = _saltPrefix + apiKeyHash.substring(0, 16);
+    final salt = utf8.encode(saltString);
+    _log('Salt string: $saltString');
+    _log('Salt bytes: ${salt.take(20).toList()}...');
 
     // Use PBKDF2 to derive key
     final keyBytes = _pbkdf2(
@@ -44,6 +49,8 @@ class EncryptionService {
       _keyIterations,
       _keyLength,
     );
+
+    _log('Derived key first 8 bytes: ${keyBytes.take(8).toList()}');
 
     _cachedKey = enc.Key(keyBytes);
     _cachedApiKeyHash = apiKeyHash;
@@ -82,7 +89,9 @@ class EncryptionService {
 
   /// Get the stored API key
   Future<String?> _getApiKey() async {
-    return await _storage.read(key: 'api_key');
+    final apiKey = await _storage.getApiKey();
+    _log('_getApiKey: ${apiKey != null ? "Found key (${apiKey.length} chars)" : "NO KEY FOUND"}');
+    return apiKey;
   }
 
   /// Encrypt plaintext using AES-256-CBC
@@ -113,18 +122,22 @@ class EncryptionService {
   /// Decrypt ciphertext
   /// Expects base64 encoded string with IV prepended
   Future<String?> decrypt(String ciphertext) async {
+    _log('decrypt: Starting decryption of ${ciphertext.length} char ciphertext');
+    _log('decrypt: FULL CIPHERTEXT: $ciphertext');
     final apiKey = await _getApiKey();
     if (apiKey == null) {
-      _log('No API key available for decryption');
+      _log('decrypt: No API key available for decryption');
       return null;
     }
 
     try {
       final key = await _deriveKey(apiKey);
       final combined = base64.decode(ciphertext);
+      _log('decrypt: Decoded ${combined.length} bytes');
+      _log('decrypt: First 16 bytes (IV): ${combined.sublist(0, combined.length > 16 ? 16 : combined.length)}');
 
       if (combined.length < 17) {
-        _log('Ciphertext too short');
+        _log('decrypt: Ciphertext too short');
         return null;
       }
 
@@ -135,9 +148,11 @@ class EncryptionService {
       final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.cbc));
       final decrypted = encrypter.decrypt(enc.Encrypted(encryptedBytes), iv: iv);
 
+      _log('decrypt: SUCCESS - decrypted ${decrypted.length} chars');
       return decrypted;
-    } catch (e) {
-      _log('Decryption error: $e');
+    } catch (e, stack) {
+      _log('decrypt: ERROR - $e');
+      _log('decrypt: Stack - $stack');
       return null;
     }
   }
