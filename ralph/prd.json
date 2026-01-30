@@ -1,334 +1,233 @@
 {
-  "project": "cachebash",
-  "branchName": "ralph/cachebash-mvp",
-  "description": "Mobile companion app for Claude Code - Answer questions on the go, monitor progress from anywhere",
+  "project": "cachebash-phase2",
+  "branchName": "ralph/phase2-cloud-mcp",
+  "description": "Cloud-hosted MCP server for zero-friction CacheBash adoption",
   "gitStrategy": "single-branch",
   "userStories": [
     {
       "id": "US-001",
-      "title": "MCP Server Setup",
-      "description": "As a developer, I want a working MCP server scaffold so that Claude Code can communicate with CacheBash",
+      "title": "Initialize Cloud Run project structure",
+      "description": "Create cloud-run/ directory with Dockerfile, package.json, tsconfig.json, and src/ structure",
       "acceptanceCriteria": [
-        "MCP server initializes and registers with Claude Code",
-        "Server exposes tool definitions to Claude",
-        "Basic health check endpoint works",
-        "Configuration loads from environment/config file",
-        "Graceful shutdown handling"
+        "cloud-run/Dockerfile exists and builds",
+        "package.json has required dependencies",
+        "TypeScript strict mode configured",
+        "src/ structure matches plan"
       ],
-      "technicalNotes": "Use @modelcontextprotocol/sdk package. TypeScript with strict mode. Configuration: API key, Firebase credentials, session ID.",
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true
     },
     {
       "id": "US-002",
-      "title": "Ask Question Tool",
-      "description": "As Claude, I want to send a question to the user's mobile device so that I can get clarification without blocking",
+      "title": "Implement health check endpoint",
+      "description": "Add GET /v1/health endpoint returning { status: 'ok', version: '1.0.0' }",
       "acceptanceCriteria": [
-        "ask_question tool accepts: question text, options (optional), priority",
-        "Question is stored in Firestore with timestamp and session context",
-        "Push notification is triggered via Cloud Function",
-        "Tool returns a question ID for tracking",
-        "Duplicate detection prevents spam"
+        "Endpoint returns 200 with JSON body",
+        "Version matches package.json",
+        "Responds within 100ms"
       ],
-      "technicalNotes": "Interface: { question: string, options?: string[], priority: 'low' | 'normal' | 'high', context?: string }",
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true
     },
     {
       "id": "US-003",
-      "title": "Get Response Tool",
-      "description": "As Claude, I want to check if the user has responded to my question so that I can continue the pinned task",
+      "title": "Implement authentication middleware",
+      "description": "Validate API key from Authorization header against Firestore hashed keys",
       "acceptanceCriteria": [
-        "get_response tool accepts question ID",
-        "Returns response if available, null if pending",
-        "Includes response timestamp and any user notes",
-        "Can query multiple question IDs at once",
-        "Handles expired/cancelled questions"
+        "Rejects requests without Authorization header (401)",
+        "Rejects invalid API keys (401)",
+        "Accepts valid API keys and attaches userId to request",
+        "Rate limits auth failures"
       ],
-      "technicalNotes": "Poll-based initially, could add WebSocket later. Cache responses locally to reduce API calls.",
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": false
     },
     {
       "id": "US-004",
-      "title": "Update Status Tool",
-      "description": "As Claude, I want to update my current working status so that the user can see progress in the app",
+      "title": "Implement SSE endpoint base",
+      "description": "Create GET /v1/sse endpoint with SSE connection handling",
       "acceptanceCriteria": [
-        "update_status tool accepts: status text, progress %, task ID",
-        "Status updates in real-time in the app",
-        "History of status updates preserved",
-        "Includes timestamp automatically",
-        "Can mark task as complete/blocked/in-progress"
+        "Returns text/event-stream content type",
+        "Keeps connection alive with heartbeats",
+        "Handles client disconnect gracefully",
+        "Supports Last-Event-ID for reconnection"
       ],
-      "technicalNotes": "Interface: { status: string, progress?: number, taskId?: string, state: 'working' | 'blocked' | 'complete' | 'pinned' }",
-      "priority": 2,
-      "passes": false,
-      "notes": ""
+      "priority": 1,
+      "passes": false
     },
     {
       "id": "US-005",
-      "title": "Pin/Resume Task Tools",
-      "description": "As Claude, I want to pin a task while waiting for a response and resume it later so that I can work on other tasks in the meantime",
+      "title": "Implement MCP protocol over SSE",
+      "description": "Handle MCP tool calls (ask_question, get_response, update_status, pin_task, resume_task) via SSE",
       "acceptanceCriteria": [
-        "pin_task stores current context and reason for pin",
-        "resume_task retrieves pinned context",
-        "Multiple tasks can be pinned simultaneously",
-        "Pin includes: task ID, question ID, context summary",
-        "Resume provides full context to continue work"
+        "All 5 MCP tools work via SSE",
+        "Responses sent as SSE events",
+        "Error handling with proper MCP error format"
       ],
-      "technicalNotes": "Store pin context in Firestore for persistence. Include enough context to resume without prior conversation.",
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": false
     },
     {
       "id": "US-006",
-      "title": "Firestore Schema Setup",
-      "description": "As a developer, I want a well-designed Firestore schema so that data is organized and queries are efficient",
+      "title": "Implement rate limiting middleware",
+      "description": "Add per-API-key rate limits: SSE 2 concurrent, ask_question 100/hr, get_response 500/hr, update_status 200/hr",
       "acceptanceCriteria": [
-        "Collections defined: users, sessions, questions, responses, devices",
-        "Security rules enforce user isolation",
-        "Indexes created for common queries",
-        "TypeScript types match schema",
-        "Schema documented"
+        "Returns 429 when rate exceeded",
+        "Includes Retry-After header",
+        "Limits tracked per API key",
+        "Limits reset correctly"
       ],
-      "technicalNotes": "Collections: /users/{userId}, /users/{userId}/devices/{deviceId}, /users/{userId}/sessions/{sessionId}, /users/{userId}/questions/{questionId}",
-      "priority": 1,
-      "passes": false,
-      "notes": ""
+      "priority": 2,
+      "passes": false
     },
     {
       "id": "US-007",
-      "title": "Cloud Functions for Push",
-      "description": "As a user, I want to receive push notifications when Claude asks a question so that I'm alerted immediately",
+      "title": "Implement input validation",
+      "description": "Validate all inputs: question 2000 chars, context 500 chars, status 200 chars, options max 5 x 100 chars",
       "acceptanceCriteria": [
-        "Function triggers on new question document",
-        "Sends push to all user's registered devices",
-        "Notification includes question preview",
-        "High priority questions use high-priority push",
-        "Handles FCM errors gracefully"
+        "Rejects oversized inputs with 400",
+        "Sanitizes UTF-8, strips control chars",
+        "Returns descriptive validation errors"
       ],
-      "technicalNotes": "Use Firebase Admin SDK. Configure APNs for iOS. Include question ID in notification payload for deep linking.",
-      "priority": 1,
-      "passes": false,
-      "notes": ""
+      "priority": 2,
+      "passes": false
     },
     {
       "id": "US-008",
-      "title": "API Key Authentication",
-      "description": "As a user, I want secure API key authentication so that only I can access my sessions",
+      "title": "Add structured logging",
+      "description": "Replace console.log with structured JSON logging including userId, action, duration_ms",
       "acceptanceCriteria": [
-        "API keys are generated securely (256-bit random)",
-        "Keys are hashed before storage (bcrypt/argon2)",
-        "Key validation is fast and secure",
-        "Rate limiting prevents brute force",
-        "Key can be regenerated if compromised"
+        "All logs are JSON format",
+        "Includes timestamp, level, userId, action",
+        "No sensitive data logged",
+        "Works with Cloud Run logging"
       ],
-      "technicalNotes": "Generate in app, hash and store. MCP server validates key on each request. Include user ID in key for fast lookup.",
-      "priority": 1,
-      "passes": false,
-      "notes": ""
+      "priority": 2,
+      "passes": false
     },
     {
       "id": "US-009",
-      "title": "Flutter App Project Setup",
-      "description": "As a developer, I want a well-structured Flutter project so that development is organized and scalable",
+      "title": "Implement graceful shutdown",
+      "description": "Handle SIGTERM: send server-restarting event to SSE clients, wait 5s, close connections",
       "acceptanceCriteria": [
-        "Flutter project initialized with proper package name",
-        "Firebase configured for iOS and Android",
-        "State management set up (Riverpod)",
-        "Navigation structure defined",
-        "Theme/styling foundation"
+        "Clients receive server-restarting event",
+        "Connections close gracefully",
+        "No dropped messages during shutdown"
       ],
-      "technicalNotes": "Package name: com.cachebash.app. Use flutter_riverpod for state, go_router for navigation. Firebase packages: firebase_core, cloud_firestore, firebase_messaging.",
-      "priority": 1,
-      "passes": false,
-      "notes": ""
+      "priority": 3,
+      "passes": false
     },
     {
       "id": "US-010",
-      "title": "Device Registration and Auth",
-      "description": "As a user, I want to pair my device with my API key so that I can receive notifications",
+      "title": "Update Flutter app API key screen",
+      "description": "Show cloud MCP config snippet with https://mcp.cachebash.app/v1/sse URL",
       "acceptanceCriteria": [
-        "Onboarding screen explains the app",
-        "API key input with validation",
-        "Device registered with FCM token",
-        "Pairing success confirmation",
-        "Can re-pair if needed"
+        "Config snippet uses cloud URL",
+        "Copy button works",
+        "Shows Bearer token format"
       ],
-      "technicalNotes": "Store API key securely (flutter_secure_storage). Request notification permissions. Generate and store FCM token.",
-      "priority": 1,
-      "passes": false,
-      "notes": ""
+      "priority": 3,
+      "passes": false
     },
     {
       "id": "US-011",
-      "title": "Sessions List View",
-      "description": "As a user, I want to see all my active Claude sessions so that I can monitor multiple projects",
+      "title": "Add Test Connection button to app",
+      "description": "Add button that tests SSE connection to cloud server and shows success/failure",
       "acceptanceCriteria": [
-        "List shows all sessions with status",
-        "Real-time updates via Firestore listeners",
-        "Status indicator (active, pinned, complete)",
-        "Tap to view session details",
-        "Pull to refresh"
+        "Button visible on API key screen",
+        "Shows loading state during test",
+        "Shows success or error message",
+        "Test actually validates connection"
       ],
-      "technicalNotes": "Use StreamBuilder with Firestore. Show last update time relative (e.g., '2 min ago'). Badge for pending questions.",
-      "priority": 2,
-      "passes": false,
-      "notes": ""
+      "priority": 3,
+      "passes": false
     },
     {
       "id": "US-012",
-      "title": "Session Detail View",
-      "description": "As a user, I want to see detailed status of a Claude session so that I know exactly what Claude is working on",
+      "title": "Write unit tests for Cloud Run",
+      "description": "Add Jest tests for auth, rate limiting, validation, and MCP protocol",
       "acceptanceCriteria": [
-        "Current status with progress indicator",
-        "History of recent status updates",
-        "List of pinned tasks for this session",
-        "Quick link to pending questions",
-        "Session metadata (started, last update)"
+        "Auth middleware tests pass",
+        "Rate limiting tests pass",
+        "Validation tests pass",
+        "MCP protocol tests pass",
+        "Coverage > 70%"
       ],
-      "technicalNotes": "Real-time status updates. Scrollable history with timestamps. Visual progress bar if progress % available.",
-      "priority": 2,
-      "passes": false,
-      "notes": ""
+      "priority": 3,
+      "passes": false
     },
     {
       "id": "US-013",
-      "title": "Questions Queue View",
-      "description": "As a user, I want to see and respond to Claude's questions so that I can unblock Claude's work",
+      "title": "Deploy to Cloud Run",
+      "description": "Deploy container to GCP Cloud Run, verify health endpoint accessible",
       "acceptanceCriteria": [
-        "List of pending questions across all sessions",
-        "Sorted by priority, then by time",
-        "Session context shown with each question",
-        "Quick reply for multiple choice questions",
-        "Text input for open questions",
-        "Swipe to dismiss/defer"
+        "Service deployed to Cloud Run",
+        "Health endpoint returns 200",
+        "Logs visible in Cloud Console"
       ],
-      "technicalNotes": "Badge count on tab for pending questions. Haptic feedback on interaction. Offline queue for responses.",
-      "priority": 1,
-      "passes": false,
-      "notes": ""
+      "priority": 4,
+      "passes": false
     },
     {
       "id": "US-014",
-      "title": "Question Response Flow",
-      "description": "As a user, I want to respond to a question so that Claude can continue working",
+      "title": "Add Projects feature to organize questions",
+      "description": "Create Projects (or Sprints) to group related questions. Each MCP session can specify a project. Questions are organized by project in the app UI.",
       "acceptanceCriteria": [
-        "Tap question opens response view",
-        "Multiple choice shows tap-to-select options",
-        "Open questions show text input with suggestions",
-        "Can add notes with any response",
-        "Confirmation after sending",
-        "Response synced to Firestore"
+        "Firestore schema: /users/{uid}/projects/{projectId}",
+        "MCP tools accept optional projectId parameter",
+        "App shows project list with question counts",
+        "Questions grouped by project in UI",
+        "Default 'Uncategorized' project for questions without projectId"
       ],
-      "technicalNotes": "Optimistic UI update. Offline support (queue and sync). Push response to MCP server via webhook.",
-      "priority": 1,
-      "passes": false,
-      "notes": ""
+      "priority": 2,
+      "passes": false
     },
     {
       "id": "US-015",
-      "title": "Push Notification Handling",
-      "description": "As a user, I want to receive and interact with push notifications so that I'm alerted to new questions",
+      "title": "Add archive functionality for questions",
+      "description": "Allow users to archive questions they've dealt with. Archived questions hidden by default but viewable.",
       "acceptanceCriteria": [
-        "Notification shows question preview",
-        "Tap opens directly to question",
-        "Quick actions for multiple choice (iOS/Android)",
-        "Badge updates with pending count",
-        "Works when app is closed/background",
-        "Sound/vibration for high priority"
+        "Archive button on question detail screen",
+        "Archived questions have archived: true field",
+        "Main list hides archived by default",
+        "Toggle to show/hide archived questions",
+        "Unarchive functionality"
       ],
-      "technicalNotes": "Configure firebase_messaging for foreground/background. Deep linking to specific question. iOS: configure APNs, request permissions. Android: configure notification channel.",
-      "priority": 1,
-      "passes": false,
-      "notes": ""
+      "priority": 3,
+      "passes": false
     },
     {
       "id": "US-016",
-      "title": "Offline Support",
-      "description": "As a user, I want the app to work offline so that I can respond even without internet",
+      "title": "Add delete functionality for questions and projects",
+      "description": "Allow permanent deletion of questions and projects. Soft delete with 30-day recovery period.",
       "acceptanceCriteria": [
-        "Questions cached locally",
-        "Responses queued when offline",
-        "Sync when connection restored",
-        "Visual indicator of offline mode",
-        "No data loss"
+        "Delete button with confirmation dialog",
+        "Soft delete: deletedAt timestamp set",
+        "Deleted items hidden from all views",
+        "Cloud Function to permanently delete after 30 days",
+        "Delete project also archives its questions"
       ],
-      "technicalNotes": "Firestore offline persistence enabled. Queue responses in local storage. Sync on connectivity change.",
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": false
     },
     {
       "id": "US-017",
-      "title": "Analytics Data Collection",
-      "description": "As a developer, I want analytics events tracked so that users can see their usage patterns",
+      "title": "Add project management screen",
+      "description": "Screen to create, rename, and delete projects. Set active project for new questions.",
       "acceptanceCriteria": [
-        "Track: questions asked, response times, session duration",
-        "Store aggregated stats in Firestore",
-        "Daily/weekly/monthly rollups",
-        "Per-session and global stats"
+        "Project list screen accessible from home",
+        "Create new project with name",
+        "Rename existing projects",
+        "Delete projects (with confirmation)",
+        "Set default project for new questions"
       ],
-      "technicalNotes": "Cloud Function to aggregate on schedule. Store in /users/{userId}/analytics collection.",
       "priority": 3,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-018",
-      "title": "Analytics View",
-      "description": "As a user, I want to see my usage analytics so that I can understand my patterns",
-      "acceptanceCriteria": [
-        "Average response time chart",
-        "Questions per day/week",
-        "Most active sessions",
-        "Time of day patterns",
-        "Filter by date range"
-      ],
-      "technicalNotes": "Use fl_chart for visualizations. Cache analytics data locally. Pull to refresh.",
-      "priority": 3,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-019",
-      "title": "TestFlight Setup",
-      "description": "As a developer, I want the app deployed to TestFlight so that beta testing can begin",
-      "acceptanceCriteria": [
-        "iOS build signed with distribution certificate",
-        "App uploaded to App Store Connect",
-        "TestFlight internal testing enabled",
-        "Build available for installation",
-        "Crash reporting configured"
-      ],
-      "technicalNotes": "Configure Xcode signing. Use flutter build ipa. Upload via Transporter or altool.",
-      "priority": 2,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-020",
-      "title": "Android Internal Testing",
-      "description": "As a developer, I want the app on Google Play internal testing so that Android testing can begin",
-      "acceptanceCriteria": [
-        "Android build signed with upload key",
-        "App uploaded to Play Console",
-        "Internal testing track configured",
-        "Build available for installation"
-      ],
-      "technicalNotes": "Configure signing in build.gradle. Use flutter build appbundle. Upload via Play Console.",
-      "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": false
     }
   ],
   "metadata": {
-    "createdAt": "2026-01-23T12:30:00Z",
-    "totalStories": 20,
-    "completedStories": 0
+    "createdAt": "2026-01-29T00:00:00Z",
+    "totalStories": 17,
+    "completedStories": 2
   }
 }

@@ -3,50 +3,54 @@
 # Started: 2026-01-23
 
 ## Current Status
-PHASE: Planning Complete
-STORY: None started
+PHASE: Phase 2 - Cloud-Hosted MCP Server
+STORY: US-003 - Implement authentication middleware
 
 ## Project Stats
-Total Stories: 20
-Estimated Hours: 53-75
-Components: MCP Server, Firebase Backend, Flutter App
+Phase 2 Stories: 17
+Completed: 2
+Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 
-## Completed Stories
-(none yet)
+## Phase 1 Completed
+- MCP Server Foundation (local)
+- Firebase Backend with Push Notifications
+- Flutter Mobile App (iOS TestFlight ready)
+- All 20 Phase 1 stories completed
 
-## Pending Stories
+---
 
-### Epic 1: MCP Server Foundation (12-17h)
-- US-001: MCP Server Setup (3-4h)
-- US-002: Ask Question Tool (3-4h)
-- US-003: Get Response Tool (2-3h)
-- US-004: Update Status Tool (2-3h)
-- US-005: Pin/Resume Task Tools (2-3h)
+## Phase 2 Progress
 
-### Epic 2: Firebase Backend (7-10h)
-- US-006: Firestore Schema Setup (2-3h)
-- US-007: Cloud Functions for Push (3-4h)
-- US-008: API Key Authentication (2-3h)
+### Epic 1: Cloud Run MCP Server (US-001 to US-009)
+- [x] US-001: Initialize Cloud Run project structure
+- [x] US-002: Implement health check endpoint
+- [ ] US-003: Implement authentication middleware
+- [ ] US-004: Implement SSE endpoint base
+- [ ] US-005: Implement MCP protocol over SSE
+- [ ] US-006: Implement rate limiting middleware
+- [ ] US-007: Implement input validation
+- [ ] US-008: Add structured logging
+- [ ] US-009: Implement graceful shutdown
 
-### Epic 3: Flutter Mobile App (25-35h)
-- US-009: App Project Setup (2-3h)
-- US-010: Device Registration & Auth (3-4h)
-- US-011: Sessions List View (3-4h)
-- US-012: Session Detail View (3-4h)
-- US-013: Questions Queue View (4-5h)
-- US-014: Question Response Flow (3-4h)
-- US-015: Push Notification Handling (3-4h)
-- US-016: Offline Support (3-4h)
+### Epic 2: Flutter App Updates (US-010 to US-011)
+- [ ] US-010: Update Flutter app API key screen
+- [ ] US-011: Add Test Connection button to app
 
-### Epic 4: Analytics Dashboard (5-7h)
-- US-017: Analytics Data Collection (2-3h)
-- US-018: Analytics View (3-4h)
+### Epic 3: Testing & Deployment (US-012 to US-013)
+- [ ] US-012: Write unit tests for Cloud Run
+- [ ] US-013: Deploy to Cloud Run
 
-### Epic 5: Distribution (4-6h)
-- US-019: TestFlight Setup (2-3h)
-- US-020: Android Internal Testing (2-3h)
+### Epic 4: Projects Feature (US-014 to US-017)
+- [ ] US-014: Add Projects feature to organize questions
+- [ ] US-015: Add archive functionality for questions
+- [ ] US-016: Add delete functionality for questions and projects
+- [ ] US-017: Add project management screen
 
 ## Session Log
-[2026-01-23] Project initialized from /kickoff flow
-[2026-01-23] PRD created with 20 user stories
-[2026-01-23] Architecture defined: Flutter + Firebase + MCP Server
+[2026-01-23] Phase 1 completed - MVP working
+[2026-01-29] Phase 2 kickoff - Cloud MCP Server
+[2026-01-30] US-001, US-002 complete - Cloud Run project structure + health endpoint
+  - Created cloud-run/ directory with Dockerfile, package.json, tsconfig.json
+  - Express server with /v1/health returning {status: 'ok', version: '1.0.0'}
+  - Structured logging (logger.ts) already in place (US-008 partially done)
+  - Tests passing, lint clean, typecheck clean
