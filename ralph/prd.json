@@ -53,7 +53,7 @@
         "Supports Last-Event-ID for reconnection"
       ],
       "priority": 1,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-005",
@@ -103,7 +103,7 @@
         "Works with Cloud Run logging"
       ],
       "priority": 2,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-009",
@@ -228,6 +228,6 @@
   "metadata": {
     "createdAt": "2026-01-29T00:00:00Z",
     "totalStories": 17,
-    "completedStories": 3
+    "completedStories": 5
   }
 }

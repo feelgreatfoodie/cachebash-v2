@@ -1,5 +1,6 @@
 import express, { Express, Request, Response, NextFunction } from "express";
 import { healthRouter } from "./routes/health";
+import { sseRouter } from "./routes/sse";
 import { logger } from "./lib/logger";
 
 export function createApp(): Express {
@@ -23,6 +24,9 @@ export function createApp(): Express {
 
   // Health routes (no auth required)
   app.use("/v1", healthRouter);
+
+  // SSE routes (auth required - handled by router)
+  app.use("/v1", sseRouter);
 
   // 404 handler
   app.use((_req: Request, res: Response) => {
