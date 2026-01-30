@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../models/task_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/tasks_provider.dart';
 import '../../services/haptic_service.dart';
@@ -14,37 +15,45 @@ class CreateTaskScreen extends ConsumerStatefulWidget {
 }
 
 class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
-  final _titleController = TextEditingController();
   final _instructionsController = TextEditingController();
-  String _priority = 'normal';
+  TaskAction _action = TaskAction.queue;
   bool _isSubmitting = false;
 
   @override
   void dispose() {
-    _titleController.dispose();
     _instructionsController.dispose();
     super.dispose();
   }
 
-  Future<void> _submitTask() async {
-    final title = _titleController.text.trim();
-    final instructions = _instructionsController.text.trim();
-
-    if (title.isEmpty) {
-      HapticService.error();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a title')),
-      );
-      return;
+  IconData _getIconForAction(TaskAction action) {
+    switch (action) {
+      case TaskAction.interrupt:
+        return Icons.bolt;
+      case TaskAction.parallel:
+        return Icons.call_split;
+      case TaskAction.queue:
+        return Icons.playlist_play;
+      case TaskAction.backlog:
+        return Icons.inventory_2_outlined;
     }
+  }
+
+  Future<void> _submitTask() async {
+    final instructions = _instructionsController.text.trim();
 
     if (instructions.isEmpty) {
       HapticService.error();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter instructions')),
+        const SnackBar(content: Text('Please enter a message')),
       );
       return;
     }
+
+    // Auto-generate title from first line (max 50 chars)
+    final firstLine = instructions.split('\n').first;
+    final title = firstLine.length > 50
+        ? '${firstLine.substring(0, 47)}...'
+        : firstLine;
 
     final user = ref.read(currentUserProvider);
     if (user == null) return;
@@ -57,13 +66,13 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
             userId: user.uid,
             title: title,
             instructions: instructions,
-            priority: _priority,
+            action: _action,
           );
 
       HapticService.success();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Task created! Claude will pick it up.')),
+          const SnackBar(content: Text('Message sent!')),
         );
         context.go('/tasks');
       }
@@ -85,7 +94,7 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('New Task'),
+        title: const Text('Message Claude'),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () {
@@ -111,83 +120,63 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Info card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Theme.of(context).colorScheme.primary,
+            // Action flags at top
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<TaskAction>(
+                segments: TaskAction.values.map((action) {
+                  return ButtonSegment(
+                    value: action,
+                    icon: Icon(_getIconForAction(action)),
+                  );
+                }).toList(),
+                selected: {_action},
+                onSelectionChanged: (value) {
+                  HapticService.selection();
+                  setState(() => _action = value.first);
+                },
+                showSelectedIcon: false,
+                expandedInsets: EdgeInsets.zero,
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Description of selected action
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _getIconForAction(_action),
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _action.displayName,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '— ${_action.description}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Create a task for Claude Code to work on. Claude will pick it up when checking for pending tasks.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 24),
 
-            // Title
-            Text(
-              'Title',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                hintText: 'Brief description of the task',
-                border: OutlineInputBorder(),
-              ),
-              textCapitalization: TextCapitalization.sentences,
-              maxLength: 100,
-            ),
-            const SizedBox(height: 16),
-
-            // Priority
-            Text(
-              'Priority',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
-                  value: 'low',
-                  label: Text('Low'),
-                  icon: Icon(Icons.arrow_downward, size: 16),
-                ),
-                ButtonSegment(
-                  value: 'normal',
-                  label: Text('Normal'),
-                  icon: Icon(Icons.remove, size: 16),
-                ),
-                ButtonSegment(
-                  value: 'high',
-                  label: Text('High'),
-                  icon: Icon(Icons.arrow_upward, size: 16),
-                ),
-              ],
-              selected: {_priority},
-              onSelectionChanged: (value) {
-                HapticService.selection();
-                setState(() => _priority = value.first);
-              },
-            ),
-            const SizedBox(height: 24),
-
-            // Instructions
+            // Instructions (title removed - first line serves as summary)
             Text(
               'Instructions',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(

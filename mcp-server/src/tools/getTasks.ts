@@ -20,11 +20,15 @@ interface CompleteTaskArgs {
  * Decrypt task data if encrypted
  */
 function decryptTaskData(
-  data: { title: string; instructions: string; encrypted?: boolean },
+  data: { title: string; instructions: string; action?: string; encrypted?: boolean },
   apiKey: string
-): { title: string; instructions: string } {
+): { title: string; instructions: string; action: string } {
   if (!data.encrypted) {
-    return { title: data.title, instructions: data.instructions };
+    return {
+      title: data.title,
+      instructions: data.instructions,
+      action: data.action || "queue",
+    };
   }
 
   try {
@@ -33,10 +37,17 @@ function decryptTaskData(
       instructions: isEncrypted(data.instructions)
         ? decrypt(data.instructions, apiKey)
         : data.instructions,
+      action: data.action && isEncrypted(data.action)
+        ? decrypt(data.action, apiKey)
+        : data.action || "queue",
     };
   } catch (error) {
     console.error("Failed to decrypt task data:", error);
-    return { title: data.title, instructions: data.instructions };
+    return {
+      title: data.title,
+      instructions: data.instructions,
+      action: data.action || "queue",
+    };
   }
 }
 
@@ -85,6 +96,7 @@ export async function getPendingTasks(
       {
         title: data.title,
         instructions: data.instructions,
+        action: data.action,
         encrypted: data.encrypted,
       },
       auth.apiKey
@@ -93,6 +105,7 @@ export async function getPendingTasks(
       id: doc.id,
       title: decrypted.title,
       instructions: decrypted.instructions,
+      action: decrypted.action,
       priority: data.priority,
       status: data.status,
       projectId: data.projectId || null,
@@ -170,6 +183,7 @@ export async function claimTask(
     {
       title: taskData.title,
       instructions: taskData.instructions,
+      action: taskData.action,
       encrypted: taskData.encrypted,
     },
     auth.apiKey
@@ -184,6 +198,7 @@ export async function claimTask(
           taskId: args.taskId,
           title: decrypted.title,
           instructions: decrypted.instructions,
+          action: decrypted.action,
           priority: taskData.priority,
           message: "Task claimed. You can now work on it.",
         }),

@@ -240,78 +240,7 @@ class HomeScreen extends ConsumerWidget {
               },
             ),
 
-            const SizedBox(height: 24),
-
-            // Quick Actions
-            _buildSectionHeader(context, 'Quick Actions', Icons.flash_on),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildActionCard(
-                    context,
-                    Icons.add_task,
-                    'New Task',
-                    () => context.push('/tasks/new'),
-                    isPrimary: true,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildActionCard(
-                    context,
-                    Icons.task_alt,
-                    'Tasks',
-                    () => context.go('/tasks'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildActionCard(
-                    context,
-                    Icons.folder,
-                    'Projects',
-                    () => context.go('/projects'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildActionCard(
-                    context,
-                    Icons.history,
-                    'Questions',
-                    () => context.go('/questions'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildActionCard(
-                    context,
-                    Icons.archive,
-                    'Archived',
-                    () => context.go('/sessions/archived'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(child: SizedBox()), // Spacer
-              ],
-            ),
-
             const SizedBox(height: 32),
-
-            // User info
-            Center(
-              child: Text(
-                'Signed in as ${user?.email ?? 'Unknown'}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ),
           ],
         ),
       ),
@@ -425,45 +354,4 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildActionCard(
-    BuildContext context,
-    IconData icon,
-    String label,
-    VoidCallback onTap, {
-    bool isPrimary = false,
-  }) {
-    return Card(
-      color: isPrimary ? Theme.of(context).colorScheme.primaryContainer : null,
-      child: InkWell(
-        onTap: () {
-          HapticService.light();
-          onTap();
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Icon(
-                icon,
-                size: 32,
-                color: isPrimary
-                    ? Theme.of(context).colorScheme.onPrimaryContainer
-                    : Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: isPrimary
-                          ? Theme.of(context).colorScheme.onPrimaryContainer
-                          : null,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }

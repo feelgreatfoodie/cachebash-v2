@@ -4,13 +4,45 @@
 
 ## IMPORTANT: Check for Pending Tasks
 
-**At the start of every session**, use the `get_pending_tasks` MCP tool to check if there are tasks waiting. If tasks are found, claim and work on them.
+**At the start of every session**, use the `get_pending_tasks` MCP tool to check if there are tasks waiting. If tasks are found, claim and work on them based on their action level.
 
 ```
 Use get_pending_tasks to check for work from the mobile app.
 ```
 
 This enables the user to create tasks from their phone that Claude will automatically pick up.
+
+---
+
+## Task Action Levels
+
+Tasks have an `action` field that controls how/when Claude should handle them:
+
+| Action | Timing | Behavior |
+|--------|--------|----------|
+| `interrupt` | **Immediate** | Stop current work NOW, handle this task |
+| `parallel` | **Soon** | Spin up a subagent at the next convenient moment |
+| `queue` | After current | Handle when current task completes (default) |
+| `backlog` | Eventually | Low priority, handle when idle |
+
+### Handling Each Action Level
+
+**interrupt** - Requires immediate attention:
+1. Use `pin_task` to save your current work context
+2. Claim and work on the interrupt task
+3. After completion, offer to resume previous work via `resume_task`
+
+**parallel** - At the next natural pause:
+1. Use the Task tool to spawn a subagent for the parallel task
+2. Continue with current work while subagent handles the parallel task
+
+**queue** - Sequential processing:
+1. Complete your current task first
+2. Then claim and work on the queued task
+
+**backlog** - Low priority:
+1. Note the task exists but don't prioritize it
+2. Handle when there's no other work pending
 
 ---
 
@@ -168,7 +200,8 @@ Get tasks created by the user in the mobile app for Claude to work on.
   status?: 'pending' | 'in_progress' | 'all',  // Default: pending
   limit?: number                                // Default: 10
 }
-// Returns: { hasTasks: boolean, tasks: Array<{id, title, instructions, priority, status}> }
+// Returns: { hasTasks: boolean, tasks: Array<{id, title, instructions, action, priority, status}> }
+// action: 'interrupt' | 'parallel' | 'queue' | 'backlog'
 ```
 
 ### claim_task
@@ -178,7 +211,7 @@ Claim a pending task to start working on it.
   taskId: string,
   sessionId?: string       // Optional session to associate
 }
-// Returns: { taskId, title, instructions, priority }
+// Returns: { taskId, title, instructions, action, priority }
 ```
 
 ### complete_task
@@ -241,6 +274,7 @@ Mark a task as complete when finished.
 /users/{userId}/tasks/{taskId}
   - title: string
   - instructions: string
+  - action: 'interrupt' | 'parallel' | 'queue' | 'backlog'
   - priority: 'low' | 'normal' | 'high'
   - status: 'pending' | 'in_progress' | 'complete' | 'cancelled'
   - projectId?: string

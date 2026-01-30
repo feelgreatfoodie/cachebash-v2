@@ -22,11 +22,17 @@ import 'screens/sessions/archived_sessions_screen.dart';
 import 'screens/tasks/tasks_screen.dart';
 import 'screens/tasks/create_task_screen.dart';
 import 'theme/app_theme.dart';
+import 'widgets/main_shell.dart';
+
+// Navigator keys for shell routing
+final _rootNavigatorKey = GlobalKey<NavigatorState>();
+final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
 
   return GoRouter(
+    navigatorKey: _rootNavigatorKey,
     initialLocation: '/login',
     redirect: (context, state) {
       final isLoggedIn = authState.valueOrNull != null;
@@ -42,86 +48,106 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      // Auth routes (no bottom nav)
       GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
         path: '/login',
         builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
       ),
       GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
         path: '/api-key',
         builder: (context, state) => const ApiKeyScreen(),
       ),
-      GoRoute(
-        path: '/home',
-        builder: (context, state) => const HomeScreen(),
-      ),
-      GoRoute(
-        path: '/sessions',
-        builder: (context, state) => const SessionsScreen(),
-      ),
-      GoRoute(
-        path: '/sessions/archived',
-        builder: (context, state) => const ArchivedSessionsScreen(),
-      ),
-      GoRoute(
-        path: '/sessions/:id',
-        builder: (context, state) {
-          final sessionId = state.pathParameters['id']!;
-          return SessionDetailScreen(sessionId: sessionId);
+
+      // Main shell with bottom nav - ALL authenticated routes go here
+      ShellRoute(
+        navigatorKey: _shellNavigatorKey,
+        builder: (context, state, child) {
+          return MainShellWrapper(child: child);
         },
-      ),
-      GoRoute(
-        path: '/tasks',
-        builder: (context, state) => const TasksScreen(),
-      ),
-      GoRoute(
-        path: '/tasks/new',
-        builder: (context, state) => const CreateTaskScreen(),
-      ),
-      GoRoute(
-        path: '/questions',
-        builder: (context, state) => const QuestionsScreen(),
-      ),
-      GoRoute(
-        path: '/questions/:id',
-        builder: (context, state) {
-          final questionId = state.pathParameters['id']!;
-          return QuestionDetailScreen(questionId: questionId);
-        },
-      ),
-      GoRoute(
-        path: '/projects',
-        builder: (context, state) => const ProjectsScreen(),
-      ),
-      GoRoute(
-        path: '/projects/:id',
-        builder: (context, state) {
-          final projectId = state.pathParameters['id']!;
-          return ProjectDetailScreen(projectId: projectId);
-        },
-      ),
-      GoRoute(
-        path: '/settings',
-        builder: (context, state) => const SettingsScreen(),
-      ),
-      GoRoute(
-        path: '/settings/profile',
-        builder: (context, state) => const ProfileScreen(),
-      ),
-      GoRoute(
-        path: '/settings/change-password',
-        builder: (context, state) => const ChangePasswordScreen(),
-      ),
-      GoRoute(
-        path: '/settings/delete-account',
-        builder: (context, state) => const DeleteAccountScreen(),
-      ),
-      GoRoute(
-        path: '/settings/notifications',
-        builder: (context, state) => const NotificationsScreen(),
+        routes: [
+          // Home
+          GoRoute(
+            path: '/home',
+            builder: (context, state) => const HomeScreen(),
+          ),
+          // Questions
+          GoRoute(
+            path: '/questions',
+            builder: (context, state) => const QuestionsScreen(),
+          ),
+          GoRoute(
+            path: '/questions/:id',
+            builder: (context, state) {
+              final questionId = state.pathParameters['id']!;
+              return QuestionDetailScreen(questionId: questionId);
+            },
+          ),
+          // Sessions
+          GoRoute(
+            path: '/sessions',
+            builder: (context, state) => const SessionsScreen(),
+          ),
+          GoRoute(
+            path: '/sessions/archived',
+            builder: (context, state) => const ArchivedSessionsScreen(),
+          ),
+          GoRoute(
+            path: '/sessions/:id',
+            builder: (context, state) {
+              final sessionId = state.pathParameters['id']!;
+              return SessionDetailScreen(sessionId: sessionId);
+            },
+          ),
+          // Tasks
+          GoRoute(
+            path: '/tasks',
+            builder: (context, state) => const TasksScreen(),
+          ),
+          GoRoute(
+            path: '/tasks/new',
+            builder: (context, state) => const CreateTaskScreen(),
+          ),
+          // Projects
+          GoRoute(
+            path: '/projects',
+            builder: (context, state) => const ProjectsScreen(),
+          ),
+          GoRoute(
+            path: '/projects/:id',
+            builder: (context, state) {
+              final projectId = state.pathParameters['id']!;
+              return ProjectDetailScreen(projectId: projectId);
+            },
+          ),
+          // Settings
+          GoRoute(
+            path: '/settings',
+            builder: (context, state) => const SettingsScreen(),
+          ),
+          GoRoute(
+            path: '/settings/profile',
+            builder: (context, state) => const ProfileScreen(),
+          ),
+          GoRoute(
+            path: '/settings/change-password',
+            builder: (context, state) => const ChangePasswordScreen(),
+          ),
+          GoRoute(
+            path: '/settings/delete-account',
+            builder: (context, state) => const DeleteAccountScreen(),
+          ),
+          GoRoute(
+            path: '/settings/notifications',
+            builder: (context, state) => const NotificationsScreen(),
+          ),
+        ],
       ),
     ],
   );

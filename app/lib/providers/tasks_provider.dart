@@ -89,30 +89,34 @@ class TasksService {
         _encryptionService = encryptionService ?? EncryptionService();
 
   /// Create a new task for Claude Code to pick up
-  /// Task title and instructions are encrypted by default
+  /// Task title, instructions, and action are encrypted by default
   Future<String> createTask({
     required String userId,
     required String title,
     required String instructions,
     String? projectId,
     String priority = 'normal',
+    TaskAction action = TaskAction.queue,
     bool encrypt = true,
   }) async {
-    _log('Creating task: $title');
+    _log('Creating task: $title (action: ${action.value})');
 
     final taskRef = _firestore.collection('users/$userId/tasks').doc();
 
     String finalTitle = title;
     String finalInstructions = instructions;
+    String finalAction = action.value;
     bool isEncrypted = false;
 
     if (encrypt) {
       final encryptedTitle = await _encryptionService.encrypt(title);
       final encryptedInstructions = await _encryptionService.encrypt(instructions);
+      final encryptedAction = await _encryptionService.encrypt(action.value);
 
-      if (encryptedTitle != null && encryptedInstructions != null) {
+      if (encryptedTitle != null && encryptedInstructions != null && encryptedAction != null) {
         finalTitle = encryptedTitle;
         finalInstructions = encryptedInstructions;
+        finalAction = encryptedAction;
         isEncrypted = true;
         _log('Task encrypted successfully');
       } else {
@@ -125,6 +129,7 @@ class TasksService {
       'instructions': finalInstructions,
       'projectId': projectId,
       'priority': priority,
+      'action': finalAction,
       'status': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
       'startedAt': null,
