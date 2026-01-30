@@ -11,7 +11,7 @@ interface LogEntry {
 }
 
 function maskSensitiveData(obj: Record<string, unknown>): Record<string, unknown> {
-  const sensitiveKeys = ["apiKey", "token", "password", "secret", "authorization"];
+  const sensitiveKeys = ["apikey", "token", "password", "secret", "authorization"];
   const result: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(obj)) {

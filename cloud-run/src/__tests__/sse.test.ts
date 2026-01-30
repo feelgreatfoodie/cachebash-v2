@@ -235,4 +235,92 @@ describe("SSE Endpoint", () => {
       expect(activeConnections.size).toBe(0);
     });
   });
+
+  describe("POST /messages", () => {
+    it("returns 401 without auth", async () => {
+      const response = await request(app)
+        .post("/v1/messages")
+        .send({ jsonrpc: "2.0", method: "tools/list", id: 1 });
+
+      expect(response.status).toBe(401);
+    });
+
+    it("returns tool definitions for tools/list", async () => {
+      const response = await request(app)
+        .post("/v1/messages")
+        .set("Authorization", "Bearer test-api-key")
+        .send({ jsonrpc: "2.0", method: "tools/list", id: 1 });
+
+      expect(response.status).toBe(200);
+      expect(response.body.jsonrpc).toBe("2.0");
+      expect(response.body.id).toBe(1);
+      expect(response.body.result).toBeDefined();
+      expect(response.body.result.tools).toBeDefined();
+      expect(Array.isArray(response.body.result.tools)).toBe(true);
+      // Verify all 5 tools are present
+      const toolNames = response.body.result.tools.map((t: { name: string }) => t.name);
+      expect(toolNames).toContain("ask_question");
+      expect(toolNames).toContain("get_response");
+      expect(toolNames).toContain("update_status");
+      expect(toolNames).toContain("pin_task");
+      expect(toolNames).toContain("resume_task");
+    });
+
+    it("handles tool calls via handleToolCall", async () => {
+      const response = await request(app)
+        .post("/v1/messages")
+        .set("Authorization", "Bearer test-api-key")
+        .send({
+          jsonrpc: "2.0",
+          method: "tools/call",
+          id: 2,
+          params: {
+            name: "update_status",
+            arguments: {
+              status: "Testing",
+              progress: 50,
+              state: "working",
+            },
+          },
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.jsonrpc).toBe("2.0");
+      expect(response.body.id).toBe(2);
+      // Should have either result or error
+      expect(response.body.result !== undefined || response.body.error !== undefined).toBe(true);
+    });
+
+    it("broadcasts tool response to SSE connections", async () => {
+      const chunks: string[] = [];
+
+      // Set up a mock SSE connection for the same user
+      activeConnections.set("test-conn", {
+        id: "test-conn",
+        userId: "test-user-123",
+        response: { write: (d: string) => chunks.push(d) } as unknown as Response,
+        lastEventId: 0,
+        connectedAt: new Date(),
+      });
+
+      await request(app)
+        .post("/v1/messages")
+        .set("Authorization", "Bearer test-api-key")
+        .send({
+          jsonrpc: "2.0",
+          method: "tools/call",
+          id: 3,
+          params: {
+            name: "update_status",
+            arguments: {
+              status: "Broadcast test",
+              state: "working",
+            },
+          },
+        });
+
+      // Should have broadcast to the SSE connection
+      expect(chunks.join("")).toContain("tool-response");
+    });
+  });
 });

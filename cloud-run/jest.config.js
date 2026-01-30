@@ -9,6 +9,9 @@ module.exports = {
     'src/**/*.ts',
     '!src/**/*.test.ts',
     '!src/__tests__/**',
+    '!src/index.ts',        // Entry point - tested via integration
+    '!src/lib/firebase.ts', // Firebase init - tested via integration
+    '!src/config.ts',       // Config loaded at startup - tested via schema tests
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov'],

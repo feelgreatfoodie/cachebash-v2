@@ -1,4 +1,6 @@
-import { _internal, checkToolRateLimit, getRateLimitHeaders } from "../middleware/rateLimit";
+import { _internal, checkToolRateLimit, getRateLimitHeaders, sseRateLimitMiddleware } from "../middleware/rateLimit";
+import { Request, Response, NextFunction } from "express";
+import { AuthenticatedRequest } from "../middleware/auth";
 
 // Mock SSE connections
 jest.mock("../routes/sse", () => ({
@@ -129,6 +131,60 @@ describe("Rate Limiting", () => {
     it("returns empty for unknown actions", () => {
       const headers = getRateLimitHeaders("user-7", "unknown");
       expect(Object.keys(headers)).toHaveLength(0);
+    });
+  });
+
+  describe("sseRateLimitMiddleware", () => {
+    it("passes through when no auth context", () => {
+      const req = {} as Request;
+      const res = {} as Response;
+      const next = jest.fn() as NextFunction;
+
+      sseRateLimitMiddleware(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("passes through when under rate limit", () => {
+      (getConnectionCount as jest.Mock).mockReturnValue(0);
+
+      const req = {
+        auth: { userId: "user-8", apiKeyHash: "hash" },
+      } as unknown as AuthenticatedRequest;
+      const res = {} as Response;
+      const next = jest.fn() as NextFunction;
+
+      sseRateLimitMiddleware(req as unknown as Request, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("returns 429 when rate limit exceeded", () => {
+      (getConnectionCount as jest.Mock).mockReturnValue(2); // At the limit
+
+      const req = {
+        auth: { userId: "user-9", apiKeyHash: "hash" },
+      } as unknown as AuthenticatedRequest;
+
+      const mockSetHeader = jest.fn();
+      const mockStatus = jest.fn().mockReturnThis();
+      const mockJson = jest.fn();
+      const res = {
+        setHeader: mockSetHeader,
+        status: mockStatus,
+        json: mockJson,
+      } as unknown as Response;
+
+      const next = jest.fn() as NextFunction;
+
+      sseRateLimitMiddleware(req as unknown as Request, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(mockStatus).toHaveBeenCalledWith(429);
+      expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({
+        error: "Too many concurrent SSE connections",
+      }));
+      expect(mockSetHeader).toHaveBeenCalledWith("Retry-After", expect.any(String));
     });
   });
 });

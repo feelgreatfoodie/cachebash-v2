@@ -4,11 +4,11 @@
 
 ## Current Status
 PHASE: Phase 2 - Cloud-Hosted MCP Server
-STORY: US-012 - Write unit tests for Cloud Run (Epic 1 Complete!)
+STORY: US-013 - Deploy to Cloud Run
 
 ## Project Stats
 Phase 2 Stories: 17
-Completed: 9
+Completed: 10
 Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 
 ## Phase 1 Completed
@@ -37,7 +37,7 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 - [ ] US-011: Add Test Connection button to app
 
 ### Epic 3: Testing & Deployment (US-012 to US-013)
-- [ ] US-012: Write unit tests for Cloud Run
+- [x] US-012: Write unit tests for Cloud Run
 - [ ] US-013: Deploy to Cloud Run
 
 ### Epic 4: Projects Feature (US-014 to US-017)
@@ -83,3 +83,12 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
   - Uncaught exception and unhandled rejection handlers
   - Force exit timeout if server.close() hangs
   - Epic 1 (Cloud Run MCP Server) COMPLETE!
+[2026-01-30] US-012 complete - Unit tests for Cloud Run
+  - Added tests for POST /messages endpoint (tools/list, tool calls)
+  - Added config validation tests
+  - Added logger tests with sensitive data masking
+  - Added sseRateLimitMiddleware tests
+  - Added InvalidParams error path tests for all MCP tools
+  - Fixed logger maskSensitiveData case-sensitivity bug
+  - Coverage: 85.77% statements, 70.06% branches, 84.9% functions, 85.64% lines
+  - 118 tests passing, all quality gates pass

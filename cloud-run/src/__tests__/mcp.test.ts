@@ -135,12 +135,60 @@ describe("MCP Protocol", () => {
       expect(response.error?.code).toBe(MCPErrorCode.MethodNotFound);
     });
 
-    it("returns error for invalid parameters", async () => {
+    it("returns error for invalid ask_question parameters", async () => {
       const response = await handleToolCall(userId, {
         jsonrpc: "2.0",
         id: 1,
         method: "tools/call",
         params: { name: "ask_question", arguments: { question: "" } },
+      });
+
+      expect(response.error).toBeDefined();
+      expect(response.error?.code).toBe(MCPErrorCode.InvalidParams);
+    });
+
+    it("returns error for invalid get_response parameters", async () => {
+      const response = await handleToolCall(userId, {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: { name: "get_response", arguments: {} },
+      });
+
+      expect(response.error).toBeDefined();
+      expect(response.error?.code).toBe(MCPErrorCode.InvalidParams);
+    });
+
+    it("returns error for invalid update_status parameters", async () => {
+      const response = await handleToolCall(userId, {
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: { name: "update_status", arguments: { status: "" } },
+      });
+
+      expect(response.error).toBeDefined();
+      expect(response.error?.code).toBe(MCPErrorCode.InvalidParams);
+    });
+
+    it("returns error for invalid pin_task parameters", async () => {
+      const response = await handleToolCall(userId, {
+        jsonrpc: "2.0",
+        id: 4,
+        method: "tools/call",
+        params: { name: "pin_task", arguments: { taskId: "t-1" } }, // missing questionId and context
+      });
+
+      expect(response.error).toBeDefined();
+      expect(response.error?.code).toBe(MCPErrorCode.InvalidParams);
+    });
+
+    it("returns error for invalid resume_task parameters", async () => {
+      const response = await handleToolCall(userId, {
+        jsonrpc: "2.0",
+        id: 5,
+        method: "tools/call",
+        params: { name: "resume_task", arguments: {} }, // missing taskId
       });
 
       expect(response.error).toBeDefined();
