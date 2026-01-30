@@ -13,6 +13,7 @@ import { askQuestion } from "./tools/askQuestion.js";
 import { getResponse } from "./tools/getResponse.js";
 import { updateStatus } from "./tools/updateStatus.js";
 import { pinTask, resumeTask } from "./tools/pinTask.js";
+import { getInterrupts } from "./tools/getInterrupts.js";
 
 async function main() {
   // Get API key from environment
@@ -159,6 +160,26 @@ async function main() {
             required: ["taskId"],
           },
         },
+        {
+          name: "get_interrupts",
+          description:
+            "Check for interrupt messages sent from the mobile app to the current session. Use this to see if the user has sent you any messages.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              sessionId: {
+                type: "string",
+                description: "The session ID to check for interrupts",
+              },
+              markAsRead: {
+                type: "boolean",
+                description: "Whether to mark interrupts as read (default: true)",
+                default: true,
+              },
+            },
+            required: ["sessionId"],
+          },
+        },
       ],
     };
   });
@@ -179,6 +200,8 @@ async function main() {
           return await pinTask(authContext, args as any);
         case "resume_task":
           return await resumeTask(authContext, args as any);
+        case "get_interrupts":
+          return await getInterrupts(authContext, args as any);
         default:
           return {
             content: [{ type: "text", text: `Unknown tool: ${name}` }],

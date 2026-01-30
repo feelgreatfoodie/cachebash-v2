@@ -115,7 +115,13 @@ class HomeScreen extends ConsumerWidget {
                       .take(3)
                       .map((s) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: SessionCard(session: s),
+                            child: SessionCard(
+                              session: s,
+                              onTap: () {
+                                HapticService.light();
+                                context.go('/sessions/${s.id}');
+                              },
+                            ),
                           ))
                       .toList(),
                 );

@@ -16,6 +16,7 @@ import 'screens/settings/profile_screen.dart';
 import 'screens/settings/change_password_screen.dart';
 import 'screens/settings/delete_account_screen.dart';
 import 'screens/settings/notifications_screen.dart';
+import 'screens/sessions/session_detail_screen.dart';
 import 'theme/app_theme.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -52,6 +53,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/home',
         builder: (context, state) => const HomeScreen(),
+      ),
+      GoRoute(
+        path: '/sessions/:id',
+        builder: (context, state) {
+          final sessionId = state.pathParameters['id']!;
+          return SessionDetailScreen(sessionId: sessionId);
+        },
       ),
       GoRoute(
         path: '/questions',
