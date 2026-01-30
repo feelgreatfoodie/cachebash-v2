@@ -1,12 +1,149 @@
 # CacheBash Session Handoff
 
 **Last Updated:** 2026-01-30
-**Status:** Phase 3 - Premium UX Enhancements - COMPLETE
-**Branch:** `feature/style-design`
+**Status:** Full MCP integration working ✅
+**Branch:** `main`
 
 ---
 
-## Current Status
+## CURRENT SESSION - MCP Protocol & Task Tools
+
+### Context
+Fixed Claude Code MCP integration and added all 9 MCP tools with E2E encryption support.
+
+### What We Did This Session
+
+1. **Fixed MCP Protocol Support**:
+   - Added `initialize` method handler (required by Claude Code HTTP transport)
+   - Added `notifications/initialized` and `ping` handlers
+   - Changed from SSE endpoint (`/v1/sse`) to HTTP messages endpoint (`/v1/messages`)
+   - Claude Code now connects successfully: `claude mcp list` shows ✓ Connected
+
+2. **Added Task Tools with Decryption**:
+   - `get_pending_tasks` - Retrieves encrypted tasks, decrypts them
+   - `claim_task` - Claims task and returns decrypted content
+   - `complete_task` - Marks task as complete
+   - `get_interrupts` - Gets session interrupt messages
+
+3. **Added Encryption Module** (`cloud-run/src/encryption/crypto.ts`):
+   - PBKDF2 key derivation from API key
+   - AES-256-CBC decryption matching Flutter app
+   - `decryptTaskData()` helper for task content
+
+4. **Fixed Deploy Script**:
+   - Added `FIREBASE_PROJECT_ID=cachebash-app` env var (was getting lost on deploy)
+
+5. **MCP Server Configuration**:
+   - Added via: `claude mcp add --transport http cachebash .../v1/messages`
+   - Config stored in `~/.claude.json` under project settings
+   - Requires session restart to pick up new MCP servers
+
+### All 9 MCP Tools Now Working
+
+| Tool | Status | Description |
+|------|--------|-------------|
+| `ask_question` | ✅ | Send question to mobile, get push notification |
+| `get_response` | ✅ | Check for user's answer |
+| `update_status` | ✅ | Update session status in app |
+| `pin_task` | ✅ | Save context for later |
+| `resume_task` | ✅ | Resume saved context |
+| `get_pending_tasks` | ✅ | Get tasks from app (decrypted) |
+| `claim_task` | ✅ | Claim task to work on (decrypted) |
+| `complete_task` | ✅ | Mark task done |
+| `get_interrupts` | ✅ | Get messages from app |
+
+### Tested End-to-End
+
+- ✅ `ask_question` sent "Testing MCP connection" → arrived on phone
+- ✅ User responded "yes! it works" → `get_response` returned it
+- ✅ User created task "What are our next steps?" → `get_pending_tasks` returned decrypted
+
+---
+
+## Previous Session - API Key Authentication Fix
+
+### Root Cause Analysis
+
+The Cloud Run service was deployed in GCP project `cache-bash-app` but Firestore lives in Firebase project `cachebash-app`. The service needed:
+1. `FIREBASE_PROJECT_ID` env var to point to the correct Firestore
+2. IAM permissions for cross-project Firestore access
+
+### Verification Results
+
+```
+$ curl -s https://cachebash-mcp-94772408270.us-central1.run.app/v1/debug/auth \
+  -H "Authorization: Bearer <key>" | jq
+{
+  "keyProvided": true,
+  "keyHashPartial": "7eae7bc9...5aec",
+  "apiKeysDocExists": true,
+  "usersDocExists": true,
+  "usersDocHashMatch": true,
+  "failureReason": "success",
+  "hint": "API key is valid and properly registered. Authentication should work.",
+  "userId": "T0NW...UHJ2"
+}
+```
+
+SSE connection test also successful.
+
+### How E2E Encryption Works
+
+```
+MCP Server                          Mobile App
+    │                                    │
+    │  API Key (in config)               │  API Key (in secure storage)
+    │         │                          │         │
+    │         ▼                          │         ▼
+    │  PBKDF2(apiKey, salt)              │  PBKDF2(apiKey, salt)
+    │         │                          │         │
+    │         ▼                          │         ▼
+    │  Derived Key (256-bit)             │  Derived Key (256-bit)
+    │         │                          │         │
+    │         ▼                          │         ▼
+    │  AES-256-CBC encrypt ──────────────│──► AES-256-CBC decrypt
+```
+
+**Key files:**
+- MCP encryption: `mcp-server/src/encryption/crypto.ts`
+- MCP auth: `mcp-server/src/auth/apiKeyValidator.ts`
+- App encryption: `app/lib/services/encryption_service.dart`
+
+### What Needs Testing (Next Session)
+
+After restarting Claude Code with new API key:
+
+1. **Send test message via `ask_question`**
+   - Verify message arrives on phone
+   - Verify message is decrypted correctly (not showing ciphertext)
+
+2. **Respond from app**
+   - Check `get_response` returns decrypted response
+
+3. **Test full workflow:**
+   - Create task from app
+   - Claude picks up task via `get_pending_tasks`
+   - Verify task title/instructions are decrypted
+
+4. **Verify 5-icon navigation** - User reported only seeing 4 icons before build 2
+
+### Things We Tried That Didn't Work
+
+1. **Firebase Admin SDK script to delete users** - Failed due to expired Google OAuth credentials (`invalid_rapt` error)
+2. **`gcloud auth application-default login`** - Requires interactive browser auth
+
+**Solution:** User deleted users manually via Firebase Console
+
+### Files Changed This Session
+
+| File | Change |
+|------|--------|
+| `~/.claude/mcp.json` | Updated API key |
+| `app/pubspec.yaml` | Version bump to 1.0.0+2 |
+
+---
+
+## Previous Status (Phases 1-3 Complete)
 
 ### Phase 1: MVP - COMPLETE
 - Local MCP server, Firebase backend, Flutter app
@@ -132,8 +269,9 @@ cd app && flutter run -d "iPhone"
 ```
 
 ### 5. Test Account
-- **Email:** `cachebashapp+test@gmail.com`
-- **Password:** `cachebashtest`
+- **Note:** Previous test accounts were deleted on 2026-01-30
+- User registered a new account - check with user for credentials
+- API key in `~/.claude/mcp.json` should match the new account
 
 ---
 
@@ -212,12 +350,115 @@ cd app && flutter run -d "iPhone"
 ## Recent Commits
 
 ```
+260370d Add unified search, multi-select, and UX polish features
+9e031b4 Add task action levels and persistent bottom navigation
+99469b4 Add automatic task checking instruction to documentation
+28c848f Update HANDOFF.md with E2E encryption verification status
 f286cd1 Add Firestore indexes for tasks collection
-8fe4007 Add E2E encryption for tasks
-4eb5867 Fix E2E encryption by using correct storage key
-c3744a1 Update HANDOFF.md with Phase 3 status and new features
-cb6a179 Update documentation for Phase 3 features
 ```
+
+---
+
+## API Key Authentication Troubleshooting
+
+### How Authentication Works
+
+1. **Flutter app generates key**: 256-bit random → base64url encoded
+2. **SHA-256 hash computed**: `sha256(apiKey).toHex()`
+3. **Two Firestore documents created**:
+   - `apiKeys/{hash}` → `{userId, createdAt}`
+   - `users/{userId}` → `{apiKeyHash: hash, ...}`
+4. **Cloud Run validates by reverse lookup**:
+   - Compute hash of provided key
+   - Lookup `apiKeys/{hash}` to get userId
+   - Verify `users/{userId}.apiKeyHash` matches
+
+### Common Issues and Fixes
+
+#### "Invalid API key" / "API key not registered"
+
+**Cause**: The `apiKeys/{hash}` document doesn't exist in Firestore.
+
+**Diagnosis**:
+```bash
+# Compute the hash of your key
+echo -n "YOUR_API_KEY" | shasum -a 256
+
+# Check Firebase Console for: apiKeys/{computed_hash}
+```
+
+**Fix**:
+1. Regenerate key in Flutter app (Settings > Regenerate API Key)
+2. Copy new key to `~/.claude/mcp.json`
+3. Restart Claude Code
+
+#### "User not found"
+
+**Cause**: The user account was deleted but `apiKeys` document remains.
+
+**Fix**: Create a new account in the Flutter app.
+
+#### "API key was regenerated"
+
+**Cause**: The key in mcp.json is old; a new key was generated in the app.
+
+**Fix**: Copy the current API key from the app to `~/.claude/mcp.json`.
+
+#### Rate Limited (429)
+
+**Cause**: Too many failed auth attempts (10/hour limit).
+
+**Fix**: Wait up to 1 hour, or redeploy Cloud Run to reset the in-memory rate limiter.
+
+### Diagnostic Tools
+
+**Debug endpoint** (after deployment):
+```bash
+curl -s https://cachebash-mcp-94772408270.us-central1.run.app/v1/debug/auth \
+  -H "Authorization: Bearer YOUR_API_KEY" | jq
+```
+
+Returns detailed diagnostics:
+- `apiKeysDocExists`: whether the key is registered
+- `usersDocExists`: whether the user account exists
+- `usersDocHashMatch`: whether the hashes match
+- `failureReason`: specific error cause
+- `hint`: how to fix it
+
+**Verification script**:
+```bash
+cd firebase/scripts
+npx ts-node verify-api-key.ts "YOUR_API_KEY"
+```
+
+**Quick hash check**:
+```bash
+echo -n "YOUR_API_KEY" | shasum -a 256
+```
+
+### MCP Connection Testing
+
+```bash
+# Health check (no auth)
+curl -s https://cachebash-mcp-94772408270.us-central1.run.app/v1/health
+
+# Auth diagnostic
+curl -s https://cachebash-mcp-94772408270.us-central1.run.app/v1/debug/auth \
+  -H "Authorization: Bearer YOUR_API_KEY" | jq
+
+# SSE connection test
+curl -s -m 5 https://cachebash-mcp-94772408270.us-central1.run.app/v1/sse \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: text/event-stream"
+```
+
+### Key Learnings
+
+1. **Debug mode pitfall**: iOS simulator debug mode previously used a fallback debug key, which caused Firestore writes with the wrong hash. This has been fixed.
+
+2. **Both documents required**: Auth requires BOTH `apiKeys/{hash}` AND `users/{userId}.apiKeyHash` to exist and match.
+
+3. **Key mismatch**: If the app regenerates a key, the old key in mcp.json won't work even though the apiKeys document exists (because users.apiKeyHash changed).
 
 ---
 

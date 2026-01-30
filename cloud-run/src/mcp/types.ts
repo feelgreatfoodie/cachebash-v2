@@ -30,6 +30,25 @@ export const ResumeTaskSchema = z.object({
   taskId: z.string().min(1),
 });
 
+export const GetPendingTasksSchema = z.object({
+  status: z.enum(["pending", "in_progress", "all"]).default("pending"),
+  limit: z.number().min(1).max(50).default(10),
+});
+
+export const ClaimTaskSchema = z.object({
+  taskId: z.string().min(1),
+  sessionId: z.string().optional(),
+});
+
+export const CompleteTaskSchema = z.object({
+  taskId: z.string().min(1),
+});
+
+export const GetInterruptsSchema = z.object({
+  sessionId: z.string().min(1),
+  markAsRead: z.boolean().default(true),
+});
+
 // Tool call request
 export const ToolCallSchema = z.object({
   jsonrpc: z.literal("2.0"),
@@ -47,6 +66,10 @@ export type GetResponseInput = z.infer<typeof GetResponseSchema>;
 export type UpdateStatusInput = z.infer<typeof UpdateStatusSchema>;
 export type PinTaskInput = z.infer<typeof PinTaskSchema>;
 export type ResumeTaskInput = z.infer<typeof ResumeTaskSchema>;
+export type GetPendingTasksInput = z.infer<typeof GetPendingTasksSchema>;
+export type ClaimTaskInput = z.infer<typeof ClaimTaskSchema>;
+export type CompleteTaskInput = z.infer<typeof CompleteTaskSchema>;
+export type GetInterruptsInput = z.infer<typeof GetInterruptsSchema>;
 export type ToolCallRequest = z.infer<typeof ToolCallSchema>;
 
 // Tool response

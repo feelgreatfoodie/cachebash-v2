@@ -6,6 +6,25 @@ import { logger } from "../lib/logger";
 export interface AuthContext {
   userId: string;
   apiKeyHash: string;
+  apiKey: string;
+}
+
+export type AuthFailureReason =
+  | "key_not_registered"
+  | "user_not_found"
+  | "key_regenerated"
+  | "validation_error";
+
+// Partial auth context returned by validateApiKey (apiKey added by middleware)
+interface PartialAuthContext {
+  userId: string;
+  apiKeyHash: string;
+}
+
+export interface AuthValidationResult {
+  success: boolean;
+  context?: PartialAuthContext;
+  failureReason?: AuthFailureReason;
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -59,7 +78,7 @@ function recordAuthFailure(ip: string): void {
   }
 }
 
-async function validateApiKey(apiKey: string): Promise<AuthContext | null> {
+async function validateApiKey(apiKey: string): Promise<AuthValidationResult> {
   const keyHash = hashApiKey(apiKey);
   const db = getFirestore();
 
@@ -68,35 +87,38 @@ async function validateApiKey(apiKey: string): Promise<AuthContext | null> {
     const keyDoc = await db.doc(`apiKeys/${keyHash}`).get();
 
     if (!keyDoc.exists) {
-      return null;
+      return { success: false, failureReason: "key_not_registered" };
     }
 
     const data = keyDoc.data();
     if (data === undefined || typeof data.userId !== "string") {
-      return null;
+      return { success: false, failureReason: "validation_error" };
     }
 
     // Verify the user exists and the hash matches
     const userDoc = await db.doc(`users/${data.userId}`).get();
     if (!userDoc.exists) {
-      return null;
+      return { success: false, failureReason: "user_not_found" };
     }
 
     const userData = userDoc.data();
     if (userData?.apiKeyHash !== keyHash) {
       // Key has been regenerated
-      return null;
+      return { success: false, failureReason: "key_regenerated" };
     }
 
     return {
-      userId: data.userId,
-      apiKeyHash: keyHash,
+      success: true,
+      context: {
+        userId: data.userId,
+        apiKeyHash: keyHash,
+      },
     };
   } catch (error) {
     logger.error("API key validation error", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return null;
+    return { success: false, failureReason: "validation_error" };
   }
 }
 
@@ -142,19 +164,52 @@ export function authMiddleware(
 
   // Validate API key asynchronously
   validateApiKey(apiKey)
-    .then((authContext) => {
-      if (!authContext) {
+    .then((result) => {
+      if (!result.success || !result.context) {
         recordAuthFailure(ip);
-        logger.info("Invalid API key", { ip, action: "auth_invalid_key" });
-        res.status(401).json({ error: "Invalid API key" });
+        const reason = result.failureReason || "unknown";
+        logger.info("Invalid API key", { ip, reason, action: "auth_invalid_key" });
+
+        const errorMessages: Record<AuthFailureReason | "unknown", { error: string; hint: string }> = {
+          key_not_registered: {
+            error: "API key not registered",
+            hint: "This key was never registered or uses a different hash. Regenerate in app and update ~/.claude/mcp.json.",
+          },
+          user_not_found: {
+            error: "User not found",
+            hint: "The user account was deleted. Create a new account in the app.",
+          },
+          key_regenerated: {
+            error: "API key was regenerated",
+            hint: "The key was regenerated in the app. Copy the new key and update ~/.claude/mcp.json.",
+          },
+          validation_error: {
+            error: "Validation error",
+            hint: "Firestore query failed. Check service account permissions.",
+          },
+          unknown: {
+            error: "Invalid API key",
+            hint: "Unknown authentication error. Use /v1/debug/auth for diagnostics.",
+          },
+        };
+
+        const message = errorMessages[reason];
+        res.status(401).json({
+          error: message.error,
+          reason,
+          hint: message.hint,
+        });
         return;
       }
 
-      // Attach auth context to request
-      (req as AuthenticatedRequest).auth = authContext;
+      // Attach auth context to request (include apiKey for decryption)
+      (req as AuthenticatedRequest).auth = {
+        ...result.context,
+        apiKey,
+      };
 
       logger.info("Authentication successful", {
-        userId: authContext.userId,
+        userId: result.context.userId,
         action: "auth_success",
       });
 

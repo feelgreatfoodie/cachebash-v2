@@ -55,7 +55,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --region "$REGION" \
     --platform managed \
     --allow-unauthenticated \
-    --set-env-vars "NODE_ENV=production" \
+    --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=cachebash-app" \
     --min-instances 0 \
     --max-instances 10 \
     --memory 256Mi \

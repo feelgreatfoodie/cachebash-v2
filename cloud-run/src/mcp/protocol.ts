@@ -9,6 +9,10 @@ import {
   UpdateStatusSchema,
   PinTaskSchema,
   ResumeTaskSchema,
+  GetPendingTasksSchema,
+  ClaimTaskSchema,
+  CompleteTaskSchema,
+  GetInterruptsSchema,
 } from "./types";
 import {
   askQuestion,
@@ -16,6 +20,10 @@ import {
   updateStatus,
   pinTask,
   resumeTask,
+  getPendingTasks,
+  claimTask,
+  completeTask,
+  getInterrupts,
 } from "./tools";
 
 function createErrorResponse(
@@ -43,8 +51,13 @@ function createSuccessResponse(
   };
 }
 
+export interface AuthContext {
+  userId: string;
+  apiKey: string;
+}
+
 export async function handleToolCall(
-  userId: string,
+  auth: AuthContext,
   rawRequest: unknown
 ): Promise<ToolResponse> {
   const startTime = Date.now();
@@ -53,7 +66,7 @@ export async function handleToolCall(
   const parseResult = ToolCallSchema.safeParse(rawRequest);
   if (!parseResult.success) {
     logger.warn("Invalid tool call request", {
-      userId,
+      userId: auth.userId,
       errors: parseResult.error.errors,
       action: "mcp_parse_error",
     });
@@ -69,7 +82,7 @@ export async function handleToolCall(
   const { name, arguments: args } = request.params;
 
   logger.info("Processing tool call", {
-    userId,
+    userId: auth.userId,
     tool: name,
     requestId: request.id,
     action: "mcp_tool_call",
@@ -89,7 +102,7 @@ export async function handleToolCall(
             inputResult.error.errors
           );
         }
-        result = await askQuestion(userId, inputResult.data);
+        result = await askQuestion(auth.userId, inputResult.data);
         break;
       }
 
@@ -103,7 +116,7 @@ export async function handleToolCall(
             inputResult.error.errors
           );
         }
-        result = await getResponse(userId, inputResult.data);
+        result = await getResponse(auth.userId, inputResult.data);
         break;
       }
 
@@ -117,7 +130,7 @@ export async function handleToolCall(
             inputResult.error.errors
           );
         }
-        result = await updateStatus(userId, inputResult.data);
+        result = await updateStatus(auth.userId, inputResult.data);
         break;
       }
 
@@ -131,7 +144,7 @@ export async function handleToolCall(
             inputResult.error.errors
           );
         }
-        result = await pinTask(userId, inputResult.data);
+        result = await pinTask(auth.userId, inputResult.data);
         break;
       }
 
@@ -145,13 +158,69 @@ export async function handleToolCall(
             inputResult.error.errors
           );
         }
-        result = await resumeTask(userId, inputResult.data);
+        result = await resumeTask(auth.userId, inputResult.data);
+        break;
+      }
+
+      case "get_pending_tasks": {
+        const inputResult = GetPendingTasksSchema.safeParse(args);
+        if (!inputResult.success) {
+          return createErrorResponse(
+            request.id,
+            MCPErrorCode.InvalidParams,
+            "Invalid parameters for get_pending_tasks",
+            inputResult.error.errors
+          );
+        }
+        result = await getPendingTasks(auth, inputResult.data);
+        break;
+      }
+
+      case "claim_task": {
+        const inputResult = ClaimTaskSchema.safeParse(args);
+        if (!inputResult.success) {
+          return createErrorResponse(
+            request.id,
+            MCPErrorCode.InvalidParams,
+            "Invalid parameters for claim_task",
+            inputResult.error.errors
+          );
+        }
+        result = await claimTask(auth, inputResult.data);
+        break;
+      }
+
+      case "complete_task": {
+        const inputResult = CompleteTaskSchema.safeParse(args);
+        if (!inputResult.success) {
+          return createErrorResponse(
+            request.id,
+            MCPErrorCode.InvalidParams,
+            "Invalid parameters for complete_task",
+            inputResult.error.errors
+          );
+        }
+        result = await completeTask(auth.userId, inputResult.data);
+        break;
+      }
+
+      case "get_interrupts": {
+        const inputResult = GetInterruptsSchema.safeParse(args);
+        if (!inputResult.success) {
+          return createErrorResponse(
+            request.id,
+            MCPErrorCode.InvalidParams,
+            "Invalid parameters for get_interrupts",
+            inputResult.error.errors
+          );
+        }
+        result = await getInterrupts(auth.userId, inputResult.data);
         break;
       }
 
       default:
         logger.warn("Unknown tool", {
-          userId,
+          userId: auth.userId,
           tool: name,
           action: "mcp_unknown_tool",
         });
@@ -164,7 +233,7 @@ export async function handleToolCall(
 
     const duration_ms = Date.now() - startTime;
     logger.info("Tool call completed", {
-      userId,
+      userId: auth.userId,
       tool: name,
       requestId: request.id,
       duration_ms,
@@ -176,7 +245,7 @@ export async function handleToolCall(
   } catch (error) {
     const duration_ms = Date.now() - startTime;
     logger.error("Tool call failed", {
-      userId,
+      userId: auth.userId,
       tool: name,
       requestId: request.id,
       duration_ms,
@@ -310,6 +379,79 @@ export const toolDefinitions = [
         },
       },
       required: ["taskId"],
+    },
+  },
+  {
+    name: "get_pending_tasks",
+    description: "Get tasks created by the user in the mobile app for Claude to work on",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: {
+          type: "string",
+          enum: ["pending", "in_progress", "all"],
+          description: "Filter by task status",
+          default: "pending",
+        },
+        limit: {
+          type: "number",
+          minimum: 1,
+          maximum: 50,
+          description: "Maximum number of tasks to return",
+          default: 10,
+        },
+      },
+    },
+  },
+  {
+    name: "claim_task",
+    description: "Claim a pending task to start working on it",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: {
+          type: "string",
+          description: "ID of the task to claim",
+        },
+        sessionId: {
+          type: "string",
+          description: "Optional session ID to associate with this task",
+        },
+      },
+      required: ["taskId"],
+    },
+  },
+  {
+    name: "complete_task",
+    description: "Mark a task as complete when finished",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: {
+          type: "string",
+          description: "ID of the task to complete",
+        },
+      },
+      required: ["taskId"],
+    },
+  },
+  {
+    name: "get_interrupts",
+    description: "Check for messages sent from the mobile app to the current session",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sessionId: {
+          type: "string",
+          description: "ID of the session to check for interrupts",
+        },
+        markAsRead: {
+          type: "boolean",
+          description: "Whether to mark interrupts as read after retrieving",
+          default: true,
+        },
+      },
+      required: ["sessionId"],
     },
   },
 ];

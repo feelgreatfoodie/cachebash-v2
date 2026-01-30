@@ -152,19 +152,58 @@ router.get("/sse", authMiddleware, (req: Request, res: Response) => {
   });
 });
 
-// POST /messages - Handle MCP tool calls
+// POST /messages - Handle MCP protocol messages
 router.post("/messages", authMiddleware, (req: Request, res: Response) => {
   const authReq = req as AuthenticatedRequest;
   const userId = authReq.auth.userId;
 
+  const body = req.body as Record<string, unknown>;
+  const method = body.method as string;
+
   logger.info("MCP message received", {
     userId,
+    method,
     action: "mcp_message",
   });
 
+  // Handle initialize request (required by MCP protocol)
+  if (method === "initialize") {
+    res.json({
+      jsonrpc: "2.0",
+      id: body.id,
+      result: {
+        protocolVersion: "2024-11-05",
+        capabilities: {
+          tools: {},
+        },
+        serverInfo: {
+          name: "cachebash-mcp",
+          version: "1.0.0",
+        },
+      },
+    });
+    return;
+  }
+
+  // Handle notifications/initialized (client acknowledgment)
+  if (method === "notifications/initialized") {
+    // No response needed for notifications
+    res.status(204).send();
+    return;
+  }
+
+  // Handle ping
+  if (method === "ping") {
+    res.json({
+      jsonrpc: "2.0",
+      id: body.id,
+      result: {},
+    });
+    return;
+  }
+
   // Handle list_tools request
-  const body = req.body as Record<string, unknown>;
-  if (body.method === "tools/list") {
+  if (method === "tools/list") {
     res.json({
       jsonrpc: "2.0",
       id: body.id,
@@ -174,7 +213,7 @@ router.post("/messages", authMiddleware, (req: Request, res: Response) => {
   }
 
   // Handle tool calls asynchronously
-  handleToolCall(userId, body)
+  handleToolCall({ userId, apiKey: authReq.auth.apiKey }, body)
     .then((response: ToolResponse) => {
       // Also broadcast the response to any active SSE connections for this user
       broadcastToUser(userId, "tool-response", response);

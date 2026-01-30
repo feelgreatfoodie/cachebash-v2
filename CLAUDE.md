@@ -94,6 +94,70 @@ If you need to wait for a response and want to preserve context:
 
 ---
 
+## MCP Server Setup
+
+To enable CacheBash MCP tools in Claude Code:
+
+### 1. Get API Key from Flutter App
+- Open CacheBash app → Settings → Copy API Key
+
+### 2. Add MCP Server to Claude Code
+```bash
+claude mcp add --transport http cachebash \
+  "https://cachebash-mcp-94772408270.us-central1.run.app/v1/messages" \
+  --header "Authorization: Bearer YOUR_API_KEY"
+```
+
+### 3. Restart Claude Code
+MCP servers are loaded at startup. Restart to pick up new configuration.
+
+### 4. Verify Connection
+```bash
+claude mcp list
+# Should show: cachebash: ... (HTTP) - ✓ Connected
+```
+
+**Note:** Config is stored in `~/.claude.json` under `projects.{path}.mcpServers`, NOT in `~/.claude/mcp.json`.
+
+---
+
+## MCP Connection Troubleshooting
+
+If MCP tools aren't working, use these steps to diagnose:
+
+### Quick Health Check
+```bash
+curl -s https://cachebash-mcp-94772408270.us-central1.run.app/v1/health
+```
+
+### Auth Diagnostic
+```bash
+curl -s https://cachebash-mcp-94772408270.us-central1.run.app/v1/debug/auth \
+  -H "Authorization: Bearer YOUR_API_KEY" | jq
+```
+
+This returns:
+- `apiKeysDocExists` - Is the key registered in Firestore?
+- `usersDocExists` - Does the user account exist?
+- `usersDocHashMatch` - Do the hashes match?
+- `failureReason` - Specific error: `key_not_registered`, `user_not_found`, `key_regenerated`
+- `hint` - How to fix it
+
+### Common Fixes
+
+| Error | Fix |
+|-------|-----|
+| `key_not_registered` | Regenerate key in app, re-run `claude mcp add` |
+| `user_not_found` | Create new account in Flutter app |
+| `key_regenerated` | Copy new key from app, re-run `claude mcp add` |
+
+### Compute Key Hash Locally
+```bash
+echo -n "YOUR_API_KEY" | shasum -a 256
+```
+
+---
+
 ## Project Overview
 
 CacheBash enables asynchronous communication between Claude Code sessions and users via push notifications. When Claude needs clarification, it sends a question to the user's phone. The user can respond from anywhere, and Claude continues working.

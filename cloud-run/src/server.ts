@@ -1,5 +1,6 @@
 import express, { Express, Request, Response, NextFunction } from "express";
 import { healthRouter } from "./routes/health";
+import { debugRouter } from "./routes/debug";
 import { sseRouter } from "./routes/sse";
 import { logger } from "./lib/logger";
 
@@ -24,6 +25,9 @@ export function createApp(): Express {
 
   // Health routes (no auth required)
   app.use("/v1", healthRouter);
+
+  // Debug routes (no auth required - for diagnostics)
+  app.use("/v1", debugRouter);
 
   // SSE routes (auth required - handled by router)
   app.use("/v1", sseRouter);
