@@ -180,7 +180,7 @@
         "Default 'Uncategorized' project for questions without projectId"
       ],
       "priority": 2,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-015",
@@ -194,7 +194,7 @@
         "Unarchive functionality"
       ],
       "priority": 3,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-016",
@@ -208,7 +208,7 @@
         "Delete project also archives its questions"
       ],
       "priority": 3,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-017",
@@ -228,6 +228,6 @@
   "metadata": {
     "createdAt": "2026-01-29T00:00:00Z",
     "totalStories": 17,
-    "completedStories": 12
+    "completedStories": 15
   }
 }

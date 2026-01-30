@@ -4,11 +4,11 @@
 
 ## Current Status
 PHASE: Phase 2 - Cloud-Hosted MCP Server
-STORY: US-013 - Deploy to Cloud Run
+STORY: US-017 - Project management screen
 
 ## Project Stats
 Phase 2 Stories: 17
-Completed: 12
+Completed: 15
 Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 
 ## Phase 1 Completed
@@ -41,9 +41,9 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 - [ ] US-013: Deploy to Cloud Run
 
 ### Epic 4: Projects Feature (US-014 to US-017)
-- [ ] US-014: Add Projects feature to organize questions
-- [ ] US-015: Add archive functionality for questions
-- [ ] US-016: Add delete functionality for questions and projects
+- [x] US-014: Add Projects feature to organize questions
+- [x] US-015: Add archive functionality for questions
+- [x] US-016: Add delete functionality for questions and projects
 - [ ] US-017: Add project management screen
 
 ## Session Log
@@ -102,3 +102,16 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
   - Added http package dependency
   - Fixed analyzer warnings (use_build_context_synchronously, withOpacity deprecation)
   - Epic 2 (Flutter App Updates) COMPLETE!
+[2026-01-30] US-014, US-015, US-016 complete - Projects feature + Archive/Delete
+  - Created ProjectModel with Firestore serialization
+  - Updated QuestionModel with projectId, archived, deletedAt fields
+  - Created projects_provider.dart with CRUD operations
+  - Updated questions_provider with archive/delete/moveToProject methods
+  - Created ProjectsScreen with create/rename/delete project dialogs
+  - Created ProjectDetailScreen showing questions in project
+  - Added projects route to app router
+  - Added Projects quick action card to home screen
+  - "Uncategorized" virtual project for questions without projectId
+  - Soft delete sets deletedAt timestamp (30-day retention)
+  - Delete project auto-archives its questions
+  - Archive questions with undo via snackbar

@@ -11,6 +11,9 @@ class QuestionModel {
   final String? response;
   final DateTime createdAt;
   final DateTime? answeredAt;
+  final String? projectId;
+  final bool archived;
+  final DateTime? deletedAt;
 
   QuestionModel({
     required this.id,
@@ -22,6 +25,9 @@ class QuestionModel {
     this.response,
     required this.createdAt,
     this.answeredAt,
+    this.projectId,
+    this.archived = false,
+    this.deletedAt,
   });
 
   factory QuestionModel.fromFirestore(DocumentSnapshot doc) {
@@ -36,6 +42,9 @@ class QuestionModel {
       response: data?['response'] as String?,
       createdAt: (data?['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       answeredAt: (data?['answeredAt'] as Timestamp?)?.toDate(),
+      projectId: data?['projectId'] as String?,
+      archived: data?['archived'] as bool? ?? false,
+      deletedAt: (data?['deletedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -44,6 +53,9 @@ class QuestionModel {
   bool get isExpired => status == 'expired';
   bool get isHighPriority => priority == 'high';
   bool get hasOptions => options != null && options!.isNotEmpty;
+  bool get isArchived => archived;
+  bool get isDeleted => deletedAt != null;
+  bool get hasProject => projectId != null;
 
   QuestionModel copyWith({
     String? id,
@@ -55,6 +67,9 @@ class QuestionModel {
     String? response,
     DateTime? createdAt,
     DateTime? answeredAt,
+    String? projectId,
+    bool? archived,
+    DateTime? deletedAt,
   }) {
     return QuestionModel(
       id: id ?? this.id,
@@ -66,6 +81,9 @@ class QuestionModel {
       response: response ?? this.response,
       createdAt: createdAt ?? this.createdAt,
       answeredAt: answeredAt ?? this.answeredAt,
+      projectId: projectId ?? this.projectId,
+      archived: archived ?? this.archived,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 }

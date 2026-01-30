@@ -9,6 +9,8 @@ import 'screens/auth/api_key_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/questions/questions_screen.dart';
 import 'screens/questions/question_detail_screen.dart';
+import 'screens/projects/projects_screen.dart';
+import 'screens/projects/project_detail_screen.dart';
 import 'theme/app_theme.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -55,6 +57,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final questionId = state.pathParameters['id']!;
           return QuestionDetailScreen(questionId: questionId);
+        },
+      ),
+      GoRoute(
+        path: '/projects',
+        builder: (context, state) => const ProjectsScreen(),
+      ),
+      GoRoute(
+        path: '/projects/:id',
+        builder: (context, state) {
+          final projectId = state.pathParameters['id']!;
+          return ProjectDetailScreen(projectId: projectId);
         },
       ),
     ],

@@ -141,9 +141,9 @@ class HomeScreen extends ConsumerWidget {
                 Expanded(
                   child: _buildActionCard(
                     context,
-                    Icons.key,
-                    'API Key',
-                    () => context.go('/api-key'),
+                    Icons.folder,
+                    'Projects',
+                    () => context.go('/projects'),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -151,8 +151,17 @@ class HomeScreen extends ConsumerWidget {
                   child: _buildActionCard(
                     context,
                     Icons.history,
-                    'All Questions',
+                    'Questions',
                     () => context.go('/questions'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildActionCard(
+                    context,
+                    Icons.key,
+                    'API Key',
+                    () => context.go('/api-key'),
                   ),
                 ),
               ],
