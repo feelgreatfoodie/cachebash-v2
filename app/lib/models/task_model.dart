@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../services/encryption_service.dart';
+
 /// Model representing a task for Claude Code to work on
 class TaskModel {
   final String id;
@@ -12,6 +14,7 @@ class TaskModel {
   final DateTime? startedAt;
   final DateTime? completedAt;
   final String? sessionId; // Session that picked up this task
+  final bool isEncrypted;
 
   TaskModel({
     required this.id,
@@ -24,8 +27,10 @@ class TaskModel {
     this.startedAt,
     this.completedAt,
     this.sessionId,
+    this.isEncrypted = false,
   });
 
+  /// Create from Firestore without decryption (raw data)
   factory TaskModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>?;
     return TaskModel(
@@ -40,6 +45,40 @@ class TaskModel {
       startedAt: (data?['startedAt'] as Timestamp?)?.toDate(),
       completedAt: (data?['completedAt'] as Timestamp?)?.toDate(),
       sessionId: data?['sessionId'],
+      isEncrypted: data?['encrypted'] as bool? ?? false,
+    );
+  }
+
+  /// Create from Firestore with decryption
+  static Future<TaskModel> fromFirestoreDecrypted(
+    DocumentSnapshot doc,
+    EncryptionService encryptionService,
+  ) async {
+    final data = doc.data() as Map<String, dynamic>?;
+    final isEncrypted = data?['encrypted'] as bool? ?? false;
+
+    String title = data?['title'] ?? 'Untitled Task';
+    String instructions = data?['instructions'] ?? '';
+
+    // Decrypt fields if marked as encrypted
+    if (isEncrypted) {
+      title = await encryptionService.decryptIfNeeded(title);
+      instructions = await encryptionService.decryptIfNeeded(instructions);
+    }
+
+    return TaskModel(
+      id: doc.id,
+      title: title,
+      instructions: instructions,
+      projectId: data?['projectId'],
+      priority: data?['priority'] ?? 'normal',
+      status: data?['status'] ?? 'pending',
+      createdAt:
+          (data?['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      startedAt: (data?['startedAt'] as Timestamp?)?.toDate(),
+      completedAt: (data?['completedAt'] as Timestamp?)?.toDate(),
+      sessionId: data?['sessionId'],
+      isEncrypted: isEncrypted,
     );
   }
 

@@ -1,5 +1,6 @@
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { AuthContext } from "../auth/apiKeyValidator.js";
+import { decrypt, isEncrypted } from "../encryption/crypto.js";
 
 interface GetTasksArgs {
   status?: "pending" | "in_progress" | "all";
@@ -13,6 +14,30 @@ interface ClaimTaskArgs {
 
 interface CompleteTaskArgs {
   taskId: string;
+}
+
+/**
+ * Decrypt task data if encrypted
+ */
+function decryptTaskData(
+  data: { title: string; instructions: string; encrypted?: boolean },
+  apiKey: string
+): { title: string; instructions: string } {
+  if (!data.encrypted) {
+    return { title: data.title, instructions: data.instructions };
+  }
+
+  try {
+    return {
+      title: isEncrypted(data.title) ? decrypt(data.title, apiKey) : data.title,
+      instructions: isEncrypted(data.instructions)
+        ? decrypt(data.instructions, apiKey)
+        : data.instructions,
+    };
+  } catch (error) {
+    console.error("Failed to decrypt task data:", error);
+    return { title: data.title, instructions: data.instructions };
+  }
 }
 
 /**
@@ -56,10 +81,18 @@ export async function getPendingTasks(
 
   const tasks = snapshot.docs.map((doc) => {
     const data = doc.data();
+    const decrypted = decryptTaskData(
+      {
+        title: data.title,
+        instructions: data.instructions,
+        encrypted: data.encrypted,
+      },
+      auth.apiKey
+    );
     return {
       id: doc.id,
-      title: data.title,
-      instructions: data.instructions,
+      title: decrypted.title,
+      instructions: decrypted.instructions,
       priority: data.priority,
       status: data.status,
       projectId: data.projectId || null,
@@ -132,6 +165,16 @@ export async function claimTask(
     sessionId: args.sessionId || null,
   });
 
+  // Decrypt task data before returning
+  const decrypted = decryptTaskData(
+    {
+      title: taskData.title,
+      instructions: taskData.instructions,
+      encrypted: taskData.encrypted,
+    },
+    auth.apiKey
+  );
+
   return {
     content: [
       {
@@ -139,8 +182,8 @@ export async function claimTask(
         text: JSON.stringify({
           success: true,
           taskId: args.taskId,
-          title: taskData.title,
-          instructions: taskData.instructions,
+          title: decrypted.title,
+          instructions: decrypted.instructions,
           priority: taskData.priority,
           message: "Task claimed. You can now work on it.",
         }),

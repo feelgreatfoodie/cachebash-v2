@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/task_model.dart';
+import '../services/encryption_service.dart';
 import 'auth_provider.dart';
 
 void _log(String message) {
@@ -11,9 +12,21 @@ void _log(String message) {
 
 final _firestore = FirebaseFirestore.instance;
 
+/// Helper to decrypt a list of task documents
+Future<List<TaskModel>> _decryptTasks(
+  List<QueryDocumentSnapshot> docs,
+  EncryptionService encryptionService,
+) async {
+  final tasks = await Future.wait(
+    docs.map((doc) => TaskModel.fromFirestoreDecrypted(doc, encryptionService)),
+  );
+  return tasks;
+}
+
 /// Stream provider for pending tasks
 final pendingTasksProvider = StreamProvider<List<TaskModel>>((ref) {
   final user = ref.watch(currentUserProvider);
+  final encryptionService = ref.watch(encryptionServiceProvider);
   if (user == null) {
     return Stream.value([]);
   }
@@ -24,13 +37,15 @@ final pendingTasksProvider = StreamProvider<List<TaskModel>>((ref) {
       .orderBy('createdAt', descending: true)
       .limit(20)
       .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => TaskModel.fromFirestore(doc)).toList());
+      .asyncMap((snapshot) async {
+        return await _decryptTasks(snapshot.docs, encryptionService);
+      });
 });
 
 /// Stream provider for in-progress tasks
 final inProgressTasksProvider = StreamProvider<List<TaskModel>>((ref) {
   final user = ref.watch(currentUserProvider);
+  final encryptionService = ref.watch(encryptionServiceProvider);
   if (user == null) {
     return Stream.value([]);
   }
@@ -41,13 +56,15 @@ final inProgressTasksProvider = StreamProvider<List<TaskModel>>((ref) {
       .orderBy('startedAt', descending: true)
       .limit(10)
       .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => TaskModel.fromFirestore(doc)).toList());
+      .asyncMap((snapshot) async {
+        return await _decryptTasks(snapshot.docs, encryptionService);
+      });
 });
 
 /// Stream provider for all tasks (recent)
 final recentTasksProvider = StreamProvider<List<TaskModel>>((ref) {
   final user = ref.watch(currentUserProvider);
+  final encryptionService = ref.watch(encryptionServiceProvider);
   if (user == null) {
     return Stream.value([]);
   }
@@ -57,32 +74,55 @@ final recentTasksProvider = StreamProvider<List<TaskModel>>((ref) {
       .orderBy('createdAt', descending: true)
       .limit(50)
       .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => TaskModel.fromFirestore(doc)).toList());
+      .asyncMap((snapshot) async {
+        return await _decryptTasks(snapshot.docs, encryptionService);
+      });
 });
 
 /// Service for task-related operations
 class TasksService {
   final FirebaseFirestore _firestore;
+  final EncryptionService _encryptionService;
 
-  TasksService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  TasksService({FirebaseFirestore? firestore, EncryptionService? encryptionService})
+      : _firestore = firestore ?? FirebaseFirestore.instance,
+        _encryptionService = encryptionService ?? EncryptionService();
 
   /// Create a new task for Claude Code to pick up
+  /// Task title and instructions are encrypted by default
   Future<String> createTask({
     required String userId,
     required String title,
     required String instructions,
     String? projectId,
     String priority = 'normal',
+    bool encrypt = true,
   }) async {
     _log('Creating task: $title');
 
     final taskRef = _firestore.collection('users/$userId/tasks').doc();
 
+    String finalTitle = title;
+    String finalInstructions = instructions;
+    bool isEncrypted = false;
+
+    if (encrypt) {
+      final encryptedTitle = await _encryptionService.encrypt(title);
+      final encryptedInstructions = await _encryptionService.encrypt(instructions);
+
+      if (encryptedTitle != null && encryptedInstructions != null) {
+        finalTitle = encryptedTitle;
+        finalInstructions = encryptedInstructions;
+        isEncrypted = true;
+        _log('Task encrypted successfully');
+      } else {
+        _log('Encryption failed, storing unencrypted');
+      }
+    }
+
     await taskRef.set({
-      'title': title,
-      'instructions': instructions,
+      'title': finalTitle,
+      'instructions': finalInstructions,
       'projectId': projectId,
       'priority': priority,
       'status': 'pending',
@@ -90,6 +130,7 @@ class TasksService {
       'startedAt': null,
       'completedAt': null,
       'sessionId': null,
+      'encrypted': isEncrypted,
     });
 
     _log('Task created with ID ${taskRef.id}');
