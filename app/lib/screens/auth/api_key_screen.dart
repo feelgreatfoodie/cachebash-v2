@@ -1,9 +1,15 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 
 import '../../providers/auth_provider.dart';
+
+const String cloudMcpBaseUrl = 'https://mcp.cachebash.app';
 
 class ApiKeyScreen extends ConsumerStatefulWidget {
   const ApiKeyScreen({super.key});
@@ -17,6 +23,10 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
   bool _isLoading = true;
   bool _showKey = false;
   bool _copied = false;
+  bool _configCopied = false;
+  bool _isTesting = false;
+  String? _testResult;
+  bool? _testSuccess;
 
   @override
   void initState() {
@@ -78,6 +88,7 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
   Future<void> _copyToClipboard() async {
     if (_apiKey == null) return;
     await Clipboard.setData(ClipboardData(text: _apiKey!));
+    if (!mounted) return;
     setState(() => _copied = true);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -92,10 +103,100 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
     return '${key.substring(0, 4)}${'*' * (key.length - 8)}${key.substring(key.length - 4)}';
   }
 
+  Future<void> _copyConfig() async {
+    if (_apiKey == null) return;
+    final config = _getMcpConfigExample(_apiKey!);
+    await Clipboard.setData(ClipboardData(text: config));
+    if (!mounted) return;
+    setState(() => _configCopied = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('MCP configuration copied to clipboard'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    // Reset after delay
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() => _configCopied = false);
+      }
+    });
+  }
+
+  Future<void> _testConnection() async {
+    if (_apiKey == null) return;
+
+    setState(() {
+      _isTesting = true;
+      _testResult = null;
+      _testSuccess = null;
+    });
+
+    try {
+      // Test the health endpoint first (no auth required)
+      final healthResponse = await http
+          .get(Uri.parse('$cloudMcpBaseUrl/v1/health'))
+          .timeout(const Duration(seconds: 10));
+
+      if (healthResponse.statusCode != 200) {
+        setState(() {
+          _isTesting = false;
+          _testSuccess = false;
+          _testResult = 'Server unavailable (status ${healthResponse.statusCode})';
+        });
+        return;
+      }
+
+      // Now test authentication via the messages endpoint
+      final authResponse = await http.post(
+        Uri.parse('$cloudMcpBaseUrl/v1/messages'),
+        headers: {
+          'Authorization': 'Bearer $_apiKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'jsonrpc': '2.0',
+          'method': 'tools/list',
+          'id': 1,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (authResponse.statusCode == 200) {
+        setState(() {
+          _isTesting = false;
+          _testSuccess = true;
+          _testResult = 'Connection successful!';
+        });
+      } else if (authResponse.statusCode == 401) {
+        setState(() {
+          _isTesting = false;
+          _testSuccess = false;
+          _testResult = 'Invalid API key';
+        });
+      } else {
+        setState(() {
+          _isTesting = false;
+          _testSuccess = false;
+          _testResult = 'Connection failed (status ${authResponse.statusCode})';
+        });
+      }
+    } on TimeoutException {
+      setState(() {
+        _isTesting = false;
+        _testSuccess = false;
+        _testResult = 'Connection timed out';
+      });
+    } catch (e) {
+      setState(() {
+        _isTesting = false;
+        _testSuccess = false;
+        _testResult = 'Network error: ${e.toString().split('\n').first}';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(currentUserProvider);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('API Key'),
@@ -209,9 +310,23 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
                   const SizedBox(height: 24),
 
                   // MCP Configuration example
-                  Text(
-                    'MCP Configuration',
-                    style: Theme.of(context).textTheme.titleSmall,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'MCP Configuration',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      TextButton.icon(
+                        onPressed: _copyConfig,
+                        icon: Icon(
+                          _configCopied ? Icons.check : Icons.copy,
+                          size: 18,
+                          color: _configCopied ? Colors.green : null,
+                        ),
+                        label: Text(_configCopied ? 'Copied!' : 'Copy'),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Container(
@@ -236,6 +351,71 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                   ),
+                  const SizedBox(height: 24),
+
+                  // Test Connection button
+                  FilledButton.tonalIcon(
+                    onPressed: _isTesting ? null : _testConnection,
+                    icon: _isTesting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            _testSuccess == true
+                                ? Icons.check_circle
+                                : _testSuccess == false
+                                    ? Icons.error
+                                    : Icons.wifi_find,
+                            color: _testSuccess == true
+                                ? Colors.green
+                                : _testSuccess == false
+                                    ? Colors.red
+                                    : null,
+                          ),
+                    label: Text(_isTesting ? 'Testing...' : 'Test Connection'),
+                  ),
+                  if (_testResult != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _testSuccess == true
+                            ? Colors.green.withValues(alpha: 0.1)
+                            : Colors.red.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            _testSuccess == true
+                                ? Icons.check_circle
+                                : Icons.error,
+                            size: 16,
+                            color: _testSuccess == true
+                                ? Colors.green
+                                : Colors.red,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              _testResult!,
+                              style: TextStyle(
+                                color: _testSuccess == true
+                                    ? Colors.green.shade700
+                                    : Colors.red.shade700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 32),
 
                   // Regenerate button
@@ -272,10 +452,10 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
     return '''{
   "mcpServers": {
     "cachebash": {
-      "command": "npx",
-      "args": ["cachebash-mcp"],
-      "env": {
-        "CACHEBASH_API_KEY": "$apiKey"
+      "url": "$cloudMcpBaseUrl/v1/sse",
+      "transport": "sse",
+      "headers": {
+        "Authorization": "Bearer $apiKey"
       }
     }
   }

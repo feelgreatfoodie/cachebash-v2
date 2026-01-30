@@ -8,7 +8,7 @@ STORY: US-013 - Deploy to Cloud Run
 
 ## Project Stats
 Phase 2 Stories: 17
-Completed: 10
+Completed: 12
 Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 
 ## Phase 1 Completed
@@ -32,9 +32,9 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 - [x] US-008: Add structured logging
 - [x] US-009: Implement graceful shutdown
 
-### Epic 2: Flutter App Updates (US-010 to US-011)
-- [ ] US-010: Update Flutter app API key screen
-- [ ] US-011: Add Test Connection button to app
+### Epic 2: Flutter App Updates (US-010 to US-011) - COMPLETE!
+- [x] US-010: Update Flutter app API key screen
+- [x] US-011: Add Test Connection button to app
 
 ### Epic 3: Testing & Deployment (US-012 to US-013)
 - [x] US-012: Write unit tests for Cloud Run
@@ -92,3 +92,13 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
   - Fixed logger maskSensitiveData case-sensitivity bug
   - Coverage: 85.77% statements, 70.06% branches, 84.9% functions, 85.64% lines
   - 118 tests passing, all quality gates pass
+[2026-01-30] US-010, US-011 complete - Flutter app API key screen updates
+  - Updated MCP config to use cloud URL (https://mcp.cachebash.app/v1/sse)
+  - Config now uses SSE transport with Bearer token auth header
+  - Added "Copy" button for MCP config with visual feedback
+  - Added "Test Connection" button with loading state
+  - Tests health endpoint first, then auth via tools/list
+  - Shows success (green) or error (red) result messages
+  - Added http package dependency
+  - Fixed analyzer warnings (use_build_context_synchronously, withOpacity deprecation)
+  - Epic 2 (Flutter App Updates) COMPLETE!

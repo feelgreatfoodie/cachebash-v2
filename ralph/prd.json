@@ -127,7 +127,7 @@
         "Shows Bearer token format"
       ],
       "priority": 3,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-011",
@@ -140,7 +140,7 @@
         "Test actually validates connection"
       ],
       "priority": 3,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-012",
@@ -228,6 +228,6 @@
   "metadata": {
     "createdAt": "2026-01-29T00:00:00Z",
     "totalStories": 17,
-    "completedStories": 10
+    "completedStories": 12
   }
 }
