@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,12 +7,17 @@ import '../../models/question_model.dart';
 import '../../providers/questions_provider.dart';
 import '../../widgets/question_card.dart';
 
+void _log(String message) {
+  debugPrint('[QuestionsScreen] $message');
+}
+
 class QuestionsScreen extends ConsumerWidget {
   const QuestionsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final questionsAsync = ref.watch(allQuestionsProvider);
+    _log('build: questionsAsync state = ${questionsAsync.isLoading ? "loading" : questionsAsync.hasError ? "error" : "data"}');
 
     return Scaffold(
       appBar: AppBar(
@@ -22,17 +28,33 @@ class QuestionsScreen extends ConsumerWidget {
         ),
       ),
       body: questionsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 16),
-              Text('Error loading questions: $error'),
-            ],
-          ),
-        ),
+        loading: () {
+          _log('Showing loading state');
+          return const Center(child: CircularProgressIndicator());
+        },
+        error: (error, stack) {
+          _log('ERROR: $error');
+          _log('STACK: $stack');
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text('Error loading questions', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text(
+                    error.toString().length > 300 ? '${error.toString().substring(0, 300)}...' : error.toString(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
         data: (questions) {
           if (questions.isEmpty) {
             return Center(

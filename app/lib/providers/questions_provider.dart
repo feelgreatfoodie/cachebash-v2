@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/question_model.dart';
@@ -6,46 +7,73 @@ import 'auth_provider.dart';
 
 final firestore = FirebaseFirestore.instance;
 
+void _log(String message) {
+  debugPrint('[QuestionsProvider] $message');
+}
+
 /// Stream provider for pending questions
 final pendingQuestionsProvider = StreamProvider<List<QuestionModel>>((ref) {
   final user = ref.watch(currentUserProvider);
+  _log('pendingQuestionsProvider: user=${user?.uid}');
   if (user == null) {
+    _log('pendingQuestionsProvider: No user, returning empty');
     return Stream.value([]);
   }
 
+  _log('pendingQuestionsProvider: Setting up stream for user ${user.uid}');
   return firestore
       .collection('users/${user.uid}/questions')
       .where('status', isEqualTo: 'pending')
       .orderBy('createdAt', descending: true)
       .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList());
+      .map((snapshot) {
+        _log('pendingQuestionsProvider: Got ${snapshot.docs.length} docs');
+        return snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
+      })
+      .handleError((error, stackTrace) {
+        _log('pendingQuestionsProvider ERROR: $error');
+        _log('pendingQuestionsProvider STACK: $stackTrace');
+        throw error;
+      });
 });
 
 /// Stream provider for all questions (recent, excluding deleted)
 final allQuestionsProvider = StreamProvider<List<QuestionModel>>((ref) {
   final user = ref.watch(currentUserProvider);
+  _log('allQuestionsProvider: user=${user?.uid}');
   if (user == null) {
+    _log('allQuestionsProvider: No user, returning empty');
     return Stream.value([]);
   }
 
+  _log('allQuestionsProvider: Setting up stream for user ${user.uid}');
   return firestore
       .collection('users/${user.uid}/questions')
       .where('deletedAt', isNull: true)
       .orderBy('createdAt', descending: true)
       .limit(50)
       .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList());
+      .map((snapshot) {
+        _log('allQuestionsProvider: Got ${snapshot.docs.length} docs');
+        return snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
+      })
+      .handleError((error, stackTrace) {
+        _log('allQuestionsProvider ERROR: $error');
+        _log('allQuestionsProvider STACK: $stackTrace');
+        throw error;
+      });
 });
 
 /// Stream provider for active (non-archived) questions
 final activeQuestionsProvider = StreamProvider<List<QuestionModel>>((ref) {
   final user = ref.watch(currentUserProvider);
+  _log('activeQuestionsProvider: user=${user?.uid}');
   if (user == null) {
+    _log('activeQuestionsProvider: No user, returning empty');
     return Stream.value([]);
   }
 
+  _log('activeQuestionsProvider: Setting up stream for user ${user.uid}');
   return firestore
       .collection('users/${user.uid}/questions')
       .where('deletedAt', isNull: true)
@@ -53,26 +81,38 @@ final activeQuestionsProvider = StreamProvider<List<QuestionModel>>((ref) {
       .orderBy('createdAt', descending: true)
       .limit(50)
       .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList());
+      .map((snapshot) {
+        _log('activeQuestionsProvider: Got ${snapshot.docs.length} docs');
+        return snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
+      })
+      .handleError((error, stackTrace) {
+        _log('activeQuestionsProvider ERROR: $error');
+        _log('activeQuestionsProvider STACK: $stackTrace');
+        throw error;
+      });
 });
 
 /// Stream provider for questions by project
 final questionsByProjectProvider =
     StreamProvider.family<List<QuestionModel>, String?>((ref, projectId) {
   final user = ref.watch(currentUserProvider);
+  _log('questionsByProjectProvider: user=${user?.uid}, projectId=$projectId');
   if (user == null) {
+    _log('questionsByProjectProvider: No user, returning empty');
     return Stream.value([]);
   }
 
+  _log('questionsByProjectProvider: Setting up stream for user ${user.uid}, project $projectId');
   Query query = firestore
       .collection('users/${user.uid}/questions')
       .where('deletedAt', isNull: true)
       .where('archived', isEqualTo: false);
 
   if (projectId == null || projectId == '_uncategorized') {
+    _log('questionsByProjectProvider: Filtering for uncategorized (projectId isNull)');
     query = query.where('projectId', isNull: true);
   } else {
+    _log('questionsByProjectProvider: Filtering for projectId=$projectId');
     query = query.where('projectId', isEqualTo: projectId);
   }
 
@@ -80,8 +120,15 @@ final questionsByProjectProvider =
       .orderBy('createdAt', descending: true)
       .limit(50)
       .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList());
+      .map((snapshot) {
+        _log('questionsByProjectProvider: Got ${snapshot.docs.length} docs for project $projectId');
+        return snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
+      })
+      .handleError((error, stackTrace) {
+        _log('questionsByProjectProvider ERROR: $error');
+        _log('questionsByProjectProvider STACK: $stackTrace');
+        throw error;
+      });
 });
 
 /// Provider for a single question by ID

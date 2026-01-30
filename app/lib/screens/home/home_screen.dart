@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,10 @@ import '../../providers/questions_provider.dart';
 import '../../providers/sessions_provider.dart';
 import '../../widgets/question_card.dart';
 import '../../widgets/session_card.dart';
+
+void _log(String message) {
+  debugPrint('[HomeScreen] $message');
+}
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -246,23 +251,39 @@ class HomeScreen extends ConsumerWidget {
   }
 
   Widget _buildErrorCard(BuildContext context, Object error) {
+    _log('ERROR: $error');
+    final errorMessage = error.toString();
     return Card(
       color: Theme.of(context).colorScheme.errorContainer,
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.error_outline,
-              color: Theme.of(context).colorScheme.onErrorContainer,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Error loading data',
-                style: TextStyle(
+            Row(
+              children: [
+                Icon(
+                  Icons.error_outline,
                   color: Theme.of(context).colorScheme.onErrorContainer,
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Error loading data',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              errorMessage.length > 200 ? '${errorMessage.substring(0, 200)}...' : errorMessage,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onErrorContainer,
+                fontSize: 12,
               ),
             ),
           ],

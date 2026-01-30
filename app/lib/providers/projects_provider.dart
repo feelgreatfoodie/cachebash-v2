@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/project_model.dart';
@@ -6,50 +7,79 @@ import 'auth_provider.dart';
 
 final firestore = FirebaseFirestore.instance;
 
+void _log(String message) {
+  debugPrint('[ProjectsProvider] $message');
+}
+
 /// Stream provider for all projects (excluding deleted)
 final projectsProvider = StreamProvider<List<ProjectModel>>((ref) {
   final user = ref.watch(currentUserProvider);
+  _log('projectsProvider: user=${user?.uid}');
   if (user == null) {
+    _log('projectsProvider: No user, returning empty');
     return Stream.value([]);
   }
 
+  _log('projectsProvider: Setting up stream for user ${user.uid}');
   return firestore
       .collection('users/${user.uid}/projects')
       .where('deletedAt', isNull: true)
       .orderBy('createdAt', descending: false)
       .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => ProjectModel.fromFirestore(doc)).toList());
+      .map((snapshot) {
+        _log('projectsProvider: Got ${snapshot.docs.length} docs');
+        return snapshot.docs.map((doc) => ProjectModel.fromFirestore(doc)).toList();
+      })
+      .handleError((error, stackTrace) {
+        _log('projectsProvider ERROR: $error');
+        _log('projectsProvider STACK: $stackTrace');
+        throw error;
+      });
 });
 
 /// Provider for a single project by ID
 final projectProvider =
     StreamProvider.family<ProjectModel?, String>((ref, projectId) {
   final user = ref.watch(currentUserProvider);
+  _log('projectProvider: user=${user?.uid}, projectId=$projectId');
   if (user == null) {
+    _log('projectProvider: No user, returning null');
     return Stream.value(null);
   }
 
   // Handle uncategorized specially
   if (projectId == '_uncategorized') {
+    _log('projectProvider: Returning uncategorized');
     return Stream.value(ProjectModel.uncategorized);
   }
 
+  _log('projectProvider: Setting up stream for project $projectId');
   return firestore
       .doc('users/${user.uid}/projects/$projectId')
       .snapshots()
-      .map((doc) => doc.exists ? ProjectModel.fromFirestore(doc) : null);
+      .map((doc) {
+        _log('projectProvider: Got doc exists=${doc.exists}');
+        return doc.exists ? ProjectModel.fromFirestore(doc) : null;
+      })
+      .handleError((error, stackTrace) {
+        _log('projectProvider ERROR: $error');
+        _log('projectProvider STACK: $stackTrace');
+        throw error;
+      });
 });
 
 /// Provider for projects with question counts
 final projectsWithCountsProvider =
     StreamProvider<List<ProjectModel>>((ref) async* {
   final user = ref.watch(currentUserProvider);
+  _log('projectsWithCountsProvider: user=${user?.uid}');
   if (user == null) {
+    _log('projectsWithCountsProvider: No user, returning empty');
     yield [];
     return;
   }
 
+  _log('projectsWithCountsProvider: Setting up stream for user ${user.uid}');
   // Get projects stream
   final projectsStream = firestore
       .collection('users/${user.uid}/projects')
@@ -57,31 +87,48 @@ final projectsWithCountsProvider =
       .orderBy('createdAt', descending: false)
       .snapshots();
 
-  await for (final snapshot in projectsStream) {
-    final projects =
-        snapshot.docs.map((doc) => ProjectModel.fromFirestore(doc)).toList();
+  try {
+    await for (final snapshot in projectsStream) {
+      _log('projectsWithCountsProvider: Got ${snapshot.docs.length} project docs');
+      final projects =
+          snapshot.docs.map((doc) => ProjectModel.fromFirestore(doc)).toList();
 
-    // Count uncategorized questions
-    final uncategorizedSnapshot = await firestore
-        .collection('users/${user.uid}/questions')
-        .where('deletedAt', isNull: true)
-        .where('archived', isEqualTo: false)
-        .where('projectId', isNull: true)
-        .count()
-        .get();
+      // Count uncategorized questions
+      _log('projectsWithCountsProvider: Counting uncategorized questions...');
+      try {
+        final uncategorizedSnapshot = await firestore
+            .collection('users/${user.uid}/questions')
+            .where('deletedAt', isNull: true)
+            .where('archived', isEqualTo: false)
+            .where('projectId', isNull: true)
+            .count()
+            .get();
 
-    final uncategorizedCount = uncategorizedSnapshot.count ?? 0;
+        final uncategorizedCount = uncategorizedSnapshot.count ?? 0;
+        _log('projectsWithCountsProvider: Uncategorized count = $uncategorizedCount');
 
-    // Add uncategorized as first item if there are any
-    final result = <ProjectModel>[];
-    if (uncategorizedCount > 0) {
-      result.add(ProjectModel.uncategorized.copyWith(
-        questionCount: uncategorizedCount,
-      ));
+        // Add uncategorized as first item if there are any
+        final result = <ProjectModel>[];
+        if (uncategorizedCount > 0) {
+          result.add(ProjectModel.uncategorized.copyWith(
+            questionCount: uncategorizedCount,
+          ));
+        }
+        result.addAll(projects);
+
+        _log('projectsWithCountsProvider: Yielding ${result.length} projects');
+        yield result;
+      } catch (e, stackTrace) {
+        _log('projectsWithCountsProvider ERROR counting uncategorized: $e');
+        _log('projectsWithCountsProvider STACK: $stackTrace');
+        // Yield projects without counts if counting fails
+        yield projects;
+      }
     }
-    result.addAll(projects);
-
-    yield result;
+  } catch (e, stackTrace) {
+    _log('projectsWithCountsProvider ERROR: $e');
+    _log('projectsWithCountsProvider STACK: $stackTrace');
+    rethrow;
   }
 });
 

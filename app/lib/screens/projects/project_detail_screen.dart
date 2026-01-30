@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,10 @@ import '../../models/question_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/projects_provider.dart';
 import '../../providers/questions_provider.dart';
+
+void _log(String message) {
+  debugPrint('[ProjectDetailScreen] $message');
+}
 
 class ProjectDetailScreen extends ConsumerWidget {
   final String projectId;
@@ -31,7 +36,29 @@ class ProjectDetailScreen extends ConsumerWidget {
       ),
       body: questionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(child: Text('Error: $error')),
+        error: (error, stack) {
+          _log('ERROR loading questions for project $projectId: $error');
+          _log('STACK: $stack');
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text('Error loading questions', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text(
+                    error.toString().length > 300 ? '${error.toString().substring(0, 300)}...' : error.toString(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
         data: (questions) {
           if (questions.isEmpty) {
             return Center(

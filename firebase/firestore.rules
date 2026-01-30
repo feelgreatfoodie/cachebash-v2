@@ -21,6 +21,11 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
+      // Projects subcollection
+      match /projects/{projectId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
       // Analytics subcollection
       match /analytics/{period} {
         allow read: if request.auth != null && request.auth.uid == userId;
