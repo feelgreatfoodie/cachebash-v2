@@ -4,11 +4,11 @@
 
 ## Current Status
 PHASE: Phase 2 - Cloud-Hosted MCP Server
-STORY: US-006 - Implement rate limiting middleware
+STORY: US-009 - Implement graceful shutdown
 
 ## Project Stats
 Phase 2 Stories: 17
-Completed: 6
+Completed: 8
 Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 
 ## Phase 1 Completed
@@ -27,8 +27,8 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 - [x] US-003: Implement authentication middleware
 - [x] US-004: Implement SSE endpoint base
 - [x] US-005: Implement MCP protocol over SSE
-- [ ] US-006: Implement rate limiting middleware
-- [ ] US-007: Implement input validation
+- [x] US-006: Implement rate limiting middleware
+- [x] US-007: Implement input validation
 - [x] US-008: Add structured logging
 - [ ] US-009: Implement graceful shutdown
 
@@ -71,3 +71,9 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
   - MCP error codes for proper error handling
   - Tool responses broadcast to SSE connections
   - 39 tests passing
+[2026-01-30] US-006, US-007 complete - Rate limiting + input validation
+  - Per-API-key rate limits: SSE 2 concurrent, ask_question 100/hr, etc.
+  - Returns 429 with Retry-After header when exceeded
+  - Input sanitization: strips control chars, normalizes Unicode
+  - Zod schemas with max lengths: question 2000, context 500, status 200
+  - 83 tests passing

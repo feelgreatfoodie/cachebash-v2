@@ -78,7 +78,7 @@
         "Limits reset correctly"
       ],
       "priority": 2,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-007",
@@ -90,7 +90,7 @@
         "Returns descriptive validation errors"
       ],
       "priority": 2,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-008",
@@ -228,6 +228,6 @@
   "metadata": {
     "createdAt": "2026-01-29T00:00:00Z",
     "totalStories": 17,
-    "completedStories": 6
+    "completedStories": 8
   }
 }
