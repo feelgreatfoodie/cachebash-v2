@@ -21,6 +21,7 @@ import 'screens/sessions/sessions_screen.dart';
 import 'screens/sessions/archived_sessions_screen.dart';
 import 'screens/tasks/tasks_screen.dart';
 import 'screens/tasks/create_task_screen.dart';
+import 'screens/search/search_screen.dart';
 import 'theme/app_theme.dart';
 import 'widgets/main_shell.dart';
 
@@ -113,6 +114,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/tasks/new',
             builder: (context, state) => const CreateTaskScreen(),
+          ),
+          // Search
+          GoRoute(
+            path: '/search',
+            builder: (context, state) => const SearchScreen(),
           ),
           // Projects
           GoRoute(

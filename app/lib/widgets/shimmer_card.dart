@@ -206,6 +206,69 @@ class ShimmerProjectTile extends StatelessWidget {
   }
 }
 
+/// A shimmer placeholder for task cards
+class ShimmerTaskCard extends StatelessWidget {
+  const ShimmerTaskCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ShimmerEffect(
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildShimmerBox(150, 16),
+                        const SizedBox(height: 8),
+                        _buildShimmerBox(200, 12),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _buildShimmerBox(80, 24),
+                  const Spacer(),
+                  _buildShimmerBox(50, 12),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShimmerBox(double width, double height) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade300,
+        borderRadius: BorderRadius.circular(4),
+      ),
+    );
+  }
+}
+
 /// A list of shimmer cards for loading states
 class ShimmerList extends StatelessWidget {
   final int itemCount;
@@ -244,6 +307,17 @@ class ShimmerList extends StatelessWidget {
     return ShimmerList(
       itemCount: itemCount,
       itemBuilder: (context, index) => const ShimmerProjectTile(),
+    );
+  }
+
+  /// Creates a shimmer list with task cards
+  factory ShimmerList.tasks({int itemCount = 3}) {
+    return ShimmerList(
+      itemCount: itemCount,
+      itemBuilder: (context, index) => const Padding(
+        padding: EdgeInsets.only(bottom: 12),
+        child: ShimmerTaskCard(),
+      ),
     );
   }
 

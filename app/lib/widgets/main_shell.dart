@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../providers/questions_provider.dart';
 import '../services/haptic_service.dart';
 
 /// Shell wrapper that provides persistent bottom nav for all authenticated routes
-class MainShellWrapper extends StatelessWidget {
+class MainShellWrapper extends ConsumerWidget {
   final Widget child;
 
   const MainShellWrapper({
@@ -15,13 +17,16 @@ class MainShellWrapper extends StatelessWidget {
   int _getSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
     if (location.startsWith('/questions')) return 1;
-    if (location.startsWith('/sessions')) return 2;
+    if (location.startsWith('/search')) return 3;
+    if (location.startsWith('/sessions')) return 4;
     return 0; // Home and everything else
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = _getSelectedIndex(context);
+    final pendingQuestions = ref.watch(pendingQuestionsProvider);
+    final pendingCount = pendingQuestions.valueOrNull?.length ?? 0;
 
     return Column(
       children: [
@@ -52,10 +57,11 @@ class MainShellWrapper extends StatelessWidget {
                       context.go('/home');
                     },
                   ),
-                  _NavItem(
+                  _NavItemWithBadge(
                     icon: Icons.inbox_outlined,
                     selectedIcon: Icons.inbox,
                     isSelected: selectedIndex == 1,
+                    badgeCount: pendingCount,
                     onTap: () {
                       HapticService.light();
                       context.go('/questions');
@@ -68,9 +74,18 @@ class MainShellWrapper extends StatelessWidget {
                     },
                   ),
                   _NavItem(
+                    icon: Icons.search_outlined,
+                    selectedIcon: Icons.search,
+                    isSelected: selectedIndex == 3,
+                    onTap: () {
+                      HapticService.light();
+                      context.go('/search');
+                    },
+                  ),
+                  _NavItem(
                     icon: Icons.terminal_outlined,
                     selectedIcon: Icons.terminal,
-                    isSelected: selectedIndex == 2,
+                    isSelected: selectedIndex == 4,
                     onTap: () {
                       HapticService.light();
                       context.go('/sessions');
@@ -145,8 +160,76 @@ class _ComposeButton extends StatelessWidget {
   }
 }
 
+class _NavItemWithBadge extends StatelessWidget {
+  final IconData icon;
+  final IconData selectedIcon;
+  final bool isSelected;
+  final int badgeCount;
+  final VoidCallback onTap;
+
+  const _NavItemWithBadge({
+    required this.icon,
+    required this.selectedIcon,
+    required this.isSelected,
+    required this.badgeCount,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Center(
+              child: Icon(
+                isSelected ? selectedIcon : icon,
+                size: 26,
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            if (badgeCount > 0)
+              Positioned(
+                right: 4,
+                top: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.error,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 18,
+                    minHeight: 18,
+                  ),
+                  child: Center(
+                    child: Text(
+                      badgeCount > 99 ? '99+' : '$badgeCount',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onError,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // Keep old class for backwards compatibility during transition
-class MainShell extends StatelessWidget {
+class MainShell extends ConsumerWidget {
   final StatefulNavigationShell navigationShell;
 
   const MainShell({
@@ -155,7 +238,7 @@ class MainShell extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return MainShellWrapper(child: navigationShell);
   }
 }

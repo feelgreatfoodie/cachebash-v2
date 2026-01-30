@@ -6,8 +6,10 @@ import '../../providers/auth_provider.dart';
 import '../../providers/questions_provider.dart';
 import '../../providers/sessions_provider.dart';
 import '../../services/haptic_service.dart';
+import '../../widgets/animated_list_item.dart';
 import '../../widgets/question_card.dart';
 import '../../widgets/session_card.dart';
+import '../../widgets/shimmer_card.dart';
 
 void _log(String message) {
   debugPrint('[HomeScreen] $message');
@@ -113,12 +115,7 @@ class HomeScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             pendingQuestions.when(
-              loading: () => const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
-                ),
-              ),
+              loading: () => ShimmerList.questions(itemCount: 2),
               error: (error, stack) => _buildErrorCard(context, error),
               data: (questions) {
                 if (questions.isEmpty) {
@@ -132,11 +129,17 @@ class HomeScreen extends ConsumerWidget {
                 return Column(
                   children: questions
                       .take(3)
-                      .map((q) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: QuestionCard(
-                              question: q,
-                              onTap: () => context.go('/questions/${q.id}'),
+                      .toList()
+                      .asMap()
+                      .entries
+                      .map((entry) => AnimatedListItem(
+                            index: entry.key,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: QuestionCard(
+                                question: entry.value,
+                                onTap: () => context.go('/questions/${entry.value.id}'),
+                              ),
                             ),
                           ))
                       .toList(),
@@ -155,12 +158,7 @@ class HomeScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             activeSessions.when(
-              loading: () => const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
-                ),
-              ),
+              loading: () => ShimmerList.sessions(itemCount: 2),
               error: (error, stack) => _buildErrorCard(context, error),
               data: (sessions) {
                 if (sessions.isEmpty) {
@@ -174,16 +172,22 @@ class HomeScreen extends ConsumerWidget {
                 return Column(
                   children: sessions
                       .take(3)
-                      .map((s) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: SessionCard(
-                              session: s,
-                              onTap: () {
-                                HapticService.light();
-                                context.go('/sessions/${s.id}');
-                              },
-                              onArchive: () =>
-                                  _archiveSession(context, ref, s.id),
+                      .toList()
+                      .asMap()
+                      .entries
+                      .map((entry) => AnimatedListItem(
+                            index: entry.key,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: SessionCard(
+                                session: entry.value,
+                                onTap: () {
+                                  HapticService.light();
+                                  context.go('/sessions/${entry.value.id}');
+                                },
+                                onArchive: () =>
+                                    _archiveSession(context, ref, entry.value.id),
+                              ),
                             ),
                           ))
                       .toList(),

@@ -46,6 +46,54 @@ Tasks have an `action` field that controls how/when Claude should handle them:
 
 ---
 
+## Asking Questions via Mobile
+
+When you need clarification from the user and they may not be at their computer, use the `ask_question` MCP tool to send the question to their mobile device. This is especially useful for:
+
+- Ambiguous requirements that need user input
+- Design decisions with multiple valid approaches
+- Confirmation before destructive or irreversible actions
+- Any blocking question when the user might be away
+
+### How to Ask a Question
+
+```typescript
+ask_question({
+  question: "Should I use Redux or Context API for state management?",
+  options: ["Redux", "Context API", "Other"],  // Optional: multiple choice
+  priority: "normal",                           // low | normal | high
+  context: "Working on the authentication refactor"
+})
+// Returns: { questionId: "abc123" }
+```
+
+### Priority Levels
+
+| Priority | When to Use | User Experience |
+|----------|-------------|-----------------|
+| `high` | Blocking question, work cannot continue | Immediate push notification |
+| `normal` | Important but not urgent | Standard notification |
+| `low` | Nice to have, can work around it | Silent/batched notification |
+
+### Waiting for Response
+
+After sending a question, periodically check for the response:
+
+```typescript
+get_response({ questionId: "abc123" })
+// Returns: { response: "Redux", answeredAt: timestamp } or null if pending
+```
+
+### For Long Waits
+
+If you need to wait for a response and want to preserve context:
+
+1. Use `pin_task` to save your current work state
+2. The user can respond at their convenience
+3. Later, use `resume_task` to pick up where you left off
+
+---
+
 ## Project Overview
 
 CacheBash enables asynchronous communication between Claude Code sessions and users via push notifications. When Claude needs clarification, it sends a question to the user's phone. The user can respond from anywhere, and Claude continues working.

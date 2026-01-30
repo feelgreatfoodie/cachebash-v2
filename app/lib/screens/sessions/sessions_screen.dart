@@ -4,8 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/sessions_provider.dart';
+import '../../providers/selection_provider.dart';
 import '../../services/haptic_service.dart';
+import '../../widgets/animated_list_item.dart';
+import '../../widgets/selectable_card.dart';
+import '../../widgets/selection_action_bar.dart';
 import '../../widgets/session_card.dart';
+import '../../widgets/shimmer_card.dart';
 
 class SessionsScreen extends ConsumerWidget {
   const SessionsScreen({super.key});
@@ -39,137 +44,405 @@ class SessionsScreen extends ConsumerWidget {
     }
   }
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final allSessions = ref.watch(allSessionsProvider);
+  Future<void> _archiveSelected(
+    BuildContext context,
+    WidgetRef ref,
+    Set<String> selectedIds,
+  ) async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('All Sessions'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            HapticService.light();
-            context.go('/home');
-          },
-        ),
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Archive Sessions?'),
+        content: Text('Archive ${selectedIds.length} selected session(s)?'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.archive),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
             onPressed: () {
-              HapticService.light();
-              context.go('/sessions/archived');
+              HapticService.medium();
+              Navigator.pop(context, true);
             },
-            tooltip: 'Archived',
+            child: const Text('Archive'),
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(allSessionsProvider);
-        },
-        child: allSessions.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stack) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text('Error: $error'),
-            ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final service = ref.read(sessionsServiceProvider);
+      for (final id in selectedIds) {
+        await service.archiveSession(userId: user.uid, sessionId: id);
+      }
+      HapticService.success();
+      ref.read(sessionsSelectionProvider.notifier).exitSelectionMode();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Archived ${selectedIds.length} session(s)')),
+        );
+      }
+    } catch (e) {
+      HapticService.error();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteSelected(
+    BuildContext context,
+    WidgetRef ref,
+    Set<String> selectedIds,
+  ) async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Sessions?'),
+        content: Text(
+          'Delete ${selectedIds.length} selected session(s)? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
-          data: (sessions) {
-            // Filter out archived sessions
-            final visibleSessions =
-                sessions.where((s) => !s.isArchived).toList();
+          FilledButton(
+            onPressed: () {
+              HapticService.medium();
+              Navigator.pop(context, true);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
 
-            if (visibleSessions.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.terminal,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.outline,
+    if (confirmed != true) return;
+
+    try {
+      final service = ref.read(sessionsServiceProvider);
+      for (final id in selectedIds) {
+        await service.deleteSession(userId: user.uid, sessionId: id);
+      }
+      HapticService.success();
+      ref.read(sessionsSelectionProvider.notifier).exitSelectionMode();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Deleted ${selectedIds.length} session(s)')),
+        );
+      }
+    } catch (e) {
+      HapticService.error();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final allSessions = ref.watch(allSessionsProvider);
+    final selectionState = ref.watch(sessionsSelectionProvider);
+
+    return PopScope(
+      canPop: !selectionState.isSelecting,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && selectionState.isSelecting) {
+          ref.read(sessionsSelectionProvider.notifier).exitSelectionMode();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: selectionState.isSelecting
+              ? Text('${selectionState.selectedCount} selected')
+              : const Text('All Sessions'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (selectionState.isSelecting) {
+                HapticService.light();
+                ref.read(sessionsSelectionProvider.notifier).exitSelectionMode();
+              } else {
+                HapticService.light();
+                context.go('/home');
+              }
+            },
+          ),
+          actions: [
+            if (!selectionState.isSelecting) ...[
+              IconButton(
+                icon: const Icon(Icons.checklist),
+                onPressed: () {
+                  HapticService.light();
+                  ref.read(sessionsSelectionProvider.notifier).enterSelectionMode();
+                },
+                tooltip: 'Select',
+              ),
+              IconButton(
+                icon: const Icon(Icons.archive),
+                onPressed: () {
+                  HapticService.light();
+                  context.go('/sessions/archived');
+                },
+                tooltip: 'Archived',
+              ),
+            ] else
+              // Select all button
+              allSessions.whenOrNull(
+                data: (sessions) {
+                  final visibleSessions = sessions.where((s) => !s.isArchived).toList();
+                  return IconButton(
+                    icon: Icon(
+                      selectionState.selectedCount == visibleSessions.length
+                          ? Icons.deselect
+                          : Icons.select_all,
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No sessions yet',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    onPressed: () {
+                      HapticService.light();
+                      if (selectionState.selectedCount == visibleSessions.length) {
+                        ref.read(sessionsSelectionProvider.notifier).clearSelection();
+                      } else {
+                        ref.read(sessionsSelectionProvider.notifier).selectAll(
+                              visibleSessions.map((s) => s.id).toList(),
+                            );
+                      }
+                    },
+                    tooltip: selectionState.selectedCount == visibleSessions.length
+                        ? 'Deselect All'
+                        : 'Select All',
+                  );
+                },
+              ) ?? const SizedBox.shrink(),
+          ],
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(allSessionsProvider);
+                },
+                child: allSessions.when(
+                  loading: () => Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: ShimmerList.sessions(itemCount: 4),
+                  ),
+                  error: (error, stack) => Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text('Error: $error'),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Claude Code sessions will appear here',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  data: (sessions) {
+                    // Filter out archived sessions
+                    final visibleSessions =
+                        sessions.where((s) => !s.isArchived).toList();
+
+                    if (visibleSessions.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.terminal,
+                              size: 64,
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No sessions yet',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Claude Code sessions will appear here',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color:
+                                        Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // Group sessions by state
+                    final activeSessions =
+                        visibleSessions.where((s) => s.isActive).toList();
+                    final inactiveSessions =
+                        visibleSessions.where((s) => s.isStale && !s.isComplete).toList();
+                    final completedSessions =
+                        visibleSessions.where((s) => s.isComplete).toList();
+
+                    int animationIndex = 0;
+                    return ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        if (activeSessions.isNotEmpty) ...[
+                          AnimatedListItem(
+                            index: animationIndex++,
+                            child: _buildSectionHeader(context, 'Active', Icons.play_circle),
                           ),
-                    ),
-                  ],
+                          const SizedBox(height: 12),
+                          ...activeSessions.map((s) => AnimatedListItem(
+                                index: animationIndex++,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: SelectableCard(
+                                    isSelecting: selectionState.isSelecting,
+                                    isSelected: selectionState.isSelected(s.id),
+                                    onTap: () {
+                                      HapticService.light();
+                                      context.go('/sessions/${s.id}');
+                                    },
+                                    onLongPress: () {
+                                      if (!selectionState.isSelecting) {
+                                        ref.read(sessionsSelectionProvider.notifier).enterSelectionMode();
+                                      }
+                                      ref.read(sessionsSelectionProvider.notifier).toggleSelection(s.id);
+                                    },
+                                    onToggleSelection: () {
+                                      ref.read(sessionsSelectionProvider.notifier).toggleSelection(s.id);
+                                    },
+                                    child: SessionCard(
+                                      session: s,
+                                      onTap: () {},
+                                      onArchive: selectionState.isSelecting
+                                          ? null
+                                          : () => _archiveSession(context, ref, s.id),
+                                    ),
+                                  ),
+                                ),
+                              )),
+                          const SizedBox(height: 16),
+                        ],
+                        if (inactiveSessions.isNotEmpty) ...[
+                          AnimatedListItem(
+                            index: animationIndex++,
+                            child: _buildSectionHeader(context, 'Inactive', Icons.access_time),
+                          ),
+                          const SizedBox(height: 12),
+                          ...inactiveSessions.map((s) => AnimatedListItem(
+                                index: animationIndex++,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: SelectableCard(
+                                    isSelecting: selectionState.isSelecting,
+                                    isSelected: selectionState.isSelected(s.id),
+                                    onTap: () {
+                                      HapticService.light();
+                                      context.go('/sessions/${s.id}');
+                                    },
+                                    onLongPress: () {
+                                      if (!selectionState.isSelecting) {
+                                        ref.read(sessionsSelectionProvider.notifier).enterSelectionMode();
+                                      }
+                                      ref.read(sessionsSelectionProvider.notifier).toggleSelection(s.id);
+                                    },
+                                    onToggleSelection: () {
+                                      ref.read(sessionsSelectionProvider.notifier).toggleSelection(s.id);
+                                    },
+                                    child: SessionCard(
+                                      session: s,
+                                      onTap: () {},
+                                      onArchive: selectionState.isSelecting
+                                          ? null
+                                          : () => _archiveSession(context, ref, s.id),
+                                    ),
+                                  ),
+                                ),
+                              )),
+                          const SizedBox(height: 16),
+                        ],
+                        if (completedSessions.isNotEmpty) ...[
+                          AnimatedListItem(
+                            index: animationIndex++,
+                            child: _buildSectionHeader(context, 'Completed', Icons.check_circle),
+                          ),
+                          const SizedBox(height: 12),
+                          ...completedSessions.map((s) => AnimatedListItem(
+                                index: animationIndex++,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: SelectableCard(
+                                    isSelecting: selectionState.isSelecting,
+                                    isSelected: selectionState.isSelected(s.id),
+                                    onTap: () {
+                                      HapticService.light();
+                                      context.go('/sessions/${s.id}');
+                                    },
+                                    onLongPress: () {
+                                      if (!selectionState.isSelecting) {
+                                        ref.read(sessionsSelectionProvider.notifier).enterSelectionMode();
+                                      }
+                                      ref.read(sessionsSelectionProvider.notifier).toggleSelection(s.id);
+                                    },
+                                    onToggleSelection: () {
+                                      ref.read(sessionsSelectionProvider.notifier).toggleSelection(s.id);
+                                    },
+                                    child: SessionCard(
+                                      session: s,
+                                      onTap: () {},
+                                      onArchive: selectionState.isSelecting
+                                          ? null
+                                          : () => _archiveSession(context, ref, s.id),
+                                    ),
+                                  ),
+                                ),
+                              )),
+                        ],
+                      ],
+                    );
+                  },
                 ),
-              );
-            }
-
-            // Group sessions by state
-            final activeSessions =
-                visibleSessions.where((s) => s.isActive).toList();
-            final inactiveSessions =
-                visibleSessions.where((s) => s.isStale && !s.isComplete).toList();
-            final completedSessions =
-                visibleSessions.where((s) => s.isComplete).toList();
-
-            return ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (activeSessions.isNotEmpty) ...[
-                  _buildSectionHeader(context, 'Active', Icons.play_circle),
-                  const SizedBox(height: 12),
-                  ...activeSessions.map((s) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: SessionCard(
-                          session: s,
-                          onTap: () {
-                            HapticService.light();
-                            context.go('/sessions/${s.id}');
-                          },
-                          onArchive: () => _archiveSession(context, ref, s.id),
-                        ),
-                      )),
-                  const SizedBox(height: 16),
+              ),
+            ),
+            // Selection action bar
+            if (selectionState.isSelecting && selectionState.hasSelection)
+              SelectionActionBar(
+                selectedCount: selectionState.selectedCount,
+                onCancel: () {
+                  ref.read(sessionsSelectionProvider.notifier).exitSelectionMode();
+                },
+                actions: [
+                  SelectionAction(
+                    label: 'Archive',
+                    icon: Icons.archive,
+                    onPressed: () => _archiveSelected(
+                      context,
+                      ref,
+                      selectionState.selectedIds,
+                    ),
+                  ),
+                  SelectionAction(
+                    label: 'Delete',
+                    icon: Icons.delete,
+                    isDestructive: true,
+                    onPressed: () => _deleteSelected(
+                      context,
+                      ref,
+                      selectionState.selectedIds,
+                    ),
+                  ),
                 ],
-                if (inactiveSessions.isNotEmpty) ...[
-                  _buildSectionHeader(context, 'Inactive', Icons.access_time),
-                  const SizedBox(height: 12),
-                  ...inactiveSessions.map((s) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: SessionCard(
-                          session: s,
-                          onTap: () {
-                            HapticService.light();
-                            context.go('/sessions/${s.id}');
-                          },
-                          onArchive: () => _archiveSession(context, ref, s.id),
-                        ),
-                      )),
-                  const SizedBox(height: 16),
-                ],
-                if (completedSessions.isNotEmpty) ...[
-                  _buildSectionHeader(context, 'Completed', Icons.check_circle),
-                  const SizedBox(height: 12),
-                  ...completedSessions.map((s) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: SessionCard(
-                          session: s,
-                          onTap: () {
-                            HapticService.light();
-                            context.go('/sessions/${s.id}');
-                          },
-                          onArchive: () => _archiveSession(context, ref, s.id),
-                        ),
-                      )),
-                ],
-              ],
-            );
-          },
+              ),
+          ],
         ),
       ),
     );
