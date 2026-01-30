@@ -32,7 +32,11 @@ cachebash/
 │   │   │   ├── askQuestion.ts
 │   │   │   ├── getResponse.ts
 │   │   │   ├── updateStatus.ts
-│   │   │   └── pinTask.ts
+│   │   │   ├── pinTask.ts
+│   │   │   ├── getInterrupts.ts
+│   │   │   └── getTasks.ts
+│   │   ├── encryption/     # E2E encryption
+│   │   │   └── crypto.ts
 │   │   └── firebase/       # Firebase client
 │   ├── package.json
 │   └── tsconfig.json
@@ -55,11 +59,14 @@ cachebash/
 │   │   ├── models/         # Data models
 │   │   ├── screens/        # UI screens
 │   │   │   ├── auth/
-│   │   │   ├── sessions/
+│   │   │   ├── home/
+│   │   │   ├── sessions/   # Session management
 │   │   │   ├── questions/
-│   │   │   └── analytics/
+│   │   │   ├── projects/
+│   │   │   ├── tasks/      # Task queue
+│   │   │   └── settings/
 │   │   ├── widgets/        # Reusable widgets
-│   │   └── services/       # Firebase, notifications
+│   │   └── services/       # Firebase, notifications, encryption
 │   ├── pubspec.yaml
 │   ├── ios/
 │   └── android/
@@ -132,6 +139,44 @@ Pin current work to continue later when response arrives.
 // Returns: { context: string, response: string }
 ```
 
+### get_interrupts
+Check for messages sent from the mobile app to the current session.
+```typescript
+{
+  sessionId: string,
+  markAsRead?: boolean     // Default: true
+}
+// Returns: { hasInterrupts: boolean, interrupts: Array<{id, message, createdAt}> }
+```
+
+### get_pending_tasks
+Get tasks created by the user in the mobile app for Claude to work on.
+```typescript
+{
+  status?: 'pending' | 'in_progress' | 'all',  // Default: pending
+  limit?: number                                // Default: 10
+}
+// Returns: { hasTasks: boolean, tasks: Array<{id, title, instructions, priority, status}> }
+```
+
+### claim_task
+Claim a pending task to start working on it.
+```typescript
+{
+  taskId: string,
+  sessionId?: string       // Optional session to associate
+}
+// Returns: { taskId, title, instructions, priority }
+```
+
+### complete_task
+Mark a task as complete when finished.
+```typescript
+{
+  taskId: string
+}
+```
+
 ## Firestore Schema
 
 ```
@@ -147,20 +192,50 @@ Pin current work to continue later when response arrives.
 /users/{userId}/sessions/{sessionId}
   - name: string
   - status: string
-  - state: 'active' | 'pinned' | 'complete'
+  - state: 'working' | 'blocked' | 'pinned' | 'complete'
   - progress: number
   - lastUpdate: timestamp
+  - archived: boolean
+  - archivedAt?: timestamp
+
+/users/{userId}/sessions/{sessionId}/interrupts/{interruptId}
+  - message: string
+  - createdAt: timestamp
+  - status: 'pending' | 'read'
+  - readAt?: timestamp
 
 /users/{userId}/questions/{questionId}
   - sessionId: string
-  - question: string
-  - options?: string[]
+  - question: string (or encrypted ciphertext)
+  - options?: string[] (or encrypted)
   - priority: 'low' | 'normal' | 'high'
   - status: 'pending' | 'answered' | 'expired'
-  - context?: string
+  - context?: string (or encrypted)
+  - encrypted: boolean
   - createdAt: timestamp
-  - response?: string
+  - response?: string (or encrypted)
+  - responseEncrypted?: boolean
   - answeredAt?: timestamp
+  - projectId?: string
+  - archived: boolean
+  - deletedAt?: timestamp
+
+/users/{userId}/projects/{projectId}
+  - name: string
+  - createdAt: timestamp
+  - isDefault: boolean
+  - deletedAt?: timestamp
+
+/users/{userId}/tasks/{taskId}
+  - title: string
+  - instructions: string
+  - priority: 'low' | 'normal' | 'high'
+  - status: 'pending' | 'in_progress' | 'complete' | 'cancelled'
+  - projectId?: string
+  - createdAt: timestamp
+  - startedAt?: timestamp
+  - completedAt?: timestamp
+  - sessionId?: string
 
 /users/{userId}/analytics/{period}
   - questionsAsked: number

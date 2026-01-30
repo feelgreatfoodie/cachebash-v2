@@ -3,8 +3,8 @@
 # Started: 2026-01-23
 
 ## Current Status
-PHASE: Phase 2 - Cloud-Hosted MCP Server - COMPLETE!
-STORY: All 17 stories complete
+PHASE: Phase 3 - Premium UX Enhancements - IN PROGRESS
+STORY: Gmail-style sessions + Task Queue complete
 
 ## Project Stats
 Phase 2 Stories: 17
@@ -130,3 +130,73 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
   - Health endpoint verified: {"status":"ok","version":"1.0.0"}
   - Updated Flutter app with production Cloud Run URL
   - PHASE 2 COMPLETE! All 17 stories done!
+
+---
+
+## Phase 3 Progress - Premium UX Enhancements
+
+### Completed Features
+
+#### Haptic Feedback System
+- [x] HapticService with light/medium/heavy/success/error/selection
+- [x] Haptics on all interactive elements (buttons, cards, swipes)
+
+#### Pull-to-Refresh
+- [x] Added to Questions screen
+- [x] Added to Projects screen
+- [x] Already on Home screen
+
+#### Answer Streaks (designed, not fully implemented)
+- [ ] StreakModel, streak_provider, streak_badge, streak_celebration
+
+#### Gmail-Style Session Management
+- [x] Sessions auto-detect staleness (30 min threshold)
+- [x] Active Sessions - working/blocked/pinned and recently updated
+- [x] Inactive Sessions - stale sessions with "Archive All" button
+- [x] Archived Sessions screen - view/restore/delete archived sessions
+- [x] Swipe-to-archive gesture on session cards
+- [x] Swipe-to-restore on archived sessions
+- [x] Session detail screen with status, progress, state indicator
+- [x] Send interrupt messages from app to active Claude sessions
+- [x] MCP tool: get_interrupts - Claude checks for messages from app
+
+#### Task Queue System (App → Claude Communication)
+- [x] TaskModel - title, instructions, priority, status
+- [x] TasksProvider - pending/in-progress/recent tasks
+- [x] TasksService - create, cancel, delete tasks
+- [x] TasksScreen - view all tasks grouped by status
+- [x] CreateTaskScreen - create tasks with markdown instructions
+- [x] MCP tool: get_pending_tasks - Claude checks for work
+- [x] MCP tool: claim_task - Claude starts working on a task
+- [x] MCP tool: complete_task - Claude marks task done
+
+#### End-to-End Encryption
+- [x] EncryptionService (Flutter) - AES-256-CBC with PBKDF2 key derivation
+- [x] crypto.ts (MCP) - matching encryption for questions/responses
+- [x] API key used as shared secret for key derivation
+
+### Session Log (Phase 3)
+[2026-01-30] Phase 3 kickoff - UX enhancements
+  - Added haptic feedback service
+  - Added haptics to all interactive elements
+  - Added pull-to-refresh to Questions and Projects screens
+[2026-01-30] E2E encryption
+  - Implemented AES-256-CBC encryption with PBKDF2 key derivation
+  - Questions and responses encrypted by default
+  - API key serves as shared secret
+[2026-01-30] Active Sessions interactivity
+  - Created session detail screen
+  - Added interrupt messaging (app → Claude)
+  - Added get_interrupts MCP tool
+[2026-01-30] Gmail-style session management
+  - Sessions become "inactive" after 30 min without updates
+  - Swipe-to-archive on session cards
+  - Archive All button for batch archiving
+  - Archived sessions screen with restore/delete
+[2026-01-30] Task queue system
+  - Create tasks from app for Claude to pick up
+  - MCP tools: get_pending_tasks, claim_task, complete_task
+  - Tasks screen with status grouping
+[2026-01-30] Git history cleanup
+  - Rewrote all commits with author: feelgreatfoodie <chrisbourlier@hotmail.com>
+  - Removed all Co-Authored-By lines
