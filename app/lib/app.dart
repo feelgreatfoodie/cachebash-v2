@@ -9,6 +9,7 @@ import 'screens/auth/api_key_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/questions/questions_screen.dart';
 import 'screens/questions/question_detail_screen.dart';
+import 'theme/app_theme.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -69,20 +70,9 @@ class CacheBashApp extends ConsumerWidget {
 
     return MaterialApp.router(
       title: 'CacheBash',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.dark,
       routerConfig: router,
     );
   }
