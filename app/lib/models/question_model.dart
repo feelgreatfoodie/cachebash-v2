@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../services/encryption_service.dart';
+
 /// Model representing a question from Claude Code
 class QuestionModel {
   final String id;
@@ -14,6 +16,7 @@ class QuestionModel {
   final String? projectId;
   final bool archived;
   final DateTime? deletedAt;
+  final bool isEncrypted;
 
   QuestionModel({
     required this.id,
@@ -28,8 +31,10 @@ class QuestionModel {
     this.projectId,
     this.archived = false,
     this.deletedAt,
+    this.isEncrypted = false,
   });
 
+  /// Create from Firestore without decryption (raw data)
   factory QuestionModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>?;
     return QuestionModel(
@@ -45,6 +50,51 @@ class QuestionModel {
       projectId: data?['projectId'] as String?,
       archived: data?['archived'] as bool? ?? false,
       deletedAt: (data?['deletedAt'] as Timestamp?)?.toDate(),
+      isEncrypted: data?['encrypted'] as bool? ?? false,
+    );
+  }
+
+  /// Create from Firestore with decryption
+  static Future<QuestionModel> fromFirestoreDecrypted(
+    DocumentSnapshot doc,
+    EncryptionService encryptionService,
+  ) async {
+    final data = doc.data() as Map<String, dynamic>?;
+    final isEncrypted = data?['encrypted'] as bool? ?? false;
+
+    String question = data?['question'] ?? '';
+    String? context = data?['context'] as String?;
+    String? response = data?['response'] as String?;
+    List<String>? options = (data?['options'] as List<dynamic>?)?.cast<String>();
+
+    // Decrypt fields if marked as encrypted
+    if (isEncrypted) {
+      question = await encryptionService.decryptIfNeeded(question);
+      context = context != null ? await encryptionService.decryptIfNeeded(context) : null;
+      response = response != null ? await encryptionService.decryptIfNeeded(response) : null;
+      if (options != null) {
+        final decryptedOptions = <String>[];
+        for (final option in options) {
+          decryptedOptions.add(await encryptionService.decryptIfNeeded(option));
+        }
+        options = decryptedOptions;
+      }
+    }
+
+    return QuestionModel(
+      id: doc.id,
+      question: question,
+      options: options,
+      priority: data?['priority'] ?? 'normal',
+      status: data?['status'] ?? 'pending',
+      context: context,
+      response: response,
+      createdAt: (data?['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      answeredAt: (data?['answeredAt'] as Timestamp?)?.toDate(),
+      projectId: data?['projectId'] as String?,
+      archived: data?['archived'] as bool? ?? false,
+      deletedAt: (data?['deletedAt'] as Timestamp?)?.toDate(),
+      isEncrypted: isEncrypted,
     );
   }
 
@@ -70,6 +120,7 @@ class QuestionModel {
     String? projectId,
     bool? archived,
     DateTime? deletedAt,
+    bool? isEncrypted,
   }) {
     return QuestionModel(
       id: id ?? this.id,
@@ -84,6 +135,7 @@ class QuestionModel {
       projectId: projectId ?? this.projectId,
       archived: archived ?? this.archived,
       deletedAt: deletedAt ?? this.deletedAt,
+      isEncrypted: isEncrypted ?? this.isEncrypted,
     );
   }
 }

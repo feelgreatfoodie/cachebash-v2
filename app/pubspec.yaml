@@ -26,6 +26,7 @@ dependencies:
   # Security & Storage
   flutter_secure_storage: ^9.0.0
   crypto: ^3.0.3
+  encrypt: ^5.0.3
 
   # UI
   cupertino_icons: ^1.0.6

@@ -4,6 +4,7 @@ import { getFirestore } from "../firebase/client.js";
 export interface AuthContext {
   userId: string;
   apiKeyHash: string;
+  apiKey: string; // Stored in memory only for E2E encryption
 }
 
 /**
@@ -51,6 +52,7 @@ export async function validateApiKey(
     return {
       userId: data.userId,
       apiKeyHash: keyHash,
+      apiKey: apiKey, // Keep in memory for E2E encryption
     };
   } catch (error) {
     console.error("API key validation error:", error);

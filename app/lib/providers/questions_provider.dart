@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/question_model.dart';
+import '../services/encryption_service.dart';
 import 'auth_provider.dart';
 
 final firestore = FirebaseFirestore.instance;
@@ -148,17 +149,42 @@ final questionProvider =
 /// Service for answering questions
 class QuestionsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final EncryptionService _encryptionService;
+
+  QuestionsService({EncryptionService? encryptionService})
+      : _encryptionService = encryptionService ?? EncryptionService();
 
   /// Submit a response to a question
+  /// If the question was encrypted, the response will also be encrypted
   Future<void> answerQuestion({
     required String userId,
     required String questionId,
     required String response,
+    bool encrypt = true,
   }) async {
+    // Check if the question is encrypted
+    final doc = await _firestore.doc('users/$userId/questions/$questionId').get();
+    final isQuestionEncrypted = doc.data()?['encrypted'] as bool? ?? false;
+
+    String finalResponse = response;
+    bool shouldEncrypt = encrypt && isQuestionEncrypted;
+
+    if (shouldEncrypt) {
+      final encrypted = await _encryptionService.encrypt(response);
+      if (encrypted != null) {
+        finalResponse = encrypted;
+        _log('Response encrypted successfully');
+      } else {
+        _log('Encryption failed, storing unencrypted');
+        shouldEncrypt = false;
+      }
+    }
+
     await _firestore.doc('users/$userId/questions/$questionId').update({
-      'response': response,
+      'response': finalResponse,
       'status': 'answered',
       'answeredAt': FieldValue.serverTimestamp(),
+      if (shouldEncrypt) 'responseEncrypted': true,
     });
   }
 
