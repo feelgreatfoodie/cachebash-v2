@@ -4,11 +4,11 @@
 
 ## Current Status
 PHASE: Phase 2 - Cloud-Hosted MCP Server
-STORY: US-017 - Project management screen
+STORY: US-013 - Deploy to Cloud Run (waiting for approval)
 
 ## Project Stats
 Phase 2 Stories: 17
-Completed: 15
+Completed: 16
 Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 
 ## Phase 1 Completed
@@ -40,11 +40,11 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
 - [x] US-012: Write unit tests for Cloud Run
 - [ ] US-013: Deploy to Cloud Run
 
-### Epic 4: Projects Feature (US-014 to US-017)
+### Epic 4: Projects Feature (US-014 to US-017) - COMPLETE!
 - [x] US-014: Add Projects feature to organize questions
 - [x] US-015: Add archive functionality for questions
 - [x] US-016: Add delete functionality for questions and projects
-- [ ] US-017: Add project management screen
+- [x] US-017: Add project management screen
 
 ## Session Log
 [2026-01-23] Phase 1 completed - MVP working
@@ -115,3 +115,9 @@ Components: Cloud Run Server, Flutter App enhancements, Firebase updates
   - Soft delete sets deletedAt timestamp (30-day retention)
   - Delete project auto-archives its questions
   - Archive questions with undo via snackbar
+[2026-01-30] US-017 complete - Project management screen
+  - "Set as Default" option in project menu
+  - Default project indicator (star badge) on list tiles
+  - Toggle default on/off with menu action
+  - Snackbar confirmation when setting default
+  - Epic 4 (Projects Feature) COMPLETE!

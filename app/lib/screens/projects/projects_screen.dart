@@ -76,6 +76,9 @@ class ProjectsScreen extends ConsumerWidget {
                 onRename: project.isUncategorized
                     ? null
                     : () => _showRenameProjectDialog(context, ref, project),
+                onSetDefault: project.isUncategorized
+                    ? null
+                    : () => _setDefaultProject(context, ref, project),
                 onDelete: project.isUncategorized
                     ? null
                     : () => _showDeleteProjectDialog(context, ref, project),
@@ -167,6 +170,27 @@ class ProjectsScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _setDefaultProject(
+      BuildContext context, WidgetRef ref, ProjectModel project) async {
+    final user = ref.read(currentUserProvider);
+    if (user != null) {
+      await ref.read(projectsServiceProvider).setDefaultProject(
+            userId: user.uid,
+            projectId: project.isDefault ? null : project.id,
+          );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(project.isDefault
+                ? 'Default project cleared'
+                : '${project.name} set as default'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _showDeleteProjectDialog(
       BuildContext context, WidgetRef ref, ProjectModel project) async {
     final confirmed = await showDialog<bool>(
@@ -210,31 +234,54 @@ class _ProjectListTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onRename;
   final VoidCallback? onDelete;
+  final VoidCallback? onSetDefault;
 
   const _ProjectListTile({
     required this.project,
     required this.onTap,
     this.onRename,
     this.onDelete,
+    this.onSetDefault,
   });
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: project.isUncategorized
-            ? Theme.of(context).colorScheme.surfaceContainerHighest
-            : Theme.of(context).colorScheme.primaryContainer,
-        child: Icon(
-          project.isUncategorized ? Icons.inbox : Icons.folder,
-          color: project.isUncategorized
-              ? Theme.of(context).colorScheme.onSurfaceVariant
-              : Theme.of(context).colorScheme.onPrimaryContainer,
-        ),
+      leading: Stack(
+        children: [
+          CircleAvatar(
+            backgroundColor: project.isUncategorized
+                ? Theme.of(context).colorScheme.surfaceContainerHighest
+                : Theme.of(context).colorScheme.primaryContainer,
+            child: Icon(
+              project.isUncategorized ? Icons.inbox : Icons.folder,
+              color: project.isUncategorized
+                  ? Theme.of(context).colorScheme.onSurfaceVariant
+                  : Theme.of(context).colorScheme.onPrimaryContainer,
+            ),
+          ),
+          if (project.isDefault)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: Colors.amber,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.surface,
+                    width: 1.5,
+                  ),
+                ),
+                child: const Icon(Icons.star, size: 10, color: Colors.white),
+              ),
+            ),
+        ],
       ),
       title: Text(project.name),
       subtitle: Text(
-        '${project.questionCount} question${project.questionCount == 1 ? '' : 's'}',
+        '${project.questionCount} question${project.questionCount == 1 ? '' : 's'}${project.isDefault ? ' • Default' : ''}',
       ),
       trailing: project.isUncategorized
           ? null
@@ -243,6 +290,9 @@ class _ProjectListTile extends StatelessWidget {
                 switch (value) {
                   case 'rename':
                     onRename?.call();
+                    break;
+                  case 'setDefault':
+                    onSetDefault?.call();
                     break;
                   case 'delete':
                     onDelete?.call();
@@ -257,6 +307,21 @@ class _ProjectListTile extends StatelessWidget {
                       Icon(Icons.edit),
                       SizedBox(width: 8),
                       Text('Rename'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'setDefault',
+                  child: Row(
+                    children: [
+                      Icon(
+                        project.isDefault ? Icons.star : Icons.star_outline,
+                        color: project.isDefault ? Colors.amber : null,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(project.isDefault
+                          ? 'Default Project'
+                          : 'Set as Default'),
                     ],
                   ),
                 ),

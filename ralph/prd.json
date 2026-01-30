@@ -222,12 +222,12 @@
         "Set default project for new questions"
       ],
       "priority": 3,
-      "passes": false
+      "passes": true
     }
   ],
   "metadata": {
     "createdAt": "2026-01-29T00:00:00Z",
     "totalStories": 17,
-    "completedStories": 15
+    "completedStories": 16
   }
 }
