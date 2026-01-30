@@ -86,11 +86,15 @@ export const onQuestionCreate = functions.firestore
         `Sent notifications for question ${questionId}: ${response.successCount} success, ${response.failureCount} failures`
       );
 
-      // Clean up invalid tokens
+      // Log errors and clean up invalid tokens
       const tokensToRemove: string[] = [];
       response.responses.forEach((result, index) => {
         if (!result.success) {
           const error = result.error;
+          functions.logger.error(
+            `FCM send failed for token ${tokens[index].substring(0, 20)}...`,
+            { code: error?.code, message: error?.message }
+          );
           if (
             error?.code === "messaging/invalid-registration-token" ||
             error?.code === "messaging/registration-token-not-registered"
