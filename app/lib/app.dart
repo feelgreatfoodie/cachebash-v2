@@ -11,6 +11,11 @@ import 'screens/questions/questions_screen.dart';
 import 'screens/questions/question_detail_screen.dart';
 import 'screens/projects/projects_screen.dart';
 import 'screens/projects/project_detail_screen.dart';
+import 'screens/settings/settings_screen.dart';
+import 'screens/settings/profile_screen.dart';
+import 'screens/settings/change_password_screen.dart';
+import 'screens/settings/delete_account_screen.dart';
+import 'screens/settings/notifications_screen.dart';
 import 'theme/app_theme.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -69,6 +74,26 @@ final routerProvider = Provider<GoRouter>((ref) {
           final projectId = state.pathParameters['id']!;
           return ProjectDetailScreen(projectId: projectId);
         },
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/profile',
+        builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: '/settings/change-password',
+        builder: (context, state) => const ChangePasswordScreen(),
+      ),
+      GoRoute(
+        path: '/settings/delete-account',
+        builder: (context, state) => const DeleteAccountScreen(),
+      ),
+      GoRoute(
+        path: '/settings/notifications',
+        builder: (context, state) => const NotificationsScreen(),
       ),
     ],
   );

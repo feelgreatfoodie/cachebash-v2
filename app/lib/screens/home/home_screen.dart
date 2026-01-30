@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -27,26 +26,9 @@ class HomeScreen extends ConsumerWidget {
         title: const Text('CacheBash'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.key),
-            onPressed: () => context.go('/api-key'),
-            tooltip: 'API Key',
-          ),
-          PopupMenuButton(
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                child: const ListTile(
-                  leading: Icon(Icons.logout),
-                  title: Text('Sign Out'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-                onTap: () async {
-                  await ref.read(authNotifierProvider.notifier).signOut();
-                  if (context.mounted) {
-                    context.go('/login');
-                  }
-                },
-              ),
-            ],
+            icon: const Icon(Icons.settings),
+            onPressed: () => context.go('/settings'),
+            tooltip: 'Settings',
           ),
         ],
       ),
@@ -164,9 +146,9 @@ class HomeScreen extends ConsumerWidget {
                 Expanded(
                   child: _buildActionCard(
                     context,
-                    Icons.key,
-                    'API Key',
-                    () => context.go('/api-key'),
+                    Icons.settings,
+                    'Settings',
+                    () => context.go('/settings'),
                   ),
                 ),
               ],

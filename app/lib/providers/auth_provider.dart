@@ -126,6 +126,83 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   void clearError() {
     state = const AsyncValue.data(null);
   }
+
+  /// Change password (requires current password for reauthentication)
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String email,
+  }) async {
+    Log.i(_tag, 'changePassword: Starting');
+    state = const AsyncValue.loading();
+    try {
+      // First reauthenticate
+      await _authService.reauthenticate(email: email, password: currentPassword);
+      // Then update password
+      await _authService.updatePassword(newPassword);
+      Log.i(_tag, 'changePassword: SUCCESS');
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, st) {
+      Log.e(_tag, 'changePassword: FAILED', e, st);
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
+
+  /// Send password reset email
+  Future<bool> sendPasswordResetEmail(String email) async {
+    Log.i(_tag, 'sendPasswordResetEmail: $email');
+    state = const AsyncValue.loading();
+    try {
+      await _authService.sendPasswordResetEmail(email);
+      Log.i(_tag, 'sendPasswordResetEmail: SUCCESS');
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, st) {
+      Log.e(_tag, 'sendPasswordResetEmail: FAILED', e, st);
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
+
+  /// Update display name
+  Future<bool> updateDisplayName(String displayName) async {
+    Log.i(_tag, 'updateDisplayName: $displayName');
+    state = const AsyncValue.loading();
+    try {
+      await _authService.updateDisplayName(displayName);
+      Log.i(_tag, 'updateDisplayName: SUCCESS');
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, st) {
+      Log.e(_tag, 'updateDisplayName: FAILED', e, st);
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
+
+  /// Delete account (requires reauthentication)
+  Future<bool> deleteAccount({
+    required String password,
+    required String email,
+  }) async {
+    Log.i(_tag, 'deleteAccount: Starting');
+    state = const AsyncValue.loading();
+    try {
+      // First reauthenticate
+      await _authService.reauthenticate(email: email, password: password);
+      // Then delete
+      await _authService.deleteAccount();
+      Log.i(_tag, 'deleteAccount: SUCCESS');
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, st) {
+      Log.e(_tag, 'deleteAccount: FAILED', e, st);
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
 }
 
 /// Provider for auth actions

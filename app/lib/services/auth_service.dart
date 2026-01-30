@@ -86,4 +86,48 @@ class AuthService {
       rethrow;
     }
   }
+
+  /// Reauthenticate user (required before sensitive operations)
+  Future<void> reauthenticate({
+    required String email,
+    required String password,
+  }) async {
+    Log.d(_tag, 'reauthenticate: $email');
+    try {
+      final credential = EmailAuthProvider.credential(
+        email: email,
+        password: password,
+      );
+      await _auth.currentUser?.reauthenticateWithCredential(credential);
+      Log.d(_tag, 'reauthenticate: Success');
+    } catch (e, stack) {
+      Log.e(_tag, 'reauthenticate failed', e, stack);
+      rethrow;
+    }
+  }
+
+  /// Update password (requires recent authentication)
+  Future<void> updatePassword(String newPassword) async {
+    Log.d(_tag, 'updatePassword');
+    try {
+      await _auth.currentUser?.updatePassword(newPassword);
+      Log.d(_tag, 'updatePassword: Success');
+    } catch (e, stack) {
+      Log.e(_tag, 'updatePassword failed', e, stack);
+      rethrow;
+    }
+  }
+
+  /// Update display name
+  Future<void> updateDisplayName(String displayName) async {
+    Log.d(_tag, 'updateDisplayName: $displayName');
+    try {
+      await _auth.currentUser?.updateDisplayName(displayName);
+      await _auth.currentUser?.reload();
+      Log.d(_tag, 'updateDisplayName: Success');
+    } catch (e, stack) {
+      Log.e(_tag, 'updateDisplayName failed', e, stack);
+      rethrow;
+    }
+  }
 }

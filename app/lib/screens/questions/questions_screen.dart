@@ -1,9 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../models/question_model.dart';
 import '../../providers/questions_provider.dart';
 import '../../widgets/question_card.dart';
 

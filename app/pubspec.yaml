@@ -33,6 +33,10 @@ dependencies:
   # HTTP client
   http: ^1.2.0
 
+  # Utilities
+  package_info_plus: ^8.0.0
+  app_settings: ^5.1.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
