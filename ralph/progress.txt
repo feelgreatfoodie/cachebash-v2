@@ -138,3 +138,44 @@ The approach:
 - When the app merges data from multiple collections, all CRUD operations must handle both collections
 - Use `.get()` to check document existence before `.update()` to avoid "not found" errors
 - The MCP server writes to both collections for backwards compatibility, but the Flutter app reads from both
+
+### Iteration 5: 2026-01-31T00:15:00Z
+#### Story: [US-005] Archived Messages Move to Archive Folder
+
+**Implementation:**
+Added archive folder functionality for messages, following the same pattern as archived sessions.
+
+1. Created `archivedMessagesProvider` in `messages_provider.dart`
+   - Streams archived messages from both `/messages` and `/questions` collections
+   - Uses the same `_combineStreams` pattern for real-time updates
+   - Filters for `archived: true` instead of `archived: false`
+
+2. Created `archived_messages_screen.dart`
+   - Displays list of archived messages
+   - Shows empty state when no archived messages
+   - Each message has a popup menu with "Restore" and "Delete" options
+   - Uses existing `MessageCard` widget for consistent appearance
+
+3. Added route in `app.dart`
+   - Import for `ArchivedMessagesScreen`
+   - Route at `/messages/archived`
+
+4. Added archive icon button to `messages_screen.dart` AppBar
+   - Appears alongside the select (checklist) button
+   - Navigates to `/messages/archived`
+
+**Files Changed:**
+- `app/lib/providers/messages_provider.dart` - Added archivedMessagesProvider
+- `app/lib/screens/messages/archived_messages_screen.dart` - New screen (created)
+- `app/lib/app.dart` - Added import and route for archived messages
+- `app/lib/screens/messages/messages_screen.dart` - Added archive icon button in AppBar
+
+**Verification:**
+- Flutter analyze passes with no new errors (only pre-existing warnings)
+- iOS build succeeds
+- Archive functionality now has a dedicated view accessible from the messages screen
+
+**Learnings for Future Iterations:**
+- Follow existing patterns in the codebase (archived_sessions_screen was a good template)
+- Reuse stream combining helpers when creating similar providers
+- AppBar actions use spread operator `...[` when conditionally showing multiple buttons

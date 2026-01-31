@@ -217,6 +217,61 @@ final allMessagesProvider = StreamProvider<List<MessageModel>>((ref) {
       });
 });
 
+/// Stream provider for archived messages
+/// Merges both /messages (new) and /questions (legacy) collections with real-time updates
+final archivedMessagesProvider = StreamProvider<List<MessageModel>>((ref) {
+  final user = ref.watch(currentUserProvider);
+  final encryptionService = ref.watch(encryptionServiceProvider);
+  _log('archivedMessagesProvider: user=${user?.uid}');
+  if (user == null) {
+    return Stream.value([]);
+  }
+
+  // Stream for unified /messages collection (archived)
+  final messagesStream = _firestore
+      .collection('users/${user.uid}/messages')
+      .where('deletedAt', isNull: true)
+      .where('archived', isEqualTo: true)
+      .orderBy('createdAt', descending: true)
+      .limit(50)
+      .snapshots();
+
+  // Stream for legacy /questions collection (archived)
+  final questionsStream = _firestore
+      .collection('users/${user.uid}/questions')
+      .where('deletedAt', isNull: true)
+      .where('archived', isEqualTo: true)
+      .orderBy('createdAt', descending: true)
+      .limit(50)
+      .snapshots();
+
+  // Combine both streams using Rx-style combineLatest
+  return _combineStreams(messagesStream, questionsStream)
+      .asyncMap((snapshots) async {
+        final messagesSnapshot = snapshots.$1;
+        final questionsSnapshot = snapshots.$2;
+
+        final messages = await _decryptMessages(messagesSnapshot.docs, encryptionService);
+        final messageIds = messages.map((m) => m.id).toSet();
+
+        // Merge legacy questions (skip duplicates)
+        final legacyMessages = await Future.wait(
+          questionsSnapshot.docs
+              .where((doc) => !messageIds.contains(doc.id))
+              .map((doc) => _decryptLegacyQuestion(doc, encryptionService)),
+        );
+        messages.addAll(legacyMessages);
+
+        messages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        _log('archivedMessagesProvider: Got ${messages.length} total archived messages');
+        return messages;
+      })
+      .handleError((error, stackTrace) {
+        _log('archivedMessagesProvider ERROR: $error');
+        throw error;
+      });
+});
+
 /// Stream provider for active (non-archived) messages
 /// Merges both /messages (new) and /questions (legacy) collections with real-time updates
 final activeMessagesProvider = StreamProvider<List<MessageModel>>((ref) {

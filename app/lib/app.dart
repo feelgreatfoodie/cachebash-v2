@@ -23,6 +23,7 @@ import 'screens/tasks/tasks_screen.dart';
 import 'screens/tasks/create_task_screen.dart';
 import 'screens/messages/messages_screen.dart';
 import 'screens/messages/create_message_screen.dart';
+import 'screens/messages/archived_messages_screen.dart';
 import 'screens/search/search_screen.dart';
 import 'theme/app_theme.dart';
 import 'widgets/main_shell.dart';
@@ -121,6 +122,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/messages',
             builder: (context, state) => const MessagesScreen(),
+          ),
+          GoRoute(
+            path: '/messages/archived',
+            builder: (context, state) => const ArchivedMessagesScreen(),
           ),
           GoRoute(
             path: '/messages/new',

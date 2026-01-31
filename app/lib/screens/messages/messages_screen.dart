@@ -425,7 +425,7 @@ class MessagesScreen extends ConsumerWidget {
             },
           ),
           actions: [
-            if (!selectionState.isSelecting)
+            if (!selectionState.isSelecting) ...[
               IconButton(
                 icon: const Icon(Icons.checklist),
                 onPressed: () {
@@ -433,8 +433,16 @@ class MessagesScreen extends ConsumerWidget {
                   ref.read(messagesSelectionProvider.notifier).enterSelectionMode();
                 },
                 tooltip: 'Select',
-              )
-            else
+              ),
+              IconButton(
+                icon: const Icon(Icons.archive),
+                onPressed: () {
+                  HapticService.light();
+                  context.go('/messages/archived');
+                },
+                tooltip: 'Archived',
+              ),
+            ] else
               // Select all button
               messagesAsync.whenOrNull(
                 data: (messages) => IconButton(
