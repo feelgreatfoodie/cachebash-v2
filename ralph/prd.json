@@ -44,8 +44,8 @@
       ],
       "technicalNotes": "Check the sessions query in the home screen - likely a filter or listener issue. Sessions may not be getting created or may have wrong state values.",
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Fixed: MCP updateStatus was not setting archived: false, so sessions didn't match the isNotEqualTo: true query. Firestore isNotEqualTo doesn't match missing fields."
     },
     {
       "id": "US-004",
@@ -199,6 +199,6 @@
   "metadata": {
     "createdAt": "2026-01-30T00:00:00Z",
     "totalStories": 14,
-    "completedStories": 2
+    "completedStories": 3
   }
 }
