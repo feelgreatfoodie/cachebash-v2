@@ -179,8 +179,8 @@
       ],
       "technicalNotes": "Check go_router configuration for archived sessions route.",
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Fixed: Changed archived sessions back button to go to /sessions. Updated all session navigation to use push() instead of go(). Session detail back button now uses pop() with fallback."
     },
     {
       "id": "US-014",
@@ -199,6 +199,6 @@
   "metadata": {
     "createdAt": "2026-01-30T00:00:00Z",
     "totalStories": 14,
-    "completedStories": 12
+    "completedStories": 13
   }
 }
