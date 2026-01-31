@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/questions_provider.dart';
@@ -19,28 +18,8 @@ void _log(String message) {
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
-  static const _feedbackUrl = 'https://github.com/anthropics/claude-code/issues';
-
-  Future<void> _openFeedback(BuildContext context) async {
-    final uri = Uri.parse(_feedbackUrl);
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not open feedback page')),
-          );
-        }
-      }
-    } catch (e) {
-      _log('Error opening feedback URL: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open feedback page')),
-        );
-      }
-    }
+  void _openFeedback(BuildContext context) {
+    context.push('/feedback');
   }
 
   Future<void> _archiveSession(
@@ -103,7 +82,6 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider);
     final pendingQuestions = ref.watch(pendingQuestionsProvider);
     final activeSessions = ref.watch(activeSessionsProvider);
     final inactiveSessions = ref.watch(inactiveSessionsProvider);

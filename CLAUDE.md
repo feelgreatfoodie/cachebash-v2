@@ -96,6 +96,14 @@ ask_question({
 
 ### Polling Schedule
 
+**Poll for BOTH question responses AND new tasks:**
+
+| What to Poll | MCP Tool | Interval |
+|--------------|----------|----------|
+| Question responses | `get_response` | 30s → 1min → 2min (escalating) |
+| **New tasks from user** | `get_pending_tasks` | Every 2 minutes |
+| Interrupts | `get_interrupts` | Every 1 minute |
+
 **Escalating intervals for pending questions:**
 
 | Time Since Question | Poll Interval |
@@ -109,10 +117,12 @@ ask_question({
 - After running tests (pass or fail)
 - After a commit
 - Before starting work that depends on a pending answer
+- **When idle or between tasks** (check for new tasks)
 
 ### While Waiting
 
 - **Continue polling indefinitely** at the scheduled intervals (30s → 1min → 2min)
+- **Check for new tasks** via `get_pending_tasks` every 2 minutes - user may send work from their phone
 - If parallel work exists, do it while polling
 - After 30 min with no response, send ONE status reminder: "Still need: [question]"
 - **Don't spam.** One reminder max. Never stop polling unless user returns or explicitly cancels.

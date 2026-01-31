@@ -322,7 +322,7 @@ class SessionsScreen extends ConsumerWidget {
                                     },
                                     child: SessionCard(
                                       session: s,
-                                      onTap: () {},
+                                      onTap: null,
                                       onArchive: selectionState.isSelecting
                                           ? null
                                           : () => _archiveSession(context, ref, s.id),
@@ -360,7 +360,7 @@ class SessionsScreen extends ConsumerWidget {
                                     },
                                     child: SessionCard(
                                       session: s,
-                                      onTap: () {},
+                                      onTap: null,
                                       onArchive: selectionState.isSelecting
                                           ? null
                                           : () => _archiveSession(context, ref, s.id),
@@ -398,7 +398,7 @@ class SessionsScreen extends ConsumerWidget {
                                     },
                                     child: SessionCard(
                                       session: s,
-                                      onTap: () {},
+                                      onTap: null,
                                       onArchive: selectionState.isSelecting
                                           ? null
                                           : () => _archiveSession(context, ref, s.id),

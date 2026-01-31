@@ -468,16 +468,7 @@ class MessagesScreen extends ConsumerWidget {
               ) ?? const SizedBox.shrink(),
           ],
         ),
-        floatingActionButton: selectionState.isSelecting
-            ? null
-            : FloatingActionButton.extended(
-                onPressed: () {
-                  HapticService.light();
-                  context.push('/messages/new');
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('New Task'),
-              ),
+        floatingActionButton: null,
         body: Column(
           children: [
             Expanded(

@@ -19,6 +19,11 @@ service cloud.firestore {
         match /interrupts/{interruptId} {
           allow read, write: if request.auth != null && request.auth.uid == userId;
         }
+
+        // Status updates subcollection (session history)
+        match /updates/{updateId} {
+          allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
       }
 
       // Questions subcollection
@@ -47,6 +52,19 @@ service cloud.firestore {
         // Analytics are written by Cloud Functions only
         allow write: if false;
       }
+    }
+
+    // Feedback collection - users can submit, only admins can read
+    match /feedback/{feedbackId} {
+      // Anyone authenticated can create feedback
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.message.size() <= 500;
+      // Users can read their own feedback
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+      // No updates or deletes from users
+      allow update, delete: if false;
     }
 
     // API key lookup - allows app to manage keys, MCP server uses service account
