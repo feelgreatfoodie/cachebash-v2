@@ -75,3 +75,30 @@ This meant messages from the unified collection updated in real-time, but legacy
 - Dart's `async*` generators work well for implementing Rx-style stream combinators
 - The `(T1, T2)` record syntax (Dart 3) is convenient for tuples without external packages
 - When merging data from multiple Firestore collections, ensure all use stream listeners for consistency
+
+### Iteration 3: 2026-01-30T23:45:00Z
+#### Story: [US-003] Fix Sessions Not Appearing on Home Screen
+
+**Root Cause Analysis:**
+Sessions were not appearing on the home screen due to a Firestore query issue. The Flutter app queries sessions with:
+```dart
+.where('archived', isNotEqualTo: true)
+```
+
+However, when the MCP server's `updateStatus` tool created sessions, it did NOT set the `archived` field at all. In Firestore, `isNotEqualTo` queries do NOT match documents where the field is missing - they only match documents where the field exists and has a different value.
+
+**Implementation:**
+Added `archived: false` to the session data in `updateStatus.ts` so that newly created sessions explicitly have the `archived` field set, making them match the query.
+
+**Files Changed:**
+- `mcp-server/src/tools/updateStatus.ts` - Added `archived: false` to sessionData
+
+**Verification:**
+- MCP server builds successfully (`npm run build`)
+- Flutter analyze passes with no new errors
+- New sessions will now appear in the active sessions query
+
+**Learnings for Future Iterations:**
+- Firestore `isNotEqualTo` queries do NOT match documents where the field is missing
+- Always explicitly set boolean fields rather than relying on defaults
+- When debugging "missing data" issues, check if the query filter matches documents without the field

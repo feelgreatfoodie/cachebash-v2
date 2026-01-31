@@ -26,6 +26,7 @@ export async function updateStatus(
     state: args.state || "working",
     progress: args.progress ?? null,
     lastUpdate: serverTimestamp(),
+    archived: false,
   };
 
   // Update or create session document
