@@ -58,8 +58,8 @@
       ],
       "technicalNotes": "Error 'some requested document not found' suggests a batch operation or transaction is trying to access a non-existent document. Check the archive logic for race conditions or stale references.",
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Fixed: MessagesService methods only tried /messages collection, but activeMessagesProvider merges both /messages and /questions. Updated archiveMessage, unarchiveMessage, and deleteMessage to check both collections."
     },
     {
       "id": "US-005",
@@ -199,6 +199,6 @@
   "metadata": {
     "createdAt": "2026-01-30T00:00:00Z",
     "totalStories": 14,
-    "completedStories": 3
+    "completedStories": 4
   }
 }
