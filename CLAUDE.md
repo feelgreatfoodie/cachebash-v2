@@ -829,4 +829,49 @@ cd mcp-server && gcloud run deploy cachebash-mcp --source . --region us-central1
 
 ---
 
+## Default Execution Workflow (Auto-AFK)
+
+After plan approval, Claude **automatically enters AFK mode** unless the user explicitly opts out. This is the default behavior for ALL planning and implementation cycles.
+
+### Standard Flow
+
+1. **Plan is approved** (user says "LGTM", "go ahead", "approved", etc.)
+2. **Context clears** - Claude processes the approval
+3. **AFK mode activates automatically:**
+   - Run `caffeinate -dims` to prevent system sleep
+   - Call `update_status` to set working state
+   - All approvals route through CacheBash `ask_question`
+   - Follow the full AFK Mode Protocol (see above)
+
+### Opting Out
+
+The user can prevent auto-AFK by saying any of these **with their approval**:
+- "Don't go AFK"
+- "Stay here"
+- "No Ralph mode"
+- "I'll be at my computer"
+- "Stay interactive"
+
+Example: "LGTM but stay here" or "Approved, don't go AFK"
+
+### Why This is Default
+
+- User has already reviewed and approved the plan
+- Implementation is mechanical execution of the approved plan
+- Reduces friction - no need to say "go AFK" every time
+- User can monitor progress from phone and course-correct as needed
+- Questions still come through CacheBash for async approval
+
+### Behavior Summary
+
+| Scenario | AFK Mode |
+|----------|----------|
+| Plan approved (no opt-out) | **Auto-enters AFK** |
+| Plan approved + "stay here" | Stays interactive |
+| User says "I'm going AFK" | Enters AFK (explicit) |
+| User says "keep working" | Enters AFK (explicit) |
+| Mid-task, user leaves | User should say "going AFK" |
+
+---
+
 *Created: 2026-01-23*
