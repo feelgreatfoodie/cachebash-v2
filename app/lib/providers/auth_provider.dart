@@ -48,7 +48,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       Log.d(_tag, 'signIn: API key synced');
 
       try {
-        await FcmService.instance.onUserLogin();
+        await FcmService.instance.onUserLogin(credential.user!.uid);
       } catch (_) {
         // FCM is optional, ignore errors
       }
@@ -78,7 +78,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       );
 
       try {
-        await FcmService.instance.onUserLogin();
+        await FcmService.instance.onUserLogin(credential.user!.uid);
       } catch (_) {
         // FCM is optional, ignore errors
       }

@@ -147,6 +147,14 @@ export const onMessageCreate = functions.firestore
         `Sent notifications for message ${messageId}: ${response.successCount} success, ${response.failureCount} failures`
       );
 
+      // Error codes that indicate the token should be removed
+      const invalidTokenErrors = [
+        "messaging/invalid-registration-token",
+        "messaging/registration-token-not-registered",
+        "messaging/invalid-argument",
+        "messaging/mismatched-credential",
+      ];
+
       // Log errors and clean up invalid tokens
       const tokensToRemove: string[] = [];
       response.responses.forEach((result, index) => {
@@ -157,10 +165,7 @@ export const onMessageCreate = functions.firestore
             `FCM send failed for token [REDACTED]`,
             { code: error?.code, errorType: error?.message?.split(":")[0] }
           );
-          if (
-            error?.code === "messaging/invalid-registration-token" ||
-            error?.code === "messaging/registration-token-not-registered"
-          ) {
+          if (error?.code && invalidTokenErrors.includes(error.code)) {
             tokensToRemove.push(tokens[index]);
           }
         }

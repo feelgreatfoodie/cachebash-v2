@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_app_badger/flutter_app_badger.dart';
 
 import 'logger_service.dart';
@@ -10,14 +12,14 @@ import 'logger_service.dart';
 /// Background message handler - must be top-level function
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Background messages are handled by the OS for display
-  // This handler is for any custom processing needed
+  await Firebase.initializeApp();
+  debugPrint('[FCM] Background message: ${message.messageId}');
 }
 
 const _tag = 'FcmService';
 
 /// Service for Firebase Cloud Messaging (FCM) token management
-class FcmService {
+class FcmService with WidgetsBindingObserver {
   static final FcmService instance = FcmService._();
 
   FcmService._();
@@ -62,22 +64,63 @@ class FcmService {
       await _setupToken();
       _setupTokenRefresh();
       _setupForegroundHandler();
+
+      // Register lifecycle observer to sync token on app resume
+      WidgetsBinding.instance.addObserver(this);
+
       Log.i(_tag, 'initialize: SUCCESS - FCM initialized');
     } else {
       Log.w(_tag, 'initialize: Permission denied');
     }
   }
 
+  /// Handle app lifecycle changes
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      Log.d(_tag, 'didChangeAppLifecycleState: App resumed, syncing token');
+      _syncTokenIfNeeded();
+      _clearBadge();
+    }
+  }
+
+  /// Sync token if it has changed
+  Future<void> _syncTokenIfNeeded() async {
+    try {
+      final token = await _messaging.getToken();
+      if (_isValidFcmToken(token) && token != _currentToken) {
+        Log.d(_tag, '_syncTokenIfNeeded: Token changed, updating');
+        _currentToken = token;
+        await _saveTokenToFirestore(token!);
+      }
+    } catch (e, stack) {
+      Log.e(_tag, '_syncTokenIfNeeded: Failed', e, stack);
+    }
+  }
+
+  /// Validate FCM token format
+  bool _isValidFcmToken(String? token) {
+    if (token == null || token.isEmpty) return false;
+    if (token.length < 100) return false; // FCM tokens are typically 150+ chars
+    return true;
+  }
+
+  /// Clean up resources
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+  }
+
   /// Get and store FCM token
   Future<void> _setupToken() async {
     Log.d(_tag, '_setupToken: Getting token...');
     try {
-      _currentToken = await _messaging.getToken();
-      if (_currentToken != null) {
+      final token = await _messaging.getToken();
+      if (_isValidFcmToken(token)) {
+        _currentToken = token;
         Log.d(_tag, '_setupToken: Token received: ${_currentToken!.substring(0, 20)}...');
         await _saveTokenToFirestore(_currentToken!);
       } else {
-        Log.w(_tag, '_setupToken: Token is null');
+        Log.w(_tag, '_setupToken: Token is null or invalid');
       }
     } catch (e, stack) {
       Log.e(_tag, '_setupToken: Failed to get token', e, stack);
@@ -89,6 +132,10 @@ class FcmService {
     Log.d(_tag, '_setupTokenRefresh: Setting up listener');
     _messaging.onTokenRefresh.listen((newToken) async {
       Log.d(_tag, 'onTokenRefresh: Token refreshed');
+      if (!_isValidFcmToken(newToken)) {
+        Log.w(_tag, 'onTokenRefresh: New token is invalid, ignoring');
+        return;
+      }
       // Delete old token document if exists
       if (_currentToken != null) {
         await _deleteTokenFromFirestore(_currentToken!);
@@ -157,12 +204,29 @@ class FcmService {
   }
 
   /// Update token when user logs in
-  Future<void> onUserLogin() async {
-    Log.d(_tag, 'onUserLogin: Called');
-    if (_currentToken != null) {
-      await _saveTokenToFirestore(_currentToken!);
-    } else {
-      Log.d(_tag, 'onUserLogin: No token to save');
+  Future<void> onUserLogin(String userId) async {
+    Log.d(_tag, 'onUserLogin: Called for user $userId');
+
+    // Always get fresh token on login to handle race conditions
+    try {
+      final token = await _messaging.getToken();
+      if (_isValidFcmToken(token)) {
+        _currentToken = token;
+        await _saveTokenToFirestore(token!);
+        Log.d(_tag, 'onUserLogin: Fresh token saved');
+      } else if (_currentToken != null) {
+        // Fall back to cached token if fresh fetch fails
+        await _saveTokenToFirestore(_currentToken!);
+        Log.d(_tag, 'onUserLogin: Cached token saved');
+      } else {
+        Log.w(_tag, 'onUserLogin: No valid token available');
+      }
+    } catch (e, stack) {
+      Log.e(_tag, 'onUserLogin: Failed to get/save token', e, stack);
+      // Still try to save cached token if available
+      if (_currentToken != null) {
+        await _saveTokenToFirestore(_currentToken!);
+      }
     }
   }
 
