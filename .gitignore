@@ -54,3 +54,4 @@ coverage/
 
 # Local configuration
 .claude/
+firebase/users.json

@@ -13,6 +13,8 @@ interface AskQuestionArgs {
 /**
  * Send a question to the user's mobile device
  * Messages are encrypted by default using the API key
+ *
+ * Writes to both /questions (legacy) and /messages (unified) collections
  */
 export async function askQuestion(
   auth: AuthContext,
@@ -55,12 +57,28 @@ export async function askQuestion(
     };
   }
 
-  // Create question document
+  // Create question document in legacy collection
   const questionRef = await db
     .collection(`users/${auth.userId}/questions`)
     .add(questionData);
 
   const questionId = questionRef.id;
+
+  // Also write to unified messages collection
+  const messageData: Record<string, unknown> = {
+    ...questionData,
+    direction: "to_user",
+    content: questionData.question, // Map question -> content
+    archived: false,
+    deletedAt: null,
+  };
+  // Remove duplicate field
+  delete messageData.question;
+
+  await db
+    .collection(`users/${auth.userId}/messages`)
+    .doc(questionId) // Use same ID for consistency
+    .set(messageData);
 
   return {
     content: [

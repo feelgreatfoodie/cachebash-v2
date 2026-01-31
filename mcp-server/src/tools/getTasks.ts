@@ -54,6 +54,9 @@ function decryptTaskData(
 /**
  * Get pending tasks created by the user in the mobile app.
  * Use this to check if there's work waiting for you.
+ *
+ * Reads from both /tasks (legacy) and /messages (unified) collections,
+ * preferring messages collection if available.
  */
 export async function getPendingTasks(
   auth: AuthContext,
@@ -63,18 +66,96 @@ export async function getPendingTasks(
   const status = args.status || "pending";
   const limit = args.limit || 10;
 
-  let query = db.collection(`users/${auth.userId}/tasks`);
+  // Try unified messages collection first
+  let messagesQuery = db
+    .collection(`users/${auth.userId}/messages`)
+    .where("direction", "==", "to_claude");
 
   if (status !== "all") {
-    query = query.where("status", "==", status) as any;
+    messagesQuery = messagesQuery.where("status", "==", status) as any;
   }
 
-  const snapshot = await query
+  const messagesSnapshot = await messagesQuery
     .orderBy("createdAt", "desc")
     .limit(limit)
     .get();
 
-  if (snapshot.empty) {
+  // Also check legacy tasks collection
+  let tasksQuery = db.collection(`users/${auth.userId}/tasks`);
+
+  if (status !== "all") {
+    tasksQuery = tasksQuery.where("status", "==", status) as any;
+  }
+
+  const tasksSnapshot = await tasksQuery
+    .orderBy("createdAt", "desc")
+    .limit(limit)
+    .get();
+
+  // Combine results, deduplicating by ID (messages takes precedence)
+  const seenIds = new Set<string>();
+  const allTasks: Array<{
+    id: string;
+    title: string;
+    instructions: string;
+    action: string;
+    priority: string;
+    status: string;
+    projectId: string | null;
+    createdAt: string | null;
+  }> = [];
+
+  // Process messages first
+  for (const doc of messagesSnapshot.docs) {
+    const data = doc.data();
+    const decrypted = decryptTaskData(
+      {
+        title: data.title || data.content?.substring(0, 50) || "Untitled",
+        instructions: data.content || data.instructions || "",
+        action: data.action,
+        encrypted: data.encrypted,
+      },
+      auth.apiKey
+    );
+    seenIds.add(doc.id);
+    allTasks.push({
+      id: doc.id,
+      title: decrypted.title,
+      instructions: decrypted.instructions,
+      action: decrypted.action,
+      priority: data.priority,
+      status: data.status,
+      projectId: data.projectId || null,
+      createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+    });
+  }
+
+  // Add legacy tasks that aren't in messages
+  for (const doc of tasksSnapshot.docs) {
+    if (seenIds.has(doc.id)) continue;
+    const data = doc.data();
+    const decrypted = decryptTaskData(
+      {
+        title: data.title,
+        instructions: data.instructions,
+        action: data.action,
+        encrypted: data.encrypted,
+      },
+      auth.apiKey
+    );
+    allTasks.push({
+      id: doc.id,
+      title: decrypted.title,
+      instructions: decrypted.instructions,
+      action: decrypted.action,
+      priority: data.priority,
+      status: data.status,
+      projectId: data.projectId || null,
+      createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+    });
+  }
+
+  if (allTasks.length === 0) {
     return {
       content: [
         {
@@ -90,28 +171,13 @@ export async function getPendingTasks(
     };
   }
 
-  const tasks = snapshot.docs.map((doc) => {
-    const data = doc.data();
-    const decrypted = decryptTaskData(
-      {
-        title: data.title,
-        instructions: data.instructions,
-        action: data.action,
-        encrypted: data.encrypted,
-      },
-      auth.apiKey
-    );
-    return {
-      id: doc.id,
-      title: decrypted.title,
-      instructions: decrypted.instructions,
-      action: decrypted.action,
-      priority: data.priority,
-      status: data.status,
-      projectId: data.projectId || null,
-      createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
-    };
+  // Sort by createdAt descending and limit
+  allTasks.sort((a, b) => {
+    if (!a.createdAt) return 1;
+    if (!b.createdAt) return -1;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
+  const tasks = allTasks.slice(0, limit);
 
   return {
     content: [
@@ -132,6 +198,8 @@ export async function getPendingTasks(
 /**
  * Claim a task to start working on it.
  * This marks the task as in_progress so it won't be picked up again.
+ *
+ * Updates both /tasks (legacy) and /messages (unified) collections.
  */
 export async function claimTask(
   auth: AuthContext,
@@ -139,10 +207,17 @@ export async function claimTask(
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
   const db = getFirestore();
 
+  // Try messages collection first
+  const messageRef = db.doc(`users/${auth.userId}/messages/${args.taskId}`);
+  const messageDoc = await messageRef.get();
+
+  // Fall back to legacy tasks collection
   const taskRef = db.doc(`users/${auth.userId}/tasks/${args.taskId}`);
   const taskDoc = await taskRef.get();
 
-  if (!taskDoc.exists) {
+  const doc = messageDoc.exists ? messageDoc : taskDoc;
+
+  if (!doc.exists) {
     return {
       content: [
         {
@@ -156,7 +231,7 @@ export async function claimTask(
     };
   }
 
-  const taskData = taskDoc.data();
+  const taskData = doc.data();
 
   if (taskData?.status !== "pending") {
     return {
@@ -172,17 +247,25 @@ export async function claimTask(
     };
   }
 
-  await taskRef.update({
+  const updateData = {
     status: "in_progress",
     startedAt: serverTimestamp(),
     sessionId: args.sessionId || null,
-  });
+  };
+
+  // Update both collections
+  if (messageDoc.exists) {
+    await messageRef.update(updateData);
+  }
+  if (taskDoc.exists) {
+    await taskRef.update(updateData);
+  }
 
   // Decrypt task data before returning
   const decrypted = decryptTaskData(
     {
-      title: taskData.title,
-      instructions: taskData.instructions,
+      title: taskData.title || taskData.content?.substring(0, 50) || "Untitled",
+      instructions: taskData.content || taskData.instructions || "",
       action: taskData.action,
       encrypted: taskData.encrypted,
     },
@@ -209,6 +292,8 @@ export async function claimTask(
 
 /**
  * Mark a task as complete.
+ *
+ * Updates both /tasks (legacy) and /messages (unified) collections.
  */
 export async function completeTask(
   auth: AuthContext,
@@ -216,10 +301,15 @@ export async function completeTask(
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
   const db = getFirestore();
 
+  // Try messages collection first
+  const messageRef = db.doc(`users/${auth.userId}/messages/${args.taskId}`);
+  const messageDoc = await messageRef.get();
+
+  // Fall back to legacy tasks collection
   const taskRef = db.doc(`users/${auth.userId}/tasks/${args.taskId}`);
   const taskDoc = await taskRef.get();
 
-  if (!taskDoc.exists) {
+  if (!messageDoc.exists && !taskDoc.exists) {
     return {
       content: [
         {
@@ -233,10 +323,18 @@ export async function completeTask(
     };
   }
 
-  await taskRef.update({
+  const updateData = {
     status: "complete",
     completedAt: serverTimestamp(),
-  });
+  };
+
+  // Update both collections
+  if (messageDoc.exists) {
+    await messageRef.update(updateData);
+  }
+  if (taskDoc.exists) {
+    await taskRef.update(updateData);
+  }
 
   return {
     content: [

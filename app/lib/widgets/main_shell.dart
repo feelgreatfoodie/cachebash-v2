@@ -16,7 +16,7 @@ class MainShellWrapper extends ConsumerWidget {
 
   int _getSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
-    if (location.startsWith('/questions')) return 1;
+    if (location.startsWith('/messages') || location.startsWith('/questions')) return 1;
     if (location.startsWith('/search')) return 3;
     if (location.startsWith('/sessions')) return 4;
     return 0; // Home and everything else
@@ -64,13 +64,13 @@ class MainShellWrapper extends ConsumerWidget {
                     badgeCount: pendingCount,
                     onTap: () {
                       HapticService.light();
-                      context.go('/questions');
+                      context.go('/messages');
                     },
                   ),
                   _ComposeButton(
                     onTap: () {
                       HapticService.medium();
-                      context.go('/tasks/new');
+                      context.go('/messages/new');
                     },
                   ),
                   _NavItem(

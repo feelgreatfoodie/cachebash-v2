@@ -8,3 +8,7 @@ export { onUserCreate } from "./auth/onUserCreate";
 
 // Export notification triggers
 export { onQuestionCreate } from "./notifications/onQuestionCreate";
+export { onMessageCreate } from "./notifications/onMessageCreate";
+
+// Export migration functions
+export { migrateUserToMessages } from "./migrations/migrateToMessages";

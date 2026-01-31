@@ -9,6 +9,8 @@ interface GetResponseArgs {
 /**
  * Check if the user has responded to a question
  * Automatically decrypts encrypted responses
+ *
+ * Reads from both /questions (legacy) and /messages (unified) collections.
  */
 export async function getResponse(
   auth: AuthContext,
@@ -16,11 +18,19 @@ export async function getResponse(
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
   const db = getFirestore();
 
+  // Try messages collection first (unified)
+  const messageDoc = await db
+    .doc(`users/${auth.userId}/messages/${args.questionId}`)
+    .get();
+
+  // Fall back to legacy questions collection
   const questionDoc = await db
     .doc(`users/${auth.userId}/questions/${args.questionId}`)
     .get();
 
-  if (!questionDoc.exists) {
+  const doc = messageDoc.exists ? messageDoc : questionDoc;
+
+  if (!doc.exists) {
     return {
       content: [
         {
@@ -34,7 +44,7 @@ export async function getResponse(
     };
   }
 
-  const data = questionDoc.data();
+  const data = doc.data();
 
   if (data?.status === "answered" && data?.response) {
     let response = data.response;

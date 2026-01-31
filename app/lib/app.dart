@@ -21,6 +21,8 @@ import 'screens/sessions/sessions_screen.dart';
 import 'screens/sessions/archived_sessions_screen.dart';
 import 'screens/tasks/tasks_screen.dart';
 import 'screens/tasks/create_task_screen.dart';
+import 'screens/messages/messages_screen.dart';
+import 'screens/messages/create_message_screen.dart';
 import 'screens/search/search_screen.dart';
 import 'theme/app_theme.dart';
 import 'widgets/main_shell.dart';
@@ -106,7 +108,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               return SessionDetailScreen(sessionId: sessionId);
             },
           ),
-          // Tasks
+          // Tasks (legacy routes - redirect to messages)
           GoRoute(
             path: '/tasks',
             builder: (context, state) => const TasksScreen(),
@@ -114,6 +116,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/tasks/new',
             builder: (context, state) => const CreateTaskScreen(),
+          ),
+          // Messages (unified inbox)
+          GoRoute(
+            path: '/messages',
+            builder: (context, state) => const MessagesScreen(),
+          ),
+          GoRoute(
+            path: '/messages/new',
+            builder: (context, state) => const CreateMessageScreen(),
           ),
           // Search
           GoRoute(

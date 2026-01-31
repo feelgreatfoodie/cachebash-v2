@@ -1,0 +1,354 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../services/encryption_service.dart';
+
+/// Direction of a message - either from Claude to user (question) or from user to Claude (task)
+enum MessageDirection {
+  /// Claude asking the user a question
+  toUser,
+
+  /// User assigning Claude a task
+  toClaude,
+}
+
+extension MessageDirectionExtension on MessageDirection {
+  String get value {
+    switch (this) {
+      case MessageDirection.toUser:
+        return 'to_user';
+      case MessageDirection.toClaude:
+        return 'to_claude';
+    }
+  }
+
+  static MessageDirection fromString(String? value) {
+    switch (value) {
+      case 'to_user':
+        return MessageDirection.toUser;
+      case 'to_claude':
+        return MessageDirection.toClaude;
+      default:
+        return MessageDirection.toUser;
+    }
+  }
+
+  String get displayName {
+    switch (this) {
+      case MessageDirection.toUser:
+        return 'From Claude';
+      case MessageDirection.toClaude:
+        return 'To Claude';
+    }
+  }
+}
+
+/// Action levels for toClaude messages (tasks)
+enum MessageAction {
+  /// Stop current work immediately and handle this task
+  interrupt,
+
+  /// Spin up a subagent at the next convenient moment
+  parallel,
+
+  /// Handle when current task completes (default)
+  queue,
+
+  /// Low priority, handle when idle
+  backlog,
+}
+
+extension MessageActionExtension on MessageAction {
+  String get value {
+    switch (this) {
+      case MessageAction.interrupt:
+        return 'interrupt';
+      case MessageAction.parallel:
+        return 'parallel';
+      case MessageAction.queue:
+        return 'queue';
+      case MessageAction.backlog:
+        return 'backlog';
+    }
+  }
+
+  static MessageAction fromString(String? value) {
+    switch (value) {
+      case 'interrupt':
+        return MessageAction.interrupt;
+      case 'parallel':
+        return MessageAction.parallel;
+      case 'queue':
+        return MessageAction.queue;
+      case 'backlog':
+        return MessageAction.backlog;
+      default:
+        return MessageAction.queue;
+    }
+  }
+
+  String get displayName {
+    switch (this) {
+      case MessageAction.interrupt:
+        return 'Interrupt';
+      case MessageAction.parallel:
+        return 'Parallel';
+      case MessageAction.queue:
+        return 'Queue';
+      case MessageAction.backlog:
+        return 'Backlog';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case MessageAction.interrupt:
+        return 'Stop work immediately';
+      case MessageAction.parallel:
+        return 'Start new Claude soon';
+      case MessageAction.queue:
+        return 'Do after current task';
+      case MessageAction.backlog:
+        return 'When convenient';
+    }
+  }
+}
+
+/// Unified message model that combines questions (toUser) and tasks (toClaude)
+class MessageModel {
+  final String id;
+  final MessageDirection direction;
+
+  // Core content
+  final String content; // Question text OR task instructions
+  final String? title; // For toClaude messages (task title)
+  final String? context; // What Claude is working on
+
+  // toUser-specific (questions)
+  final List<String>? options; // Multiple choice options
+  final String? response; // User's answer
+  final DateTime? answeredAt;
+
+  // toClaude-specific (tasks)
+  final MessageAction? action; // interrupt/parallel/queue/backlog
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final String? sessionId;
+
+  // Common metadata
+  final String priority; // low, normal, high
+  final String status; // pending, in_progress, answered, complete, expired, cancelled
+  final DateTime createdAt;
+  final String? projectId;
+  final bool archived;
+  final DateTime? deletedAt;
+  final bool isEncrypted;
+
+  MessageModel({
+    required this.id,
+    required this.direction,
+    required this.content,
+    this.title,
+    this.context,
+    this.options,
+    this.response,
+    this.answeredAt,
+    this.action,
+    this.startedAt,
+    this.completedAt,
+    this.sessionId,
+    required this.priority,
+    required this.status,
+    required this.createdAt,
+    this.projectId,
+    this.archived = false,
+    this.deletedAt,
+    this.isEncrypted = false,
+  });
+
+  /// Create from Firestore without decryption (raw data)
+  factory MessageModel.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>?;
+    final direction = MessageDirectionExtension.fromString(data?['direction']);
+
+    return MessageModel(
+      id: doc.id,
+      direction: direction,
+      content: data?['content'] ?? data?['question'] ?? data?['instructions'] ?? '',
+      title: data?['title'] as String?,
+      context: data?['context'] as String?,
+      options: (data?['options'] as List<dynamic>?)?.cast<String>(),
+      response: data?['response'] as String?,
+      answeredAt: (data?['answeredAt'] as Timestamp?)?.toDate(),
+      action: data?['action'] != null
+          ? MessageActionExtension.fromString(data?['action'])
+          : null,
+      startedAt: (data?['startedAt'] as Timestamp?)?.toDate(),
+      completedAt: (data?['completedAt'] as Timestamp?)?.toDate(),
+      sessionId: data?['sessionId'] as String?,
+      priority: data?['priority'] ?? 'normal',
+      status: data?['status'] ?? 'pending',
+      createdAt: (data?['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      projectId: data?['projectId'] as String?,
+      archived: data?['archived'] as bool? ?? false,
+      deletedAt: (data?['deletedAt'] as Timestamp?)?.toDate(),
+      isEncrypted: data?['encrypted'] as bool? ?? false,
+    );
+  }
+
+  /// Create from Firestore with decryption
+  static Future<MessageModel> fromFirestoreDecrypted(
+    DocumentSnapshot doc,
+    EncryptionService encryptionService,
+  ) async {
+    final data = doc.data() as Map<String, dynamic>?;
+    final isEncrypted = data?['encrypted'] as bool? ?? false;
+    final direction = MessageDirectionExtension.fromString(data?['direction']);
+
+    String content = data?['content'] ?? data?['question'] ?? data?['instructions'] ?? '';
+    String? title = data?['title'] as String?;
+    String? context = data?['context'] as String?;
+    String? response = data?['response'] as String?;
+    List<String>? options = (data?['options'] as List<dynamic>?)?.cast<String>();
+    String? actionStr = data?['action'] as String?;
+
+    // Decrypt fields if marked as encrypted
+    if (isEncrypted) {
+      content = await encryptionService.decryptIfNeeded(content);
+      title = title != null ? await encryptionService.decryptIfNeeded(title) : null;
+      context = context != null ? await encryptionService.decryptIfNeeded(context) : null;
+      response = response != null ? await encryptionService.decryptIfNeeded(response) : null;
+      options = options != null
+          ? await Future.wait(options.map((o) => encryptionService.decryptIfNeeded(o)))
+          : null;
+      actionStr = actionStr != null ? await encryptionService.decryptIfNeeded(actionStr) : null;
+    }
+
+    return MessageModel(
+      id: doc.id,
+      direction: direction,
+      content: content,
+      title: title,
+      context: context,
+      options: options,
+      response: response,
+      answeredAt: (data?['answeredAt'] as Timestamp?)?.toDate(),
+      action: actionStr != null ? MessageActionExtension.fromString(actionStr) : null,
+      startedAt: (data?['startedAt'] as Timestamp?)?.toDate(),
+      completedAt: (data?['completedAt'] as Timestamp?)?.toDate(),
+      sessionId: data?['sessionId'] as String?,
+      priority: data?['priority'] ?? 'normal',
+      status: data?['status'] ?? 'pending',
+      createdAt: (data?['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      projectId: data?['projectId'] as String?,
+      archived: data?['archived'] as bool? ?? false,
+      deletedAt: (data?['deletedAt'] as Timestamp?)?.toDate(),
+      isEncrypted: isEncrypted,
+    );
+  }
+
+  // Direction helpers
+  bool get isToUser => direction == MessageDirection.toUser;
+  bool get isToClaude => direction == MessageDirection.toClaude;
+
+  // Status helpers (universal)
+  bool get isPending => status == 'pending';
+  bool get isInProgress => status == 'in_progress';
+
+  // toUser (question) status helpers
+  bool get isAnswered => status == 'answered';
+  bool get isExpired => status == 'expired';
+  bool get needsResponse => isToUser && isPending;
+
+  // toClaude (task) status helpers
+  bool get isComplete => status == 'complete';
+  bool get isCancelled => status == 'cancelled';
+
+  // Priority helpers
+  bool get isHighPriority => priority == 'high';
+  bool get isNormalPriority => priority == 'normal';
+  bool get isLowPriority => priority == 'low';
+
+  // toUser (question) helpers
+  bool get hasOptions => options != null && options!.isNotEmpty;
+  bool get hasResponse => response != null && response!.isNotEmpty;
+
+  // toClaude (task) action helpers
+  bool get isInterrupt => action == MessageAction.interrupt;
+  bool get isParallel => action == MessageAction.parallel;
+  bool get isQueue => action == MessageAction.queue;
+  bool get isBacklog => action == MessageAction.backlog;
+
+  // Archive/delete helpers
+  bool get isArchived => archived;
+  bool get isDeleted => deletedAt != null;
+  bool get hasProject => projectId != null;
+
+  /// Get a display title for the message
+  String get displayTitle {
+    if (isToClaude && title != null && title!.isNotEmpty) {
+      return title!;
+    }
+    // For questions, truncate the content as the title
+    if (content.length > 50) {
+      return '${content.substring(0, 50)}...';
+    }
+    return content;
+  }
+
+  /// Get a display subtitle/preview
+  String get displaySubtitle {
+    if (isToClaude) {
+      return content; // Instructions for tasks
+    }
+    // For questions with a response, show the response
+    if (hasResponse) {
+      return 'Response: ${response!}';
+    }
+    // Otherwise show context if available
+    return context ?? '';
+  }
+
+  MessageModel copyWith({
+    String? id,
+    MessageDirection? direction,
+    String? content,
+    String? title,
+    String? context,
+    List<String>? options,
+    String? response,
+    DateTime? answeredAt,
+    MessageAction? action,
+    DateTime? startedAt,
+    DateTime? completedAt,
+    String? sessionId,
+    String? priority,
+    String? status,
+    DateTime? createdAt,
+    String? projectId,
+    bool? archived,
+    DateTime? deletedAt,
+    bool? isEncrypted,
+  }) {
+    return MessageModel(
+      id: id ?? this.id,
+      direction: direction ?? this.direction,
+      content: content ?? this.content,
+      title: title ?? this.title,
+      context: context ?? this.context,
+      options: options ?? this.options,
+      response: response ?? this.response,
+      answeredAt: answeredAt ?? this.answeredAt,
+      action: action ?? this.action,
+      startedAt: startedAt ?? this.startedAt,
+      completedAt: completedAt ?? this.completedAt,
+      sessionId: sessionId ?? this.sessionId,
+      priority: priority ?? this.priority,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      projectId: projectId ?? this.projectId,
+      archived: archived ?? this.archived,
+      deletedAt: deletedAt ?? this.deletedAt,
+      isEncrypted: isEncrypted ?? this.isEncrypted,
+    );
+  }
+}

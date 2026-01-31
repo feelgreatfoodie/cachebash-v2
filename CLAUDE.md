@@ -377,9 +377,10 @@ cachebash/
 │   │   │   ├── auth/
 │   │   │   ├── home/
 │   │   │   ├── sessions/   # Session management
-│   │   │   ├── questions/
+│   │   │   ├── messages/   # Unified inbox (questions + tasks)
+│   │   │   ├── questions/  # Legacy question detail
 │   │   │   ├── projects/
-│   │   │   ├── tasks/      # Task queue
+│   │   │   ├── tasks/      # Legacy task creation
 │   │   │   └── settings/
 │   │   ├── widgets/        # Reusable widgets
 │   │   └── services/       # Firebase, notifications, encryption
@@ -554,6 +555,26 @@ Mark a task as complete when finished.
   - startedAt?: timestamp
   - completedAt?: timestamp
   - sessionId?: string
+
+/users/{userId}/messages/{messageId}  # UNIFIED INBOX
+  - direction: 'to_user' | 'to_claude'
+  - content: string                    # Question text OR task instructions
+  - title?: string                     # For toClaude messages
+  - context?: string                   # What Claude is working on
+  - options?: string[]                 # toUser: multiple choice
+  - response?: string                  # toUser: user's answer
+  - answeredAt?: timestamp             # toUser: when answered
+  - action?: string                    # toClaude: interrupt/parallel/queue/backlog
+  - startedAt?: timestamp              # toClaude: when claimed
+  - completedAt?: timestamp            # toClaude: when finished
+  - sessionId?: string                 # toClaude: session working on it
+  - priority: 'low' | 'normal' | 'high'
+  - status: 'pending' | 'in_progress' | 'answered' | 'complete' | 'expired' | 'cancelled'
+  - createdAt: timestamp
+  - projectId?: string
+  - archived: boolean
+  - deletedAt?: timestamp
+  - encrypted: boolean
 
 /users/{userId}/analytics/{period}
   - questionsAsked: number

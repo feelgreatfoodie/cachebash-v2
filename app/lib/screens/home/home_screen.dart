@@ -111,7 +111,7 @@ class HomeScreen extends ConsumerWidget {
               context,
               'Pending Questions',
               Icons.help_outline,
-              onViewAll: () => context.go('/questions'),
+              onViewAll: () => context.go('/messages'),
             ),
             const SizedBox(height: 12),
             pendingQuestions.when(

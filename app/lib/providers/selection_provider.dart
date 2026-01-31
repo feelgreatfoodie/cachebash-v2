@@ -74,3 +74,9 @@ final tasksSelectionProvider =
     StateNotifierProvider<SelectionNotifier, SelectionState>((ref) {
   return SelectionNotifier();
 });
+
+/// Provider for messages selection (unified inbox)
+final messagesSelectionProvider =
+    StateNotifierProvider<SelectionNotifier, SelectionState>((ref) {
+  return SelectionNotifier();
+});
