@@ -72,8 +72,8 @@
       ],
       "technicalNotes": "Likely need to add an archive tab or filter to the messages screen, and update the Firestore query to filter by archived: true/false.",
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added ArchivedMessagesScreen accessible via archive icon in messages screen AppBar. Uses archivedMessagesProvider that streams from both /messages and /questions collections."
     },
     {
       "id": "US-006",
@@ -199,6 +199,6 @@
   "metadata": {
     "createdAt": "2026-01-30T00:00:00Z",
     "totalStories": 14,
-    "completedStories": 4
+    "completedStories": 5
   }
 }
