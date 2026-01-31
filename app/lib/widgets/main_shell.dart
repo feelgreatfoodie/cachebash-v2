@@ -17,8 +17,8 @@ class MainShellWrapper extends ConsumerWidget {
   int _getSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
     if (location.startsWith('/messages') || location.startsWith('/questions')) return 1;
-    if (location.startsWith('/search')) return 3;
-    if (location.startsWith('/sessions')) return 4;
+    if (location.startsWith('/sessions')) return 3;
+    if (location.startsWith('/search')) return 4;
     return 0; // Home and everything else
   }
 
@@ -74,21 +74,21 @@ class MainShellWrapper extends ConsumerWidget {
                     },
                   ),
                   _NavItem(
-                    icon: Icons.search_outlined,
-                    selectedIcon: Icons.search,
+                    icon: Icons.terminal_outlined,
+                    selectedIcon: Icons.terminal,
                     isSelected: selectedIndex == 3,
                     onTap: () {
                       HapticService.light();
-                      context.go('/search');
+                      context.go('/sessions');
                     },
                   ),
                   _NavItem(
-                    icon: Icons.terminal_outlined,
-                    selectedIcon: Icons.terminal,
+                    icon: Icons.search_outlined,
+                    selectedIcon: Icons.search,
                     isSelected: selectedIndex == 4,
                     onTap: () {
                       HapticService.light();
-                      context.go('/sessions');
+                      context.go('/search');
                     },
                   ),
                 ],
