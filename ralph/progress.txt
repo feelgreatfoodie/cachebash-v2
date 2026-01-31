@@ -223,3 +223,56 @@ None - story was already fully implemented
 - Always verify if a story is already implemented before making changes
 - The SessionCard widget is well-designed and covers all session display needs
 - When technical notes say "ensure the card widget displays them" - verify first
+
+### Iteration 7: 2026-01-31T01:00:00Z
+#### Story: [US-007] Click Session to See Previous Updates
+
+**Implementation:**
+Added session status history functionality to track and display all status updates.
+
+1. **MCP Server Changes** - `mcp-server/src/tools/updateStatus.ts`
+   - Each status update now writes to a subcollection `/sessions/{id}/updates`
+   - Stores: status, state, progress, createdAt timestamp
+   - Main session document still updated for current state display
+
+2. **New Model** - `app/lib/models/session_model.dart`
+   - Added `StatusUpdate` class with fromFirestore factory
+   - Fields: id, status, state, progress, createdAt
+
+3. **New Provider** - `app/lib/providers/sessions_provider.dart`
+   - Added `sessionUpdatesProvider` StreamProvider.family
+   - Streams from `/sessions/{id}/updates` subcollection
+   - Orders by createdAt descending, limits to 50 entries
+
+4. **SessionDetailScreen Enhancement** - `app/lib/screens/sessions/session_detail_screen.dart`
+   - Added "Status History" section after the info card
+   - `_buildStatusHistory()` - async widget to load and display updates
+   - `_buildUpdateItem()` - renders each update with:
+     - Colored left border based on state
+     - State icon (play/pause/pin/check)
+     - Status text and relative timestamp
+     - Progress badge if present
+   - Shows empty state when no history exists
+
+**Architecture Decision:**
+Chose subcollection over array field because:
+- Status history could grow unbounded
+- Supports ordering and pagination
+- Firestore 1MB document limit wouldn't apply
+
+**Files Changed:**
+- `mcp-server/src/tools/updateStatus.ts` - Write to updates subcollection
+- `app/lib/models/session_model.dart` - Added StatusUpdate model
+- `app/lib/providers/sessions_provider.dart` - Added sessionUpdatesProvider
+- `app/lib/screens/sessions/session_detail_screen.dart` - Added history section
+
+**Verification:**
+- MCP server builds successfully (`npm run build`)
+- Flutter analyze passes with no new errors
+- iOS build succeeds
+- Navigation already works (SessionCard → SessionDetailScreen via `/sessions/{id}`)
+
+**Learnings for Future Iterations:**
+- Subcollections are ideal for potentially unbounded lists in Firestore
+- StreamProvider.family allows parameterized providers (useful for ID-based queries)
+- Existing navigation routes can be reused - check before adding new ones

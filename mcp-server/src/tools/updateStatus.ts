@@ -19,13 +19,14 @@ export async function updateStatus(
 
   // Use provided sessionId or generate one based on current timestamp
   const sessionId = args.sessionId || `session_${Date.now()}`;
+  const timestamp = serverTimestamp();
 
   const sessionData = {
     name: args.status,
     status: args.status,
     state: args.state || "working",
     progress: args.progress ?? null,
-    lastUpdate: serverTimestamp(),
+    lastUpdate: timestamp,
     archived: false,
   };
 
@@ -33,6 +34,16 @@ export async function updateStatus(
   await db
     .doc(`users/${auth.userId}/sessions/${sessionId}`)
     .set(sessionData, { merge: true });
+
+  // Add status update to history subcollection
+  await db
+    .collection(`users/${auth.userId}/sessions/${sessionId}/updates`)
+    .add({
+      status: args.status,
+      state: args.state || "working",
+      progress: args.progress ?? null,
+      createdAt: timestamp,
+    });
 
   return {
     content: [

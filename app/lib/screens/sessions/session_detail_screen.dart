@@ -201,6 +201,17 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 24),
+
+                      // Status History
+                      Text(
+                        'Status History',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildStatusHistory(),
                     ],
                   ),
                 ),
@@ -331,5 +342,134 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
     } else {
       return '${time.month}/${time.day}/${time.year} at ${time.hour}:${time.minute.toString().padLeft(2, '0')}';
     }
+  }
+
+  Widget _buildStatusHistory() {
+    final updatesAsync = ref.watch(sessionUpdatesProvider(widget.sessionId));
+
+    return updatesAsync.when(
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      error: (error, stack) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text('Error loading history: $error'),
+      ),
+      data: (updates) {
+        if (updates.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.history,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'No status history yet',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          children: updates.map((update) => _buildUpdateItem(update)).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildUpdateItem(StatusUpdate update) {
+    Color stateColor;
+    IconData stateIcon;
+
+    switch (update.state) {
+      case 'working':
+        stateColor = Colors.green;
+        stateIcon = Icons.play_circle;
+        break;
+      case 'blocked':
+        stateColor = Colors.orange;
+        stateIcon = Icons.pause_circle;
+        break;
+      case 'pinned':
+        stateColor = Colors.blue;
+        stateIcon = Icons.push_pin;
+        break;
+      case 'complete':
+        stateColor = Colors.grey;
+        stateIcon = Icons.check_circle;
+        break;
+      default:
+        stateColor = Colors.grey;
+        stateIcon = Icons.circle;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(8),
+        border: Border(
+          left: BorderSide(
+            color: stateColor,
+            width: 3,
+          ),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(stateIcon, color: stateColor, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  update.status,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _formatDateTime(update.createdAt),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          if (update.progress != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${update.progress}%',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

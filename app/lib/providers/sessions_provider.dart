@@ -110,6 +110,25 @@ final sessionProvider =
   });
 });
 
+/// Stream provider for session status history
+final sessionUpdatesProvider =
+    StreamProvider.family<List<StatusUpdate>, String>((ref, sessionId) {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) {
+    return Stream.value([]);
+  }
+
+  _log('Watching status updates for session $sessionId');
+
+  return firestore
+      .collection('users/${user.uid}/sessions/$sessionId/updates')
+      .orderBy('createdAt', descending: true)
+      .limit(50)
+      .snapshots()
+      .map((snapshot) =>
+          snapshot.docs.map((doc) => StatusUpdate.fromFirestore(doc)).toList());
+});
+
 /// Service for session-related operations
 class SessionsService {
   final FirebaseFirestore _firestore;

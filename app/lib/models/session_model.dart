@@ -1,5 +1,34 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Model representing a status update in session history
+class StatusUpdate {
+  final String id;
+  final String status;
+  final String state;
+  final int? progress;
+  final DateTime createdAt;
+
+  StatusUpdate({
+    required this.id,
+    required this.status,
+    required this.state,
+    this.progress,
+    required this.createdAt,
+  });
+
+  factory StatusUpdate.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>?;
+    return StatusUpdate(
+      id: doc.id,
+      status: data?['status'] ?? '',
+      state: data?['state'] ?? 'working',
+      progress: data?['progress'] as int?,
+      createdAt:
+          (data?['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+}
+
 /// Model representing a Claude Code session
 class SessionModel {
   final String id;
