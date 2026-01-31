@@ -497,3 +497,41 @@ With go_router:
 - Use `context.canPop()` to check if back navigation is possible before calling `pop()`
 - Consistent use of push/pop pattern throughout the app improves user experience
 - Lesson from US-011 (X button fix) applied here: modal/detail screens need `push()` not `go()`
+
+### Iteration 14: 2026-01-31T08:00:00Z
+#### Story: [US-014] Add Help/Feedback Icon
+
+**Implementation:**
+Added help/feedback functionality to allow users to report issues on GitHub.
+
+1. **pubspec.yaml**:
+   - Added `url_launcher: ^6.2.5` dependency for opening external URLs
+
+2. **home_screen.dart**:
+   - Added help icon (?) button to AppBar actions (before settings icon)
+   - Opens GitHub issues page (https://github.com/anthropics/claude-code/issues)
+   - Uses `launchUrl()` with `LaunchMode.externalApplication` for best UX
+   - Error handling with snackbar fallback
+
+3. **settings_screen.dart**:
+   - Added "Send Feedback" option in Support section (after Help & FAQ)
+   - Shows feedback icon with "Report issues on GitHub" subtitle
+   - Uses open_in_new icon to indicate external link
+   - Same URL launching logic as home screen
+
+**Files Changed:**
+- `app/pubspec.yaml` - Added url_launcher dependency
+- `app/lib/screens/home/home_screen.dart` - Added help icon to AppBar + _openFeedback method
+- `app/lib/screens/settings/settings_screen.dart` - Added Send Feedback tile + _openFeedback method
+
+**Verification:**
+- Flutter analyze passes with no new errors (only pre-existing warnings)
+- iOS build succeeds
+- Help icon visible in home screen header
+- Send Feedback option visible in settings
+
+**Learnings for Future Iterations:**
+- Use `url_launcher` package for opening external URLs in Flutter
+- `LaunchMode.externalApplication` opens URLs in the default browser
+- Always wrap async URL operations in try-catch with user feedback
+- Use `open_in_new` icon to indicate external links in settings

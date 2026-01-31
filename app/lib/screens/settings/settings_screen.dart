@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../services/haptic_service.dart';
+
+const _feedbackUrl = 'https://github.com/anthropics/claude-code/issues';
 
 void _log(String message) {
   debugPrint('[SettingsScreen] $message');
@@ -125,6 +128,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () {
               HapticService.light();
               _showHelpDialog(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.feedback_outlined),
+            title: const Text('Send Feedback'),
+            subtitle: const Text('Report issues on GitHub'),
+            trailing: const Icon(Icons.open_in_new),
+            onTap: () {
+              HapticService.light();
+              _openFeedback(context);
             },
           ),
           ListTile(
@@ -292,6 +305,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _openFeedback(BuildContext context) async {
+    final uri = Uri.parse(_feedbackUrl);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not open feedback page')),
+          );
+        }
+      }
+    } catch (e) {
+      _log('Error opening feedback URL: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open feedback page')),
+        );
+      }
+    }
   }
 
   void _showAboutDialog(BuildContext context) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/questions_provider.dart';
@@ -17,6 +18,30 @@ void _log(String message) {
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
+
+  static const _feedbackUrl = 'https://github.com/anthropics/claude-code/issues';
+
+  Future<void> _openFeedback(BuildContext context) async {
+    final uri = Uri.parse(_feedbackUrl);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not open feedback page')),
+          );
+        }
+      }
+    } catch (e) {
+      _log('Error opening feedback URL: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open feedback page')),
+        );
+      }
+    }
+  }
 
   Future<void> _archiveSession(
     BuildContext context,
@@ -87,6 +112,14 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('CacheBash'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            onPressed: () {
+              HapticService.light();
+              _openFeedback(context);
+            },
+            tooltip: 'Help & Feedback',
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
