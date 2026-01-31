@@ -40,19 +40,33 @@ Stream<(QuerySnapshot<Map<String, dynamic>>, QuerySnapshot<Map<String, dynamic>>
 }
 
 /// Merges two streams into one, preserving the order of emissions.
+/// Properly closes the controller when both streams complete.
 Stream<T> _mergeStreams<T>(Stream<T> stream1, Stream<T> stream2) async* {
   final controller = StreamController<T>();
+  var activeStreams = 2;
 
-  stream1.listen(
+  void onDone() {
+    activeStreams--;
+    if (activeStreams == 0) {
+      controller.close();
+    }
+  }
+
+  final sub1 = stream1.listen(
     controller.add,
     onError: controller.addError,
-    onDone: () {},
+    onDone: onDone,
   );
-  stream2.listen(
+  final sub2 = stream2.listen(
     controller.add,
     onError: controller.addError,
-    onDone: () {},
+    onDone: onDone,
   );
+
+  controller.onCancel = () async {
+    await sub1.cancel();
+    await sub2.cancel();
+  };
 
   await for (final event in controller.stream) {
     yield event;
@@ -390,7 +404,7 @@ class MessagesService {
         _encryptionService = encryptionService ?? EncryptionService();
 
   /// Create a new task message (toClaude)
-  /// Task encryption temporarily disabled due to key derivation mismatch
+  /// If encrypt=true and encryption fails, the operation is aborted (no plaintext fallback)
   Future<String> createTask({
     required String userId,
     required String title,
@@ -398,7 +412,7 @@ class MessagesService {
     String? projectId,
     String priority = 'normal',
     MessageAction action = MessageAction.queue,
-    bool encrypt = false, // Disabled until key derivation is fixed
+    bool encrypt = false,
   }) async {
     _log('Creating task message: $title (action: ${action.value})');
 
@@ -410,18 +424,15 @@ class MessagesService {
     bool isEncrypted = false;
 
     if (encrypt) {
-      final encryptedTitle = await _encryptionService.encrypt(title);
-      final encryptedInstructions = await _encryptionService.encrypt(instructions);
-      final encryptedAction = await _encryptionService.encrypt(action.value);
-
-      if (encryptedTitle != null && encryptedInstructions != null && encryptedAction != null) {
-        finalTitle = encryptedTitle;
-        finalInstructions = encryptedInstructions;
-        finalAction = encryptedAction;
+      try {
+        finalTitle = await _encryptionService.encrypt(title);
+        finalInstructions = await _encryptionService.encrypt(instructions);
+        finalAction = await _encryptionService.encrypt(action.value);
         isEncrypted = true;
         _log('Task message encrypted successfully');
-      } else {
-        _log('Encryption failed, storing unencrypted');
+      } on EncryptionException catch (e) {
+        _log('Encryption failed, aborting task creation: $e');
+        throw Exception('Cannot create encrypted task: encryption unavailable');
       }
     }
 
@@ -462,13 +473,12 @@ class MessagesService {
     bool shouldEncrypt = encrypt && isMessageEncrypted;
 
     if (shouldEncrypt) {
-      final encrypted = await _encryptionService.encrypt(response);
-      if (encrypted != null) {
-        finalResponse = encrypted;
+      try {
+        finalResponse = await _encryptionService.encrypt(response);
         _log('Response encrypted successfully');
-      } else {
-        _log('Encryption failed, storing unencrypted');
-        shouldEncrypt = false;
+      } on EncryptionException catch (e) {
+        _log('Encryption failed, aborting response: $e');
+        throw Exception('Cannot send encrypted response: encryption unavailable');
       }
     }
 

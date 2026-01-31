@@ -31,20 +31,13 @@ export function encrypt(plaintext: string, apiKey: string): string {
   const key = deriveKey(apiKey);
   const iv = crypto.randomBytes(IV_LENGTH);
 
-  // Debug logging
-  console.error(`[Crypto] Encrypting: "${plaintext.substring(0, 30)}..."`);
-  console.error(`[Crypto] Key first 8 bytes: [${Array.from(key.slice(0, 8)).join(', ')}]`);
-  console.error(`[Crypto] IV: ${iv.toString('hex')}`);
-
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
   let encrypted = cipher.update(plaintext, "utf8");
   encrypted = Buffer.concat([encrypted, cipher.final()]);
 
   // Prepend IV to ciphertext
   const combined = Buffer.concat([iv, encrypted]);
-  const result = combined.toString("base64");
-  console.error(`[Crypto] Ciphertext: ${result}`);
-  return result;
+  return combined.toString("base64");
 }
 
 /**

@@ -2,53 +2,92 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper functions for validation
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Validate message direction field
+    function validMessageDirection() {
+      return request.resource.data.direction in ['to_user', 'to_claude'];
+    }
+
+    // Validate message priority field
+    function validMessagePriority() {
+      return request.resource.data.priority in ['low', 'normal', 'high'];
+    }
+
+    // Validate message status field
+    function validMessageStatus() {
+      return request.resource.data.status in ['pending', 'in_progress', 'answered', 'complete', 'expired', 'cancelled'];
+    }
+
+    // Ensure createdAt is not modified on updates
+    function createdAtUnchanged() {
+      return !('createdAt' in request.resource.data)
+          || request.resource.data.createdAt == resource.data.createdAt;
+    }
+
     // Users can only read/write their own data
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isOwner(userId);
 
       // Devices subcollection
       match /devices/{deviceId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
       }
 
       // Sessions subcollection
       match /sessions/{sessionId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
 
         // Interrupts subcollection (messages from app to Claude)
         match /interrupts/{interruptId} {
-          allow read, write: if request.auth != null && request.auth.uid == userId;
+          allow read, write: if isOwner(userId);
         }
 
         // Status updates subcollection (session history)
         match /updates/{updateId} {
-          allow read, write: if request.auth != null && request.auth.uid == userId;
+          allow read, write: if isOwner(userId);
         }
       }
 
       // Questions subcollection
       match /questions/{questionId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
       }
 
       // Projects subcollection
       match /projects/{projectId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
       }
 
       // Tasks subcollection (tasks for Claude to work on) - legacy
       match /tasks/{taskId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
       }
 
       // Messages subcollection (unified inbox - questions + tasks)
       match /messages/{messageId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if isOwner(userId);
+        // Create requires valid direction, priority, and status
+        allow create: if isOwner(userId)
+          && validMessageDirection()
+          && validMessagePriority()
+          && validMessageStatus();
+        // Update must not modify createdAt
+        allow update: if isOwner(userId)
+          && createdAtUnchanged();
+        allow delete: if isOwner(userId);
       }
 
       // Analytics subcollection
       match /analytics/{period} {
-        allow read: if request.auth != null && request.auth.uid == userId;
+        allow read: if isOwner(userId);
         // Analytics are written by Cloud Functions only
         allow write: if false;
       }
@@ -56,12 +95,14 @@ service cloud.firestore {
 
     // Feedback collection - users can submit, only admins can read
     match /feedback/{feedbackId} {
-      // Anyone authenticated can create feedback
-      allow create: if request.auth != null
+      // Anyone authenticated can create feedback with valid fields
+      allow create: if isAuthenticated()
         && request.resource.data.userId == request.auth.uid
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 1
         && request.resource.data.message.size() <= 500;
       // Users can read their own feedback
-      allow read: if request.auth != null
+      allow read: if isAuthenticated()
         && resource.data.userId == request.auth.uid;
       // No updates or deletes from users
       allow update, delete: if false;
@@ -70,10 +111,10 @@ service cloud.firestore {
     // API key lookup - allows app to manage keys, MCP server uses service account
     match /apiKeys/{keyHash} {
       // Users can read/delete their own API key entries
-      allow read, delete: if request.auth != null
+      allow read, delete: if isAuthenticated()
         && resource.data.userId == request.auth.uid;
       // Users can create/update their own API key entries
-      allow create, update: if request.auth != null
+      allow create, update: if isAuthenticated()
         && request.resource.data.userId == request.auth.uid;
     }
   }

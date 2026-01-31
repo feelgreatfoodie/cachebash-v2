@@ -1,23 +1,15 @@
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { AuthContext } from "../auth/apiKeyValidator.js";
-
-interface PinTaskArgs {
-  taskId: string;
-  questionId: string;
-  context: string;
-}
-
-interface ResumeTaskArgs {
-  taskId: string;
-}
+import { PinTaskSchema, ResumeTaskSchema } from "../validation/validators.js";
 
 /**
  * Pin the current task to resume later when user responds
  */
 export async function pinTask(
   auth: AuthContext,
-  args: PinTaskArgs
+  rawArgs: unknown
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
+  const args = PinTaskSchema.parse(rawArgs);
   const db = getFirestore();
 
   const taskData = {
@@ -52,8 +44,9 @@ export async function pinTask(
  */
 export async function resumeTask(
   auth: AuthContext,
-  args: ResumeTaskArgs
+  rawArgs: unknown
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
+  const args = ResumeTaskSchema.parse(rawArgs);
   const db = getFirestore();
 
   // Get pinned task

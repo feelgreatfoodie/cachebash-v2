@@ -1,10 +1,7 @@
 import { getFirestore } from "../firebase/client.js";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { decrypt, isEncrypted } from "../encryption/crypto.js";
-
-interface GetResponseArgs {
-  questionId: string;
-}
+import { GetResponseSchema } from "../validation/validators.js";
 
 /**
  * Check if the user has responded to a question
@@ -14,8 +11,9 @@ interface GetResponseArgs {
  */
 export async function getResponse(
   auth: AuthContext,
-  args: GetResponseArgs
+  rawArgs: unknown
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
+  const args = GetResponseSchema.parse(rawArgs);
   const db = getFirestore();
 
   // Try messages collection first (unified)

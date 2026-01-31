@@ -1,20 +1,11 @@
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { decrypt, isEncrypted } from "../encryption/crypto.js";
-
-interface GetTasksArgs {
-  status?: "pending" | "in_progress" | "all";
-  limit?: number;
-}
-
-interface ClaimTaskArgs {
-  taskId: string;
-  sessionId?: string;
-}
-
-interface CompleteTaskArgs {
-  taskId: string;
-}
+import {
+  GetPendingTasksSchema,
+  ClaimTaskSchema,
+  CompleteTaskSchema,
+} from "../validation/validators.js";
 
 /**
  * Decrypt task data if encrypted
@@ -60,25 +51,48 @@ function decryptTaskData(
  */
 export async function getPendingTasks(
   auth: AuthContext,
-  args: GetTasksArgs
+  rawArgs: unknown
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
+  const args = GetPendingTasksSchema.parse(rawArgs);
   const db = getFirestore();
-  const status = args.status || "pending";
-  const limit = args.limit || 10;
+  const status = args.status;
+  const limit = args.limit;
 
   // Try unified messages collection first
+  const messagesPath = `users/${auth.userId}/messages`;
+
   let messagesQuery = db
-    .collection(`users/${auth.userId}/messages`)
+    .collection(messagesPath)
     .where("direction", "==", "to_claude");
 
   if (status !== "all") {
     messagesQuery = messagesQuery.where("status", "==", status) as any;
   }
 
-  const messagesSnapshot = await messagesQuery
-    .orderBy("createdAt", "desc")
-    .limit(limit)
-    .get();
+  let messagesSnapshot;
+  try {
+    messagesSnapshot = await messagesQuery
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .get();
+  } catch (error) {
+    // Return error details
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            success: false,
+            error: `Messages query failed: ${error instanceof Error ? error.message : String(error)}`,
+            debug: {
+              userId: auth.userId,
+              messagesPath: `users/${auth.userId}/messages`,
+            },
+          }),
+        },
+      ],
+    };
+  }
 
   // Also check legacy tasks collection
   let tasksQuery = db.collection(`users/${auth.userId}/tasks`);
@@ -87,10 +101,16 @@ export async function getPendingTasks(
     tasksQuery = tasksQuery.where("status", "==", status) as any;
   }
 
-  const tasksSnapshot = await tasksQuery
-    .orderBy("createdAt", "desc")
-    .limit(limit)
-    .get();
+  let tasksSnapshot;
+  try {
+    tasksSnapshot = await tasksQuery
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .get();
+  } catch (error) {
+    // Continue with empty tasks, don't fail the whole request
+    tasksSnapshot = { docs: [], size: 0 } as any;
+  }
 
   // Combine results, deduplicating by ID (messages takes precedence)
   const seenIds = new Set<string>();
@@ -164,7 +184,16 @@ export async function getPendingTasks(
             success: true,
             hasTasks: false,
             tasks: [],
-            message: `No ${status} tasks found`,
+            message: `No ${status} tasks found [v4-fresh]`,
+            version: "v4-debug",
+            buildTime: new Date().toISOString(),
+            debug: {
+              userId: auth.userId,
+              messagesPath: `users/${auth.userId}/messages`,
+              tasksPath: `users/${auth.userId}/tasks`,
+              messagesCount: messagesSnapshot.size,
+              tasksCount: tasksSnapshot.size,
+            },
           }),
         },
       ],
@@ -189,6 +218,13 @@ export async function getPendingTasks(
           count: tasks.length,
           tasks,
           message: `Found ${tasks.length} ${status} task(s)`,
+          debug: {
+            userId: auth.userId,
+            messagesPath: `users/${auth.userId}/messages`,
+            tasksPath: `users/${auth.userId}/tasks`,
+            messagesCount: messagesSnapshot.size,
+            tasksCount: tasksSnapshot.size,
+          },
         }),
       },
     ],
@@ -203,8 +239,9 @@ export async function getPendingTasks(
  */
 export async function claimTask(
   auth: AuthContext,
-  args: ClaimTaskArgs
+  rawArgs: unknown
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
+  const args = ClaimTaskSchema.parse(rawArgs);
   const db = getFirestore();
 
   // Try messages collection first
@@ -297,8 +334,9 @@ export async function claimTask(
  */
 export async function completeTask(
   auth: AuthContext,
-  args: CompleteTaskArgs
+  rawArgs: unknown
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
+  const args = CompleteTaskSchema.parse(rawArgs);
   const db = getFirestore();
 
   // Try messages collection first

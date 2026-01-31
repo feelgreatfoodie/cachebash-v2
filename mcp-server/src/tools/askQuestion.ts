@@ -1,14 +1,7 @@
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { encryptQuestionData } from "../encryption/crypto.js";
-
-interface AskQuestionArgs {
-  question: string;
-  options?: string[];
-  priority?: "low" | "normal" | "high";
-  context?: string;
-  encrypt?: boolean; // Enable E2E encryption (default: true)
-}
+import { AskQuestionSchema, type AskQuestionArgs } from "../validation/validators.js";
 
 /**
  * Send a question to the user's mobile device
@@ -18,8 +11,10 @@ interface AskQuestionArgs {
  */
 export async function askQuestion(
   auth: AuthContext,
-  args: AskQuestionArgs
+  rawArgs: unknown
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
+  // Validate input
+  const args = AskQuestionSchema.parse(rawArgs);
   const db = getFirestore();
   const shouldEncrypt = args.encrypt !== false;
 

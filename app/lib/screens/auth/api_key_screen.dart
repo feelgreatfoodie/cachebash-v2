@@ -7,10 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 
+import '../../config/environment.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/secure_storage_service.dart';
-
-const String cloudMcpBaseUrl = 'https://cachebash-mcp-94772408270.us-central1.run.app';
 
 class ApiKeyScreen extends ConsumerStatefulWidget {
   const ApiKeyScreen({super.key});
@@ -29,6 +28,24 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
   String? _testResult;
   bool? _testSuccess;
   bool _isRestoring = false;
+
+  /// Validates API key format before sending to server.
+  /// API keys are base64url encoded 256-bit (32 byte) values = 43 chars (no padding) or 44 chars (with =).
+  String? _validateApiKeyFormat(String key) {
+    if (key.isEmpty) {
+      return 'API key cannot be empty';
+    }
+    // Check length (43-44 chars for base64url encoded 32 bytes)
+    if (key.length < 40 || key.length > 50) {
+      return 'Invalid API key length (expected ~43 characters)';
+    }
+    // Check base64url character set (A-Za-z0-9_-=)
+    final base64urlRegex = RegExp(r'^[A-Za-z0-9_\-+=]+$');
+    if (!base64urlRegex.hasMatch(key)) {
+      return 'Invalid API key format (contains invalid characters)';
+    }
+    return null; // Valid
+  }
 
   @override
   void initState() {
@@ -87,8 +104,23 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
     );
 
     if (confirmed == true && controller.text.isNotEmpty) {
-      setState(() => _isRestoring = true);
       final apiKey = controller.text.trim();
+
+      // Validate format before making network request
+      final validationError = _validateApiKeyFormat(apiKey);
+      if (validationError != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(validationError),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      setState(() => _isRestoring = true);
 
       // Store the API key locally
       final user = ref.read(currentUserProvider);
@@ -96,7 +128,7 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
         try {
           // Validate the key by testing connection
           final testResponse = await http.post(
-            Uri.parse('$cloudMcpBaseUrl/v1/messages'),
+            Uri.parse('$Environment.mcpBaseUrl/v1/messages'),
             headers: {
               'Authorization': 'Bearer $apiKey',
               'Content-Type': 'application/json',
@@ -243,7 +275,7 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
     try {
       // Test the health endpoint first (no auth required)
       final healthResponse = await http
-          .get(Uri.parse('$cloudMcpBaseUrl/v1/health'))
+          .get(Uri.parse('$Environment.mcpBaseUrl/v1/health'))
           .timeout(const Duration(seconds: 10));
 
       if (healthResponse.statusCode != 200) {
@@ -257,7 +289,7 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
 
       // Now test authentication via the messages endpoint
       final authResponse = await http.post(
-        Uri.parse('$cloudMcpBaseUrl/v1/messages'),
+        Uri.parse('$Environment.mcpBaseUrl/v1/messages'),
         headers: {
           'Authorization': 'Bearer $_apiKey',
           'Content-Type': 'application/json',
@@ -586,7 +618,7 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
     return '''{
   "mcpServers": {
     "cachebash": {
-      "url": "$cloudMcpBaseUrl/v1/sse",
+      "url": "$Environment.mcpBaseUrl/v1/sse",
       "transport": "sse",
       "headers": {
         "Authorization": "Bearer $apiKey"

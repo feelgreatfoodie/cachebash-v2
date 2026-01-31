@@ -20,9 +20,26 @@ import { updateStatus } from "./tools/updateStatus.js";
 import { pinTask, resumeTask } from "./tools/pinTask.js";
 import { getInterrupts } from "./tools/getInterrupts.js";
 import { getPendingTasks, claimTask, completeTask } from "./tools/getTasks.js";
+import { checkRateLimit, cleanupRateLimits, getRateLimitResetIn } from "./middleware/rateLimiter.js";
+import { generateCorrelationId, createAuditLogger } from "./logging/auditLogger.js";
 
-// Store per-session auth context
-const sessionAuthContexts = new Map<string, AuthContext>();
+// Session timeout (30 minutes of inactivity)
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+
+// Store per-session auth context with activity tracking
+interface SessionInfo {
+  authContext: AuthContext;
+  lastActivity: number;
+}
+const sessions = new Map<string, SessionInfo>();
+
+// Legacy compatibility - also expose as sessionAuthContexts
+const sessionAuthContexts = {
+  get: (sessionId: string) => sessions.get(sessionId)?.authContext,
+  set: (sessionId: string, auth: AuthContext) => {
+    sessions.set(sessionId, { authContext: auth, lastActivity: Date.now() });
+  },
+};
 
 // Tool handlers mapped by name
 const toolHandlers: Record<string, (auth: AuthContext, args: any) => Promise<any>> = {
@@ -277,9 +294,10 @@ async function main() {
   // Handle tool calls
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const { name, arguments: args } = request.params;
-    const authContext = extra?.sessionId
-      ? sessionAuthContexts.get(extra.sessionId)
-      : null;
+    const sessionId = extra?.sessionId;
+    const authContext = sessionId ? sessionAuthContexts.get(sessionId) : null;
+    const correlationId = generateCorrelationId();
+    const startTime = Date.now();
 
     if (!authContext) {
       return {
@@ -288,8 +306,26 @@ async function main() {
       };
     }
 
+    const audit = createAuditLogger(correlationId, authContext.userId);
+
+    // Update session activity
+    if (sessionId && sessions.has(sessionId)) {
+      sessions.get(sessionId)!.lastActivity = Date.now();
+    }
+
+    // Check rate limit
+    if (!checkRateLimit(authContext.userId, name)) {
+      const resetIn = Math.ceil(getRateLimitResetIn(authContext.userId, name) / 1000);
+      audit.error(name, "RATE_LIMIT_EXCEEDED", { tool: name });
+      return {
+        content: [{ type: "text", text: `Rate limit exceeded for ${name}. Try again in ${resetIn} seconds.` }],
+        isError: true,
+      };
+    }
+
     const handler = toolHandlers[name];
     if (!handler) {
+      audit.error(name, "UNKNOWN_TOOL", { tool: name });
       return {
         content: [{ type: "text", text: `Unknown tool: ${name}` }],
         isError: true,
@@ -297,8 +333,16 @@ async function main() {
     }
 
     try {
-      return await handler(authContext, args);
+      const result = await handler(authContext, args);
+      const durationMs = Date.now() - startTime;
+      audit.log(name, { tool: name, durationMs });
+      return result;
     } catch (error) {
+      const durationMs = Date.now() - startTime;
+      audit.error(name, error instanceof Error ? error.name : "UNKNOWN_ERROR", {
+        tool: name,
+        durationMs,
+      });
       return {
         content: [{ type: "text", text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
         isError: true,
@@ -316,15 +360,15 @@ async function main() {
 
   // Create HTTP server
   const httpServer = http.createServer(async (req, res) => {
-    // CORS headers for all requests
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    // Minimal CORS - MCP clients don't need browser CORS
+    // Only allow specific headers needed for MCP protocol
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
     res.setHeader(
       "Access-Control-Allow-Headers",
       "Content-Type, Authorization, Mcp-Session-Id"
     );
 
-    // Handle preflight
+    // Handle preflight (no origin = no CORS response)
     if (req.method === "OPTIONS") {
       res.writeHead(204);
       res.end();
@@ -336,26 +380,60 @@ async function main() {
       return sendJson(res, 200, { status: "ok", version: "1.0.0" });
     }
 
-    // Debug auth endpoint
-    if (req.url === "/v1/debug/auth") {
-      const apiKey = extractBearerToken(req.headers.authorization);
-      if (!apiKey) {
-        return sendJson(res, 401, { error: "Missing Authorization header", hint: "Use: Authorization: Bearer YOUR_API_KEY" });
-      }
-      try {
-        const authContext = await validateApiKey(apiKey);
-        if (authContext) {
-          return sendJson(res, 200, { success: true, userId: authContext.userId, message: "API key is valid" });
+    // Debug endpoints - only available in development
+    if (process.env.NODE_ENV !== "production") {
+      // Debug auth endpoint
+      if (req.url === "/v1/debug/auth") {
+        const apiKey = extractBearerToken(req.headers.authorization);
+        if (!apiKey) {
+          return sendJson(res, 401, { error: "Missing Authorization header", hint: "Use: Authorization: Bearer YOUR_API_KEY" });
         }
-        return sendJson(res, 401, { success: false, error: "Invalid API key", hint: "Regenerate key in app and update claude mcp add command" });
-      } catch (error) {
-        return sendJson(res, 500, { success: false, error: error instanceof Error ? error.message : "Unknown error" });
+        try {
+          const authContext = await validateApiKey(apiKey);
+          if (authContext) {
+            return sendJson(res, 200, { success: true, userId: authContext.userId, message: "API key is valid" });
+          }
+          return sendJson(res, 401, { success: false, error: "Invalid API key", hint: "Regenerate key in app and update claude mcp add command" });
+        } catch (error) {
+          return sendJson(res, 500, { success: false, error: error instanceof Error ? error.message : "Unknown error" });
+        }
+      }
+
+      // Debug messages endpoint - list messages for authenticated user
+      if (req.url === "/v1/debug/messages") {
+        const apiKey = extractBearerToken(req.headers.authorization);
+        if (!apiKey) {
+          return sendJson(res, 401, { error: "Missing Authorization header" });
+        }
+        try {
+          const authContext = await validateApiKey(apiKey);
+          if (!authContext) {
+            return sendJson(res, 401, { error: "Invalid API key" });
+          }
+          const { getFirestore } = await import("./firebase/client.js");
+          const db = getFirestore();
+          const messagesRef = db.collection(`users/${authContext.userId}/messages`);
+          const snapshot = await messagesRef.orderBy("createdAt", "desc").limit(10).get();
+          const messages = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || null,
+          }));
+          return sendJson(res, 200, {
+            userId: authContext.userId,
+            path: `users/${authContext.userId}/messages`,
+            count: messages.length,
+            messages,
+          });
+        } catch (error) {
+          return sendJson(res, 500, { error: error instanceof Error ? error.message : "Unknown error" });
+        }
       }
     }
 
-    // MCP endpoints - require authentication
+    // MCP endpoints - require authentication (no env fallback for security)
     if (req.url?.startsWith("/v1/mcp") || req.url?.startsWith("/mcp")) {
-      const apiKey = extractBearerToken(req.headers.authorization) ?? process.env.CACHEBASH_API_KEY;
+      const apiKey = extractBearerToken(req.headers.authorization);
       if (!apiKey) {
         return sendJson(res, 401, { error: "Missing API key", hint: "Set Authorization: Bearer YOUR_API_KEY header" });
       }
@@ -391,6 +469,25 @@ async function main() {
   httpServer.listen(PORT, () => {
     console.log(`CacheBash MCP server listening on port ${PORT}`);
   });
+
+  // Cleanup expired sessions and rate limits every 5 minutes
+  setInterval(() => {
+    const now = Date.now();
+    let cleanedSessions = 0;
+
+    for (const [sessionId, info] of sessions.entries()) {
+      if (now - info.lastActivity > SESSION_TIMEOUT_MS) {
+        sessions.delete(sessionId);
+        cleanedSessions++;
+      }
+    }
+
+    if (cleanedSessions > 0) {
+      console.log(`[Sessions] Cleaned up ${cleanedSessions} inactive sessions`);
+    }
+
+    cleanupRateLimits();
+  }, 5 * 60 * 1000);
 
   // Handle graceful shutdown
   process.on("SIGTERM", () => {

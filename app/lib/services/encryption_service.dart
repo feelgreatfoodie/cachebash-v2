@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart' as enc;
@@ -10,6 +9,15 @@ import 'secure_storage_service.dart';
 
 void _log(String message) {
   debugPrint('[EncryptionService] $message');
+}
+
+/// Exception thrown when encryption fails
+class EncryptionException implements Exception {
+  final String message;
+  EncryptionException(this.message);
+
+  @override
+  String toString() => 'EncryptionException: $message';
 }
 
 /// Service for encrypting/decrypting messages using API key-derived keys
@@ -33,14 +41,9 @@ class EncryptionService {
       return _cachedKey!;
     }
 
-    _log('Deriving encryption key...');
-    _log('API key hash: ${apiKeyHash.substring(0, 16)}...');
-
     // Create salt from prefix + hash of API key (deterministic)
     final saltString = _saltPrefix + apiKeyHash.substring(0, 16);
     final salt = utf8.encode(saltString);
-    _log('Salt string: $saltString');
-    _log('Salt bytes: ${salt.take(20).toList()}...');
 
     // Use PBKDF2 to derive key
     final keyBytes = _pbkdf2(
@@ -50,12 +53,8 @@ class EncryptionService {
       _keyLength,
     );
 
-    _log('Derived key first 8 bytes: ${keyBytes.take(8).toList()}');
-
     _cachedKey = enc.Key(keyBytes);
     _cachedApiKeyHash = apiKeyHash;
-
-    _log('Encryption key derived successfully');
     return _cachedKey!;
   }
 
@@ -89,18 +88,16 @@ class EncryptionService {
 
   /// Get the stored API key
   Future<String?> _getApiKey() async {
-    final apiKey = await _storage.getApiKey();
-    _log('_getApiKey: ${apiKey != null ? "Found key (${apiKey.length} chars)" : "NO KEY FOUND"}');
-    return apiKey;
+    return await _storage.getApiKey();
   }
 
   /// Encrypt plaintext using AES-256-CBC
   /// Returns base64 encoded string with IV prepended
-  Future<String?> encrypt(String plaintext) async {
+  /// Throws EncryptionException if encryption fails (never falls back to plaintext)
+  Future<String> encrypt(String plaintext) async {
     final apiKey = await _getApiKey();
     if (apiKey == null) {
-      _log('No API key available for encryption');
-      return null;
+      throw EncryptionException('No API key available for encryption');
     }
 
     try {
@@ -114,30 +111,23 @@ class EncryptionService {
       final combined = Uint8List.fromList([...iv.bytes, ...encrypted.bytes]);
       return base64.encode(combined);
     } catch (e) {
-      _log('Encryption error: $e');
-      return null;
+      throw EncryptionException('Encryption failed: $e');
     }
   }
 
   /// Decrypt ciphertext
   /// Expects base64 encoded string with IV prepended
   Future<String?> decrypt(String ciphertext) async {
-    _log('decrypt: Starting decryption of ${ciphertext.length} char ciphertext');
-    _log('decrypt: FULL CIPHERTEXT: $ciphertext');
     final apiKey = await _getApiKey();
     if (apiKey == null) {
-      _log('decrypt: No API key available for decryption');
       return null;
     }
 
     try {
       final key = await _deriveKey(apiKey);
       final combined = base64.decode(ciphertext);
-      _log('decrypt: Decoded ${combined.length} bytes');
-      _log('decrypt: First 16 bytes (IV): ${combined.sublist(0, combined.length > 16 ? 16 : combined.length)}');
 
       if (combined.length < 17) {
-        _log('decrypt: Ciphertext too short');
         return null;
       }
 
@@ -146,13 +136,9 @@ class EncryptionService {
       final encryptedBytes = Uint8List.fromList(combined.sublist(16));
 
       final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.cbc));
-      final decrypted = encrypter.decrypt(enc.Encrypted(encryptedBytes), iv: iv);
-
-      _log('decrypt: SUCCESS - decrypted ${decrypted.length} chars');
-      return decrypted;
-    } catch (e, stack) {
-      _log('decrypt: ERROR - $e');
-      _log('decrypt: Stack - $stack');
+      return encrypter.decrypt(enc.Encrypted(encryptedBytes), iv: iv);
+    } catch (e) {
+      _log('Decryption failed');
       return null;
     }
   }

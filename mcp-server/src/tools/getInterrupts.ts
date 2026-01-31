@@ -1,10 +1,6 @@
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { AuthContext } from "../auth/apiKeyValidator.js";
-
-interface GetInterruptsArgs {
-  sessionId: string;
-  markAsRead?: boolean;
-}
+import { GetInterruptsSchema } from "../validation/validators.js";
 
 /**
  * Check for interrupt messages sent from the mobile app to this session.
@@ -12,8 +8,9 @@ interface GetInterruptsArgs {
  */
 export async function getInterrupts(
   auth: AuthContext,
-  args: GetInterruptsArgs
+  rawArgs: unknown
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
+  const args = GetInterruptsSchema.parse(rawArgs);
   const db = getFirestore();
 
   // Get pending interrupts for this session

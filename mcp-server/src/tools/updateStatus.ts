@@ -1,21 +1,15 @@
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { AuthContext } from "../auth/apiKeyValidator.js";
-
-interface UpdateStatusArgs {
-  status: string;
-  progress?: number;
-  state?: "working" | "blocked" | "complete" | "pinned";
-  sessionId?: string;
-  projectName?: string;
-}
+import { UpdateStatusSchema } from "../validation/validators.js";
 
 /**
  * Update the current working status visible in the app
  */
 export async function updateStatus(
   auth: AuthContext,
-  args: UpdateStatusArgs
+  rawArgs: unknown
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
+  const args = UpdateStatusSchema.parse(rawArgs);
   const db = getFirestore();
 
   // Use provided sessionId or generate one based on current timestamp

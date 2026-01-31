@@ -4,6 +4,34 @@ import * as admin from "firebase-admin";
 const db = admin.firestore();
 const messaging = admin.messaging();
 
+// Rate limiting: max notifications per user per hour
+const RATE_LIMIT_MAX = 100;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+// In-memory rate limit tracking (resets on function cold start)
+const notificationCounts = new Map<string, { count: number; resetAt: number }>();
+
+/**
+ * Check if a user has exceeded their notification rate limit.
+ * Returns true if rate limited (should not send).
+ */
+function isRateLimited(userId: string): boolean {
+  const now = Date.now();
+  const record = notificationCounts.get(userId);
+
+  if (!record || now >= record.resetAt) {
+    notificationCounts.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+
+  if (record.count >= RATE_LIMIT_MAX) {
+    return true;
+  }
+
+  record.count++;
+  return false;
+}
+
 /**
  * Triggered when a new message is created in the unified messages collection.
  * Sends push notification to all user devices for toUser messages (questions).
@@ -18,6 +46,14 @@ export const onMessageCreate = functions.firestore
     if (message.direction !== "to_user") {
       functions.logger.info(
         `Skipping notification for ${message.direction} message ${messageId}`
+      );
+      return;
+    }
+
+    // Check rate limit
+    if (isRateLimited(userId)) {
+      functions.logger.warn(
+        `Rate limit exceeded for user, skipping notification for message ${messageId}`
       );
       return;
     }
@@ -116,9 +152,10 @@ export const onMessageCreate = functions.firestore
       response.responses.forEach((result, index) => {
         if (!result.success) {
           const error = result.error;
+          // Don't log token content - security best practice
           functions.logger.error(
-            `FCM send failed for token ${tokens[index].substring(0, 20)}...`,
-            { code: error?.code, message: error?.message }
+            `FCM send failed for token [REDACTED]`,
+            { code: error?.code, errorType: error?.message?.split(":")[0] }
           );
           if (
             error?.code === "messaging/invalid-registration-token" ||
