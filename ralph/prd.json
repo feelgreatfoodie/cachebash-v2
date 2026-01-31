@@ -127,8 +127,8 @@
       ],
       "technicalNotes": "Simple reorder in the bottom navigation widget.",
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Swapped positions in main_shell.dart: Sessions now at position 4 (next to compose), Search at position 5. Updated selection indices accordingly."
     },
     {
       "id": "US-010",
@@ -199,6 +199,6 @@
   "metadata": {
     "createdAt": "2026-01-30T00:00:00Z",
     "totalStories": 14,
-    "completedStories": 8
+    "completedStories": 9
   }
 }

@@ -318,3 +318,34 @@ Made projectName optional and only set when provided. This allows:
 - Use `Record<string, unknown>` type in TypeScript when building dynamic objects
 - Making fields optional and using merge: true allows data to persist across updates
 - Place new UI elements consistently - project info at the top of cards feels natural
+
+### Iteration 9: 2026-01-31T03:00:00Z
+#### Story: [US-009] Swap Search and Sessions Icons
+
+**Implementation:**
+Swapped the positions of Search and Sessions icons in the bottom navigation bar.
+
+Before: Home | Messages | Compose | Search | Sessions
+After:  Home | Messages | Compose | Sessions | Search
+
+This places the frequently-used Sessions tab next to the compose button, making it easier to access when monitoring Claude's work.
+
+**Changes:**
+1. Updated `_getSelectedIndex()` method to assign correct indices:
+   - Sessions: index 3 (was 4)
+   - Search: index 4 (was 3)
+
+2. Swapped the order of `_NavItem` widgets in the Row:
+   - Sessions terminal icon now at position 4 (after compose)
+   - Search icon now at position 5 (last)
+
+**Files Changed:**
+- `app/lib/widgets/main_shell.dart` - Swapped nav items and updated selection indices
+
+**Verification:**
+- Flutter analyze passes with no new errors
+- Navigation still functions correctly with proper selection highlighting
+
+**Learnings for Future Iterations:**
+- When swapping nav items, both the widget order AND selection indices need to be updated
+- The MainShellWrapper uses simple index-based selection matching route prefixes
