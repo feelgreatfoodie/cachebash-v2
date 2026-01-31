@@ -100,8 +100,8 @@
       ],
       "technicalNotes": "May need to store status history in a subcollection /sessions/{id}/updates or keep a list in the session document.",
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added /sessions/{id}/updates subcollection. MCP updateStatus writes history entries. Flutter sessionUpdatesProvider streams history. SessionDetailScreen displays history with state icons, status text, timestamps, and progress badges."
     },
     {
       "id": "US-008",
@@ -199,6 +199,6 @@
   "metadata": {
     "createdAt": "2026-01-30T00:00:00Z",
     "totalStories": 14,
-    "completedStories": 6
+    "completedStories": 7
   }
 }
