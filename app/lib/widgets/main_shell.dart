@@ -70,7 +70,7 @@ class MainShellWrapper extends ConsumerWidget {
                   _ComposeButton(
                     onTap: () {
                       HapticService.medium();
-                      context.go('/messages/new');
+                      context.push('/messages/new');
                     },
                   ),
                   _NavItem(

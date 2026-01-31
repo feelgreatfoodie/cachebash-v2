@@ -373,3 +373,32 @@ Removed the "+ New Task" button from the tasks screen since task creation now ha
 **Learnings for Future Iterations:**
 - When removing a FAB, also remove the extra bottom padding that was allocated for it
 - Update empty state messaging to guide users to the correct flow
+
+### Iteration 11: 2026-01-31T05:00:00Z
+#### Story: [US-011] Fix X Button on Compose Screen
+
+**Root Cause Analysis:**
+The X button on the compose screen (CreateMessageScreen) uses `context.pop()` to close the screen. However, the compose button in MainShellWrapper was using `context.go('/messages/new')` instead of `context.push('/messages/new')`.
+
+With go_router:
+- `go()` replaces the current route in the navigation stack
+- `push()` adds the route on top of the current stack
+- `pop()` removes the top route from the stack
+
+When `go()` is used, the previous route is replaced rather than preserved, so when `pop()` is called, there's nothing to pop back to, and the screen doesn't close properly.
+
+**Implementation:**
+Changed the compose button in MainShellWrapper from `context.go('/messages/new')` to `context.push('/messages/new')`. This ensures the compose screen is pushed onto the navigation stack, allowing `pop()` to work correctly.
+
+**Files Changed:**
+- `app/lib/widgets/main_shell.dart` - Changed `context.go` to `context.push` for compose button
+
+**Verification:**
+- Flutter analyze passes with no new errors
+- iOS build succeeds
+- X button now properly closes the compose screen by popping the navigation stack
+
+**Learnings for Future Iterations:**
+- In go_router, use `push()` when you need a "back" button to work; use `go()` for top-level navigation changes
+- For modal/overlay screens like compose, always use `push()` so `pop()` works correctly
+- The messages_screen.dart FAB already used `push()` - this was just the compose button in bottom nav that was wrong
