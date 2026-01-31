@@ -166,8 +166,8 @@
       ],
       "technicalNotes": "Wrap screens in GestureDetector with FocusScope.of(context).unfocus() or use ScrollView with keyboardDismissBehavior.",
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added GestureDetector wrapper with FocusScope.unfocus() to 7 screens: create_message, search, question_detail, login, register, profile, change_password."
     },
     {
       "id": "US-013",
@@ -199,6 +199,6 @@
   "metadata": {
     "createdAt": "2026-01-30T00:00:00Z",
     "totalStories": 14,
-    "completedStories": 11
+    "completedStories": 12
   }
 }
