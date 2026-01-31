@@ -114,8 +114,8 @@
       ],
       "technicalNotes": "Add projectId or projectName field to session. MCP server can pass this from the project field in ralph.config.json or detect from git remote.",
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added projectName to MCP update_status tool, SessionModel, and SessionCard. Project name is optional and displays with folder icon when set."
     },
     {
       "id": "US-009",
@@ -199,6 +199,6 @@
   "metadata": {
     "createdAt": "2026-01-30T00:00:00Z",
     "totalStories": 14,
-    "completedStories": 7
+    "completedStories": 8
   }
 }
