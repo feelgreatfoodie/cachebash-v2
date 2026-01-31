@@ -153,8 +153,8 @@
       ],
       "technicalNotes": "Likely a navigation issue - ensure the X button calls Navigator.pop() or context.pop().",
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Fixed: MainShellWrapper compose button used context.go() instead of context.push(). With go(), the route is replaced rather than pushed, so pop() had nothing to pop back to."
     },
     {
       "id": "US-012",
@@ -199,6 +199,6 @@
   "metadata": {
     "createdAt": "2026-01-30T00:00:00Z",
     "totalStories": 14,
-    "completedStories": 10
+    "completedStories": 11
   }
 }
