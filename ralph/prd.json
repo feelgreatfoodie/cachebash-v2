@@ -192,13 +192,13 @@
       ],
       "technicalNotes": "Could link to GitHub issues page or open email compose with support address.",
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added help icon to home screen AppBar and Send Feedback option to settings. Both link to GitHub issues page via url_launcher."
     }
   ],
   "metadata": {
     "createdAt": "2026-01-30T00:00:00Z",
     "totalStories": 14,
-    "completedStories": 13
+    "completedStories": 14
   }
 }
