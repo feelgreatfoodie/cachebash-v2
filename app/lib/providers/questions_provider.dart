@@ -199,12 +199,21 @@ class QuestionsService {
       }
     }
 
-    await _firestore.doc('users/$userId/questions/$questionId').update({
+    final updateData = {
       'response': finalResponse,
       'status': 'answered',
       'answeredAt': FieldValue.serverTimestamp(),
       if (shouldEncrypt) 'responseEncrypted': true,
-    });
+    };
+
+    // Update both collections - questions (legacy) and messages (unified)
+    await Future.wait([
+      _firestore.doc('users/$userId/questions/$questionId').update(updateData),
+      _firestore.doc('users/$userId/messages/$questionId').update(updateData).catchError((_) {
+        // Messages doc may not exist for legacy questions, ignore error
+        return null;
+      }),
+    ]);
   }
 
   /// Mark a question as expired
