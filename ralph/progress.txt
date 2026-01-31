@@ -42,3 +42,36 @@ The `onMessageCreate` Cloud Function was defined in the codebase but NOT deploye
 - When encryption is enabled, notification content needs a separate plaintext preview
 - The MCP server writes to both `/questions` (legacy) and `/messages` (unified) collections
 - Firebase Functions v1 triggers use `functions.firestore.document().onCreate()`
+
+### Iteration 2: 2026-01-30T23:30:00Z
+#### Story: [US-002] Add Real-Time Updates to Messages
+
+**Root Cause Analysis:**
+The `activeMessagesProvider` merged two collections (`/messages` and `/questions`) but used different fetching strategies:
+- `/messages`: Used `.snapshots()` stream (real-time updates worked)
+- `/questions`: Used `.get()` one-time fetch (no real-time updates)
+
+This meant messages from the unified collection updated in real-time, but legacy questions only loaded on initial fetch or manual refresh.
+
+**Implementation:**
+1. Created `_combineStreams` helper function to implement combineLatest pattern
+   - Takes two Firestore snapshot streams and combines them
+   - Emits a tuple when either stream emits (after both have initial values)
+2. Created `_mergeStreams` helper function to merge two streams into one
+3. Refactored `activeMessagesProvider` to:
+   - Create separate streams for both `/messages` and `/questions`
+   - Use `_combineStreams` to merge them with real-time updates for both
+   - Deduplicate messages by ID before returning
+
+**Files Changed:**
+- `app/lib/providers/messages_provider.dart` - Added stream combining helpers and refactored activeMessagesProvider
+
+**Verification:**
+- Flutter analyze passes with no errors (only pre-existing warnings)
+- Both collections now use Firestore `.snapshots()` listeners
+- Messages update in real-time when either collection changes
+
+**Learnings for Future Iterations:**
+- Dart's `async*` generators work well for implementing Rx-style stream combinators
+- The `(T1, T2)` record syntax (Dart 3) is convenient for tuples without external packages
+- When merging data from multiple Firestore collections, ensure all use stream listeners for consistency

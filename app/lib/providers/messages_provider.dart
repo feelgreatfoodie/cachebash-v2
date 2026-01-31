@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +12,51 @@ final _firestore = FirebaseFirestore.instance;
 
 void _log(String message) {
   debugPrint('[MessagesProvider] $message');
+}
+
+/// Combines two streams into a single stream that emits a tuple when either stream emits.
+/// Uses the latest value from each stream (combineLatest pattern).
+Stream<(QuerySnapshot<Map<String, dynamic>>, QuerySnapshot<Map<String, dynamic>>)> _combineStreams(
+  Stream<QuerySnapshot<Map<String, dynamic>>> stream1,
+  Stream<QuerySnapshot<Map<String, dynamic>>> stream2,
+) async* {
+  QuerySnapshot<Map<String, dynamic>>? latest1;
+  QuerySnapshot<Map<String, dynamic>>? latest2;
+
+  await for (final event in _mergeStreams(
+    stream1.map((s) => (1, s)),
+    stream2.map((s) => (2, s)),
+  )) {
+    if (event.$1 == 1) {
+      latest1 = event.$2;
+    } else {
+      latest2 = event.$2;
+    }
+    // Only emit when we have values from both streams
+    if (latest1 != null && latest2 != null) {
+      yield (latest1, latest2);
+    }
+  }
+}
+
+/// Merges two streams into one, preserving the order of emissions.
+Stream<T> _mergeStreams<T>(Stream<T> stream1, Stream<T> stream2) async* {
+  final controller = StreamController<T>();
+
+  stream1.listen(
+    controller.add,
+    onError: controller.addError,
+    onDone: () {},
+  );
+  stream2.listen(
+    controller.add,
+    onError: controller.addError,
+    onDone: () {},
+  );
+
+  await for (final event in controller.stream) {
+    yield event;
+  }
 }
 
 /// Helper to decrypt a list of message documents
@@ -171,7 +218,7 @@ final allMessagesProvider = StreamProvider<List<MessageModel>>((ref) {
 });
 
 /// Stream provider for active (non-archived) messages
-/// Merges both /messages (new) and /questions (legacy) collections
+/// Merges both /messages (new) and /questions (legacy) collections with real-time updates
 final activeMessagesProvider = StreamProvider<List<MessageModel>>((ref) {
   final user = ref.watch(currentUserProvider);
   final encryptionService = ref.watch(encryptionServiceProvider);
@@ -180,39 +227,43 @@ final activeMessagesProvider = StreamProvider<List<MessageModel>>((ref) {
     return Stream.value([]);
   }
 
-  return _firestore
+  // Stream for unified /messages collection
+  final messagesStream = _firestore
       .collection('users/${user.uid}/messages')
       .where('deletedAt', isNull: true)
       .where('archived', isEqualTo: false)
       .orderBy('createdAt', descending: true)
       .limit(50)
-      .snapshots()
-      .asyncMap((messagesSnapshot) async {
+      .snapshots();
+
+  // Stream for legacy /questions collection
+  final questionsStream = _firestore
+      .collection('users/${user.uid}/questions')
+      .where('deletedAt', isNull: true)
+      .where('archived', isEqualTo: false)
+      .orderBy('createdAt', descending: true)
+      .limit(50)
+      .snapshots();
+
+  // Combine both streams using Rx-style combineLatest
+  return _combineStreams(messagesStream, questionsStream)
+      .asyncMap((snapshots) async {
+        final messagesSnapshot = snapshots.$1;
+        final questionsSnapshot = snapshots.$2;
+
         final messages = await _decryptMessages(messagesSnapshot.docs, encryptionService);
         final messageIds = messages.map((m) => m.id).toSet();
 
         // Merge legacy questions (skip duplicates)
-        try {
-          final questionsSnapshot = await _firestore
-              .collection('users/${user.uid}/questions')
-              .where('deletedAt', isNull: true)
-              .where('archived', isEqualTo: false)
-              .orderBy('createdAt', descending: true)
-              .limit(50)
-              .get();
-
-          final legacyMessages = await Future.wait(
-            questionsSnapshot.docs
-                .where((doc) => !messageIds.contains(doc.id))
-                .map((doc) => _decryptLegacyQuestion(doc, encryptionService)),
-          );
-          messages.addAll(legacyMessages);
-        } catch (e) {
-          _log('activeMessagesProvider: Error fetching legacy questions: $e');
-        }
+        final legacyMessages = await Future.wait(
+          questionsSnapshot.docs
+              .where((doc) => !messageIds.contains(doc.id))
+              .map((doc) => _decryptLegacyQuestion(doc, encryptionService)),
+        );
+        messages.addAll(legacyMessages);
 
         messages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        _log('activeMessagesProvider: Got ${messages.length} total messages');
+        _log('activeMessagesProvider: Got ${messages.length} total messages (${messagesSnapshot.docs.length} new, ${legacyMessages.length} legacy)');
         return messages;
       })
       .handleError((error, stackTrace) {
