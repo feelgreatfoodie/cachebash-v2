@@ -450,37 +450,99 @@ class MessagesService {
   }
 
   /// Archive a message
+  /// Handles both unified /messages and legacy /questions collections
   Future<void> archiveMessage({
     required String userId,
     required String messageId,
   }) async {
-    await _firestore.doc('users/$userId/messages/$messageId').update({
-      'archived': true,
-    });
+    _log('Archiving message $messageId');
+
+    // First check if the document exists in /messages
+    final messagesDoc = _firestore.doc('users/$userId/messages/$messageId');
+    final messagesSnapshot = await messagesDoc.get();
+
+    if (messagesSnapshot.exists) {
+      await messagesDoc.update({'archived': true});
+      _log('Archived message $messageId in /messages');
+      return;
+    }
+
+    // Fall back to legacy /questions collection
+    final questionsDoc = _firestore.doc('users/$userId/questions/$messageId');
+    final questionsSnapshot = await questionsDoc.get();
+
+    if (questionsSnapshot.exists) {
+      await questionsDoc.update({'archived': true});
+      _log('Archived message $messageId in /questions (legacy)');
+      return;
+    }
+
+    // Document not found in either collection
+    throw Exception('Message not found in either collection');
   }
 
   /// Unarchive a message
+  /// Handles both unified /messages and legacy /questions collections
   Future<void> unarchiveMessage({
     required String userId,
     required String messageId,
   }) async {
-    await _firestore.doc('users/$userId/messages/$messageId').update({
-      'archived': false,
-    });
+    _log('Unarchiving message $messageId');
+
+    // First check if the document exists in /messages
+    final messagesDoc = _firestore.doc('users/$userId/messages/$messageId');
+    final messagesSnapshot = await messagesDoc.get();
+
+    if (messagesSnapshot.exists) {
+      await messagesDoc.update({'archived': false});
+      _log('Unarchived message $messageId in /messages');
+      return;
+    }
+
+    // Fall back to legacy /questions collection
+    final questionsDoc = _firestore.doc('users/$userId/questions/$messageId');
+    final questionsSnapshot = await questionsDoc.get();
+
+    if (questionsSnapshot.exists) {
+      await questionsDoc.update({'archived': false});
+      _log('Unarchived message $messageId in /questions (legacy)');
+      return;
+    }
+
+    // Document not found in either collection
+    throw Exception('Message not found in either collection');
   }
 
   /// Soft delete a message (sets deletedAt timestamp)
+  /// Handles both unified /messages and legacy /questions collections
   Future<void> deleteMessage({
     required String userId,
     required String messageId,
   }) async {
     _log('Deleting message $messageId');
 
-    await _firestore.doc('users/$userId/messages/$messageId').update({
-      'deletedAt': FieldValue.serverTimestamp(),
-    });
+    // First check if the document exists in /messages
+    final messagesDoc = _firestore.doc('users/$userId/messages/$messageId');
+    final messagesSnapshot = await messagesDoc.get();
 
-    _log('Message $messageId deleted');
+    if (messagesSnapshot.exists) {
+      await messagesDoc.update({'deletedAt': FieldValue.serverTimestamp()});
+      _log('Deleted message $messageId in /messages');
+      return;
+    }
+
+    // Fall back to legacy /questions collection
+    final questionsDoc = _firestore.doc('users/$userId/questions/$messageId');
+    final questionsSnapshot = await questionsDoc.get();
+
+    if (questionsSnapshot.exists) {
+      await questionsDoc.update({'deletedAt': FieldValue.serverTimestamp()});
+      _log('Deleted message $messageId in /questions (legacy)');
+      return;
+    }
+
+    // Document not found in either collection
+    throw Exception('Message not found in either collection');
   }
 
   /// Hard delete a message (permanent)

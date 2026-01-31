@@ -102,3 +102,39 @@ Added `archived: false` to the session data in `updateStatus.ts` so that newly c
 - Firestore `isNotEqualTo` queries do NOT match documents where the field is missing
 - Always explicitly set boolean fields rather than relying on defaults
 - When debugging "missing data" issues, check if the query filter matches documents without the field
+
+### Iteration 4: 2026-01-31T00:00:00Z
+#### Story: [US-004] Fix Archive Error Document Not Found
+
+**Root Cause Analysis:**
+The `activeMessagesProvider` merges messages from two Firestore collections:
+- `/messages` (new unified collection)
+- `/questions` (legacy collection)
+
+When the user archives a message, `MessagesService.archiveMessage()` only tried to update the `/messages` collection. If the message was a legacy question from `/questions`, the update would fail with "document not found" because the document doesn't exist in `/messages`.
+
+**Implementation:**
+Updated three methods in `MessagesService` to handle both collections:
+1. `archiveMessage()` - Check if document exists in `/messages` first, fall back to `/questions`
+2. `unarchiveMessage()` - Same dual-collection logic
+3. `deleteMessage()` - Same dual-collection logic
+
+The approach:
+1. Check if document exists in `/messages` via `.get()`
+2. If exists, update there and return
+3. If not, check `/questions` collection
+4. If exists there, update and return
+5. If neither, throw Exception for clear error message
+
+**Files Changed:**
+- `app/lib/providers/messages_provider.dart` - Updated archiveMessage, unarchiveMessage, and deleteMessage methods
+
+**Verification:**
+- Flutter analyze passes with no new errors (only pre-existing warnings)
+- iOS build succeeds
+- Archive/unarchive/delete operations now work for both unified and legacy messages
+
+**Learnings for Future Iterations:**
+- When the app merges data from multiple collections, all CRUD operations must handle both collections
+- Use `.get()` to check document existence before `.update()` to avoid "not found" errors
+- The MCP server writes to both collections for backwards compatibility, but the Flutter app reads from both
