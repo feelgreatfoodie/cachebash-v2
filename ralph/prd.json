@@ -86,8 +86,8 @@
       ],
       "technicalNotes": "The session model already has status, state, and lastUpdate fields - ensure the card widget displays them.",
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented: SessionCard widget displays status text (lines 69-79), last update timestamp (lines 97-119), and state via colored icons (lines 205-242). Data flows correctly from MCP updateStatus → Firestore → SessionModel → SessionCard."
     },
     {
       "id": "US-007",
@@ -199,6 +199,6 @@
   "metadata": {
     "createdAt": "2026-01-30T00:00:00Z",
     "totalStories": 14,
-    "completedStories": 5
+    "completedStories": 6
   }
 }

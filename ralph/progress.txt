@@ -179,3 +179,47 @@ Added archive folder functionality for messages, following the same pattern as a
 - Follow existing patterns in the codebase (archived_sessions_screen was a good template)
 - Reuse stream combining helpers when creating similar providers
 - AppBar actions use spread operator `...[` when conditionally showing multiple buttons
+
+### Iteration 6: 2026-01-31T00:30:00Z
+#### Story: [US-006] Session Cards Show Recent Updates
+
+**Analysis:**
+Reviewed the SessionCard widget and data flow to verify acceptance criteria implementation.
+
+**Findings - Already Implemented:**
+All acceptance criteria are met by the existing implementation:
+
+1. **Session card displays current status text** (lines 69-79 of session_card.dart)
+   - Displays `session.status` with proper styling
+   - Truncates to 2 lines with ellipsis overflow
+
+2. **Session card shows last update timestamp** (lines 97-119)
+   - Shows "Updated X ago" format using `_formatTime()` helper
+   - Handles minutes, hours, and days appropriately
+
+3. **Session card reflects state** (lines 205-242)
+   - `_buildStateIndicator()` shows colored icon based on `session.displayState`
+   - Working: green play icon
+   - Blocked: orange pause icon
+   - Pinned: blue pin icon
+   - Complete: grey check icon
+   - Inactive: orange clock icon (for stale sessions)
+   - Archived: grey archive icon
+
+**Data Flow Verified:**
+- MCP `updateStatus` tool writes: status, state, progress, lastUpdate, archived
+- SessionModel.fromFirestore reads all fields correctly
+- SessionCard displays all relevant fields
+
+**Files Changed:**
+None - story was already fully implemented
+
+**Verification:**
+- Flutter analyze passes (no new errors)
+- MCP server builds successfully
+- All acceptance criteria verified in existing code
+
+**Learnings for Future Iterations:**
+- Always verify if a story is already implemented before making changes
+- The SessionCard widget is well-designed and covers all session display needs
+- When technical notes say "ensure the card widget displays them" - verify first
