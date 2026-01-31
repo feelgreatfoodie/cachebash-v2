@@ -7,18 +7,28 @@
   },
   "quality": {
     "autoDetect": true,
+    "smartRecovery": true,
+    "maxFixAttempts": 3,
     "commands": {
-      "lint": null,
+      "lint": "cd app && flutter analyze",
       "typecheck": null,
       "test": null,
-      "build": null
+      "build": "cd mcp-server && npm run build"
     }
   },
   "iterations": {
-    "max": 30,
+    "max": 20,
     "delaySeconds": 2
   },
   "claude": {
-    "model": "opus"
+    "model": "sonnet"
+  },
+  "parallel": {
+    "enabled": false,
+    "maxConcurrent": 3
+  },
+  "cachebash": {
+    "enabled": true,
+    "pollIntervalSeconds": 30
   }
 }

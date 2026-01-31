@@ -1,0 +1,16 @@
+# Meeting Transcript / Feature Notes
+
+Replace this file with your meeting transcript or feature notes.
+Then run: claude /prd
+
+Example format:
+---
+Participant 1: We need to build a user login system.
+Participant 2: Should support email and password.
+Participant 1: Yes, and we'll add OAuth later.
+---
+
+Or just write bullet points:
+- User authentication with email/password
+- Registration form with validation
+- Password reset via email

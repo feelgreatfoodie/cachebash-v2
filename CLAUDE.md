@@ -390,10 +390,10 @@ cachebash/
 │   ├── ios/
 │   └── android/
 │
-└── ralph/                   # Ralph configuration
-    ├── prd.md
-    ├── ralph.config.json
-    └── progress.txt
+└── ralph/                   # Ralph autonomous execution
+    ├── ralph.config.json   # Configuration
+    ├── progress.txt        # Iteration log
+    └── transcript.txt      # Feature notes for PRD generation
 ```
 
 ## Tech Stack
