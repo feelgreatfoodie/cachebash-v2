@@ -1,0 +1,203 @@
+# CacheBash Learnings & Technical Notes
+
+This document captures key technical findings, gotchas, and architectural decisions discovered during development.
+
+---
+
+## iOS Build & Simulator
+
+### Apple Silicon Simulator Architecture (2026-01-30)
+
+**Problem:** iOS simulator builds fail with "App needs to be updated" on iOS 26.2 simulators.
+
+**Root Cause:** Podfile was excluding arm64 from simulator builds:
+```ruby
+config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+```
+
+This was a legacy workaround for Intel→Apple Silicon transition but breaks on modern simulators.
+
+**Fix:** Allow arm64 for simulators:
+```ruby
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+    target.build_configurations.each do |config|
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = ''
+      config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
+    end
+  end
+end
+```
+
+**Result:** App builds as universal binary (x86_64 + arm64), installs on iOS 26.2 simulators.
+
+---
+
+## Firestore
+
+### Composite Index Requirements
+
+**Problem:** Queries with multiple `where` clauses + `orderBy` fail with permission errors that are actually missing index errors.
+
+**Solution:** Add composite indexes for each query pattern. Key indexes for messages:
+
+```json
+{
+  "collectionGroup": "messages",
+  "fields": [
+    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "deletedAt", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" }
+  ]
+}
+```
+
+**Gotcha:** Firestore error messages are misleading - "permission-denied" often means "missing index".
+
+### Merging Legacy Collections
+
+**Problem:** After migrating from `/questions` to `/messages`, old data doesn't appear in new queries.
+
+**Solution:** Merge both collections in providers:
+```dart
+final activeMessagesProvider = StreamProvider<List<MessageModel>>((ref) {
+  // Stream new collection
+  return messagesStream.asyncMap((snapshot) async {
+    final messages = await _decryptMessages(snapshot.docs, encryptionService);
+    final messageIds = messages.map((m) => m.id).toSet();
+
+    // Fetch and merge legacy collection
+    final legacyDocs = await _firestore
+        .collection('users/${user.uid}/questions')
+        .where(...)
+        .get();
+
+    final legacyMessages = await Future.wait(
+      legacyDocs.docs
+          .where((doc) => !messageIds.contains(doc.id))  // Dedupe
+          .map((doc) => _decryptLegacyQuestion(doc, encryptionService)),
+    );
+    messages.addAll(legacyMessages);
+
+    return messages..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  });
+});
+```
+
+---
+
+## MCP Server
+
+### Dual-Write Pattern for Migration
+
+**Pattern:** When migrating to a new data model, write to both old and new collections:
+
+```typescript
+// Write to legacy collection (backward compat)
+const questionRef = await db.collection(`users/${userId}/questions`).add(data);
+
+// Also write to unified collection
+await db.collection(`users/${userId}/messages`).doc(questionRef.id).set({
+  ...data,
+  direction: 'to_user',  // New field
+});
+```
+
+**Benefits:**
+- Old clients continue working
+- New clients get unified view
+- Can remove dual-write once migration complete
+
+### Cloud Run PORT Configuration
+
+**Issue:** MCP server fails to start on Cloud Run with "failed to listen on PORT".
+
+**Cause:** Express server not binding to `process.env.PORT`.
+
+**Fix:** Ensure server listens on the right port:
+```typescript
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server listening on port ${PORT}`);
+});
+```
+
+---
+
+## Flutter / Riverpod
+
+### Parallel Decryption with Future.wait
+
+**Before (sequential, slow):**
+```dart
+if (options != null) {
+  final decrypted = <String>[];
+  for (final option in options) {
+    decrypted.add(await encryptionService.decrypt(option));
+  }
+  options = decrypted;
+}
+```
+
+**After (parallel, fast):**
+```dart
+options = options != null
+    ? await Future.wait(options.map((o) => encryptionService.decrypt(o)))
+    : null;
+```
+
+### LevelDB Lock Errors on macOS
+
+**Problem:** "Failed to open LevelDB database... Resource temporarily unavailable"
+
+**Cause:** Multiple Flutter instances trying to access same Firestore cache.
+
+**Fix:** Kill all Flutter processes and remove lock:
+```bash
+pkill -9 -f "flutter.*run"
+pkill -9 -f "CacheBash"
+rm -f ~/Library/Application\ Support/firestore/__FIRAPP_DEFAULT/cachebash-app/main/LOCK
+```
+
+---
+
+## Code Style Decisions
+
+### Message Direction Enum
+```dart
+enum MessageDirection {
+  toUser,    // Claude → User (questions)
+  toClaude,  // User → Claude (tasks)
+}
+```
+
+Using `toUser`/`toClaude` instead of `question`/`task` because:
+- Clearer semantic meaning
+- Extensible for future message types
+- Avoids confusion with "task" (overloaded term)
+
+### Status Values by Direction
+
+| Status | toUser (question) | toClaude (task) |
+|--------|-------------------|-----------------|
+| `pending` | Awaiting response | Awaiting Claude |
+| `in_progress` | - | Claude working |
+| `answered` | User responded | - |
+| `complete` | - | Claude finished |
+| `expired` | Timed out | - |
+| `cancelled` | Dismissed | User cancelled |
+
+---
+
+## Deployment Checklist
+
+1. **Firestore** - `firebase deploy --only firestore:rules,firestore:indexes`
+2. **Functions** - `firebase deploy --only functions` (if changed)
+3. **MCP Server** - `gcloud run deploy cachebash-mcp --source . --region us-central1`
+4. **iOS TestFlight** - `flutter build ipa` → Transporter
+5. **Android Internal** - `flutter build appbundle` → Play Console
+
+---
+
+*Last updated: 2026-01-30*
