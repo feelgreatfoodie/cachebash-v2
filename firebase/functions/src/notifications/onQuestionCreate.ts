@@ -56,12 +56,20 @@ export const onQuestionCreate = functions.firestore
         },
       };
 
+      // Query actual pending question count for badge
+      const pendingCountResult = await db
+        .collection(`users/${userId}/questions`)
+        .where("status", "==", "pending")
+        .count()
+        .get();
+      const badgeCount = pendingCountResult.data().count;
+
       const apns: admin.messaging.ApnsConfig = {
         payload: {
           aps: {
             alert: notification,
             sound: "default",
-            badge: 1,
+            badge: badgeCount,
           },
         },
         headers: {

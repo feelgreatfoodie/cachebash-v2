@@ -3,8 +3,16 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_app_badger/flutter_app_badger.dart';
 
 import 'logger_service.dart';
+
+/// Background message handler - must be top-level function
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Background messages are handled by the OS for display
+  // This handler is for any custom processing needed
+}
 
 const _tag = 'FcmService';
 
@@ -41,6 +49,16 @@ class FcmService {
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional) {
+      // Set foreground notification presentation options
+      await _messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      // Clear badge when app opens
+      await _clearBadge();
+
       await _setupToken();
       _setupTokenRefresh();
       _setupForegroundHandler();
@@ -160,4 +178,21 @@ class FcmService {
 
   /// Get current token
   String? get currentToken => _currentToken;
+
+  /// Clear app badge count
+  Future<void> _clearBadge() async {
+    try {
+      if (await FlutterAppBadger.isAppBadgeSupported()) {
+        await FlutterAppBadger.removeBadge();
+        Log.d(_tag, '_clearBadge: Badge cleared');
+      }
+    } catch (e) {
+      Log.w(_tag, '_clearBadge: Failed to clear badge - $e');
+    }
+  }
+
+  /// Public method to clear badge (call when app comes to foreground)
+  Future<void> clearBadge() async {
+    await _clearBadge();
+  }
 }

@@ -102,15 +102,27 @@ class SessionCard extends StatelessWidget {
               // Progress bar
               if (session.progress != null) ...[
                 const SizedBox(height: 12),
-                LinearProgressIndicator(
-                  value: session.progress! / 100,
-                  backgroundColor:
-                      Theme.of(context).colorScheme.surfaceContainerHighest,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${session.progress}%',
-                  style: Theme.of(context).textTheme.bodySmall,
+                Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: session.progress! / 100,
+                          minHeight: 6,
+                          backgroundColor:
+                              Theme.of(context).colorScheme.surfaceContainerHighest,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${session.progress}%',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                    ),
+                  ],
                 ),
               ],
 

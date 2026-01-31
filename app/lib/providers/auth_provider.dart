@@ -40,7 +40,13 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   }) async {
     state = const AsyncValue.loading();
     try {
-      await _authService.signInWithEmail(email: email, password: password);
+      final credential = await _authService.signInWithEmail(email: email, password: password);
+
+      // Sync API key across devices (downloads from Firestore if exists)
+      Log.d(_tag, 'signIn: Syncing API key...');
+      await _apiKeyService.syncApiKey(credential.user!.uid);
+      Log.d(_tag, 'signIn: API key synced');
+
       try {
         await FcmService.instance.onUserLogin();
       } catch (_) {

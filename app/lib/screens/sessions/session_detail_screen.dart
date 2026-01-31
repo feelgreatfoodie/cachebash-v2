@@ -125,14 +125,27 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
                         ),
                         const SizedBox(height: 8),
                         Container(
+                          width: double.infinity,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: Theme.of(context).colorScheme.surfaceContainerLow,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Text(
-                            session.status,
-                            style: Theme.of(context).textTheme.bodyLarge,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                session.status,
+                                style: Theme.of(context).textTheme.bodyLarge,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Updated ${_formatDateTime(session.lastUpdate)}',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -140,15 +153,27 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
 
                       // Progress
                       if (session.progress != null) ...[
+                        Text(
+                          'Progress',
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Progress',
-                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: session.progress! / 100,
+                                  minHeight: 8,
+                                  backgroundColor:
+                                      Theme.of(context).colorScheme.surfaceContainerHighest,
+                                ),
+                              ),
                             ),
+                            const SizedBox(width: 12),
                             Text(
                               '${session.progress}%',
                               style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -157,32 +182,8 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: session.progress! / 100,
-                            minHeight: 8,
-                            backgroundColor:
-                                Theme.of(context).colorScheme.surfaceContainerHighest,
-                          ),
-                        ),
                         const SizedBox(height: 24),
                       ],
-
-                      // Last update
-                      Text(
-                        'Last Updated',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _formatDateTime(session.lastUpdate),
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                      const SizedBox(height: 24),
 
                       // Info about messaging
                       Card(
@@ -281,7 +282,8 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
     IconData icon;
     String label;
 
-    switch (session.state) {
+    // Use displayState to account for staleness/archived status
+    switch (session.displayState) {
       case 'working':
         color = Colors.green;
         icon = Icons.play_circle;
@@ -301,6 +303,16 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
         color = Colors.grey;
         icon = Icons.check_circle;
         label = 'Complete';
+        break;
+      case 'inactive':
+        color = Colors.orange.shade300;
+        icon = Icons.access_time;
+        label = 'Inactive';
+        break;
+      case 'archived':
+        color = Colors.grey.shade400;
+        icon = Icons.archive;
+        label = 'Archived';
         break;
       default:
         color = Colors.grey;

@@ -50,11 +50,13 @@ class ApiKeyService {
     await _secureStorage.storeApiKey(apiKey);
     Log.d(_tag, 'createAndStoreApiKey: Local storage complete');
 
-    // Store hash in Firestore user document (use set with merge in case doc doesn't exist)
+    // Store hash AND plaintext in Firestore user document
+    // Plaintext is needed for cross-device sync (protected by Firestore rules)
     Log.d(_tag, 'createAndStoreApiKey: Writing to users/$userId...');
     try {
       await _firestore.doc('users/$userId').set({
         'apiKeyHash': keyHash,
+        'apiKey': apiKey, // Plaintext for cross-device sync
         'apiKeyUpdatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       Log.d(_tag, 'createAndStoreApiKey: User doc write complete');
@@ -93,6 +95,67 @@ class ApiKeyService {
     final has = await _secureStorage.hasApiKey();
     Log.d(_tag, 'hasApiKey: $has');
     return has;
+  }
+
+  /// Sync API key across devices
+  /// Checks local storage first, then Firestore, creates new if neither exists
+  Future<String> syncApiKey(String userId) async {
+    Log.d(_tag, 'syncApiKey: Starting for user $userId');
+
+    // 1. Check if we have a local key
+    final localKey = await _secureStorage.getApiKey();
+    if (localKey != null) {
+      Log.d(_tag, 'syncApiKey: Found local key, validating...');
+      // Validate it matches Firestore hash
+      final isValid = await validateApiKey(localKey, userId);
+      if (isValid) {
+        Log.i(_tag, 'syncApiKey: Local key is valid');
+        // Migration: ensure plaintext is in Firestore for cross-device sync
+        await _ensureKeyInFirestore(userId, localKey);
+        return localKey;
+      }
+      Log.w(_tag, 'syncApiKey: Local key is invalid, will fetch from Firestore');
+    }
+
+    // 2. Check Firestore for existing key
+    Log.d(_tag, 'syncApiKey: Checking Firestore for existing key...');
+    try {
+      final userDoc = await _firestore.doc('users/$userId').get();
+      final storedKey = userDoc.data()?['apiKey'] as String?;
+
+      if (storedKey != null && storedKey.isNotEmpty) {
+        Log.d(_tag, 'syncApiKey: Found key in Firestore, storing locally...');
+        await _secureStorage.storeApiKey(storedKey);
+        Log.i(_tag, 'syncApiKey: Synced key from Firestore');
+        return storedKey;
+      }
+    } catch (e, stack) {
+      Log.e(_tag, 'syncApiKey: Error fetching from Firestore', e, stack);
+      // Continue to create new key
+    }
+
+    // 3. No key exists anywhere, create new one
+    Log.d(_tag, 'syncApiKey: No existing key found, creating new...');
+    return await createAndStoreApiKey(userId);
+  }
+
+  /// Ensure the plaintext API key is stored in Firestore (migration helper)
+  Future<void> _ensureKeyInFirestore(String userId, String apiKey) async {
+    try {
+      final userDoc = await _firestore.doc('users/$userId').get();
+      final storedKey = userDoc.data()?['apiKey'] as String?;
+
+      if (storedKey == null || storedKey.isEmpty) {
+        Log.d(_tag, '_ensureKeyInFirestore: Uploading local key to Firestore...');
+        await _firestore.doc('users/$userId').set({
+          'apiKey': apiKey,
+        }, SetOptions(merge: true));
+        Log.i(_tag, '_ensureKeyInFirestore: Key uploaded for cross-device sync');
+      }
+    } catch (e) {
+      // Non-critical, just log
+      Log.w(_tag, '_ensureKeyInFirestore: Failed to upload key: $e');
+    }
   }
 
   /// Regenerate API key (invalidates old key)
