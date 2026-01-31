@@ -30,8 +30,8 @@
       ],
       "technicalNotes": "Replace any one-time fetches in the messages provider with Firestore stream listeners.",
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Refactored activeMessagesProvider to use stream-based merging. Both /messages and /questions collections now use Firestore .snapshots() listeners with combineLatest pattern."
     },
     {
       "id": "US-003",
@@ -199,6 +199,6 @@
   "metadata": {
     "createdAt": "2026-01-30T00:00:00Z",
     "totalStories": 14,
-    "completedStories": 1
+    "completedStories": 2
   }
 }
