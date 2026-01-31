@@ -62,17 +62,99 @@ When the user says "I'm going AFK" (or similar: "keep working", "brb", "going to
    ```
 3. **Summarize** - Tell user what you'll work on and what questions might arise
 
+### CRITICAL: All Requests Through CacheBash - NO EXCEPTIONS
+
+**While in AFK mode, there must be ZERO requests waiting in the terminal.** The user is away from their computer and cannot see or respond to terminal prompts.
+
+**EVERY request for input MUST go through CacheBash `ask_question`:**
+- Questions and clarifications
+- Bash command approvals (ask BEFORE running)
+- File edit approvals (ask BEFORE editing)
+- Architecture/implementation decisions
+- "What should I do next?" questions
+- ANY decision requiring user input
+
+**NEVER use these during AFK mode:**
+- Terminal prompts
+- AskUserQuestion tool
+- Any tool that waits for terminal input
+
+**The terminal should show only Claude's autonomous work output - never a prompt waiting for response.**
+
+### Ask-Before-Execute Protocol
+
+In AFK mode, **ask for approval BEFORE executing** any write operation. Do NOT rely on terminal permission prompts - the user won't see them.
+
+#### Bash Commands - Ask First
+
+**BEFORE running any bash command:**
+```typescript
+ask_question({
+  question: "Run command?\n\n```\nnpm run build\n```",
+  options: ["Yes, run it", "No, skip", "Modify command"],
+  priority: "high",  // high if blocking, normal otherwise
+  context: "Building project to test auth changes"
+})
+```
+
+Then poll `get_response` until answered:
+- **"Yes, run it"** → Execute the command
+- **"No, skip"** → Skip, continue with other work
+- **"Modify command"** → Ask follow-up for the modification
+
+#### File Edits - Ask First
+
+**BEFORE editing any file:**
+```typescript
+ask_question({
+  question: "Edit file?\n\nsrc/auth.ts (lines 45-52)\nChange: Add JWT validation to middleware",
+  options: ["Yes, edit", "No, skip", "Show diff first"],
+  priority: "normal",
+  context: "Implementing auth middleware"
+})
+```
+
+Then poll `get_response` until answered:
+- **"Yes, edit"** → Make the edit
+- **"No, skip"** → Skip this edit
+- **"Show diff first"** → Send the full diff in a follow-up question
+
+#### New Files - Ask First
+
+**BEFORE creating any new file:**
+```typescript
+ask_question({
+  question: "Create new file?\n\nsrc/utils/validate.ts\nPurpose: Validation helper functions",
+  options: ["Yes, create", "No, skip"],
+  priority: "normal",
+  context: "Adding input validation for auth forms"
+})
+```
+
+#### Destructive Operations - ALWAYS Ask
+
+**Git operations, deletions, config changes:**
+```typescript
+ask_question({
+  question: "Destructive operation:\n\ngit reset --hard HEAD~1\n\nThis will discard the last commit.",
+  options: ["Yes, proceed", "No, cancel"],
+  priority: "high",
+  context: "Rolling back broken commit"
+})
+```
+
 ### Decision Framework
 
-| Decide Autonomously | Ask via Mobile |
-|---------------------|----------------|
-| Following existing codebase patterns | Multiple valid approaches with tradeoffs |
-| Clear bug fixes | Unclear or ambiguous requirements |
-| Well-specified features | Changes to user-facing behavior |
-| Reversible changes | Adding new dependencies |
-| Previously approved approaches | Anything that feels "risky" |
+| Decide Autonomously (No Ask Needed) | Ask via Mobile First |
+|-------------------------------------|----------------------|
+| **Read-only:** Read, Glob, Grep, file exploration | **Write ops:** Edit, Write, Bash commands |
+| Following explicit user instructions exactly | Deviating from instructions |
+| Standard patterns already in codebase | New patterns or approaches |
+| Reversible, low-risk changes | Destructive or hard-to-undo changes |
+| Previously approved command patterns | Any new command type |
+| Internal status updates | Changes to user-facing behavior |
 
-**Rule of thumb:** If you'd normally ask the user, send it to mobile. Don't over-think.
+**Rule of thumb:** If it modifies files or runs commands, ask first. Read-only operations are always safe.
 
 ### Question Priority Guide
 
@@ -119,13 +201,48 @@ ask_question({
 - Before starting work that depends on a pending answer
 - **When idle or between tasks** (check for new tasks)
 
-### While Waiting
+### While Waiting for Approval
 
-- **Continue polling indefinitely** at the scheduled intervals (30s → 1min → 2min)
-- **Check for new tasks** via `get_pending_tasks` every 2 minutes - user may send work from their phone
-- If parallel work exists, do it while polling
-- After 30 min with no response, send ONE status reminder: "Still need: [question]"
-- **Don't spam.** One reminder max. Never stop polling unless user returns or explicitly cancels.
+When waiting for a command/edit approval:
+
+1. **Update status to blocked:**
+   ```typescript
+   update_status({ status: "Waiting: build approval", state: "blocked" })
+   ```
+
+2. **Continue polling** at scheduled intervals (30s → 1min → 2min)
+
+3. **Do parallel work** if available - any read-only work or previously-approved operations
+
+4. **Check for new tasks** via `get_pending_tasks` every 2 minutes
+
+5. **One reminder max** after 30 min: "Still need: [brief description]"
+
+6. **Never stop polling** unless user returns or explicitly cancels
+
+### Handling Approval Responses
+
+| Response | Action |
+|----------|--------|
+| "Yes" / Approve option | Execute the command/edit immediately |
+| "No" / Skip option | Don't execute, continue with other work |
+| "Modify" / "Show diff" | Send follow-up with details, re-ask |
+| Custom text response | Interpret the modification, adjust and re-ask if unclear |
+
+### Command/Edit Failure After Approval
+
+If an approved command fails:
+```typescript
+ask_question({
+  question: "Command failed:\n\n```\n[first 200 chars of error]\n```\n\nRetry or skip?",
+  options: ["Retry", "Skip", "Show full error"],
+  priority: "high",
+  context: "npm run build failed after approval"
+})
+```
+
+- **Max 3 retry attempts** for the same command
+- After 3 failures, **pin task** with full error log in context
 
 ### Error Handling in AFK Mode
 
