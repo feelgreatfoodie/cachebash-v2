@@ -277,16 +277,6 @@ class TasksScreen extends ConsumerWidget {
               ) ?? const SizedBox.shrink(),
           ],
         ),
-        floatingActionButton: selectionState.isSelecting
-            ? null
-            : FloatingActionButton.extended(
-                onPressed: () {
-                  HapticService.light();
-                  context.push('/tasks/new');
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('New Task'),
-              ),
         body: Column(
           children: [
             Expanded(
@@ -323,20 +313,11 @@ class TasksScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Create a task for Claude to work on',
+                              'Tasks created from Messages will appear here',
                               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                     color:
                                         Theme.of(context).colorScheme.onSurfaceVariant,
                                   ),
-                            ),
-                            const SizedBox(height: 24),
-                            FilledButton.icon(
-                              onPressed: () {
-                                HapticService.light();
-                                context.push('/tasks/new');
-                              },
-                              icon: const Icon(Icons.add),
-                              label: const Text('Create Task'),
                             ),
                           ],
                         ),
@@ -486,7 +467,7 @@ class TasksScreen extends ConsumerWidget {
                                 ),
                               )),
                         ],
-                        const SizedBox(height: 80), // Space for FAB
+                        const SizedBox(height: 16),
                       ],
                     );
                   },

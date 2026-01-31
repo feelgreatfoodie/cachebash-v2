@@ -349,3 +349,27 @@ This places the frequently-used Sessions tab next to the compose button, making 
 **Learnings for Future Iterations:**
 - When swapping nav items, both the widget order AND selection indices need to be updated
 - The MainShellWrapper uses simple index-based selection matching route prefixes
+
+### Iteration 10: 2026-01-31T04:00:00Z
+#### Story: [US-010] Remove New Task Button
+
+**Implementation:**
+Removed the "+ New Task" button from the tasks screen since task creation now happens through the unified compose message flow (`/messages/new`).
+
+**Changes:**
+1. Removed `FloatingActionButton.extended` from TasksScreen (was lines 280-289)
+2. Removed "Create Task" button from empty state
+3. Updated empty state text from "Create a task for Claude to work on" to "Tasks created from Messages will appear here"
+4. Reduced bottom padding from 80px (FAB space) to 16px
+
+**Files Changed:**
+- `app/lib/screens/tasks/tasks_screen.dart` - Removed FAB and empty state button
+
+**Verification:**
+- Flutter analyze passes with no issues
+- Task creation still works via `/messages/new` (compose message flow)
+- Tasks screen properly displays existing tasks
+
+**Learnings for Future Iterations:**
+- When removing a FAB, also remove the extra bottom padding that was allocated for it
+- Update empty state messaging to guide users to the correct flow
