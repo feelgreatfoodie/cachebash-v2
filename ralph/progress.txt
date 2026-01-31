@@ -276,3 +276,45 @@ Chose subcollection over array field because:
 - Subcollections are ideal for potentially unbounded lists in Firestore
 - StreamProvider.family allows parameterized providers (useful for ID-based queries)
 - Existing navigation routes can be reused - check before adding new ones
+
+### Iteration 8: 2026-01-31T02:00:00Z
+#### Story: [US-008] Add Project Identifier to Sessions
+
+**Implementation:**
+Added projectName field to sessions so users can identify which repo/project a session belongs to.
+
+1. **MCP Server Changes** - `mcp-server/src/tools/updateStatus.ts`
+   - Added `projectName` optional parameter to UpdateStatusArgs interface
+   - Only writes projectName to Firestore when provided (merge: true preserves existing value)
+   - Updated input schema in `index.ts` with projectName property
+
+2. **Flutter SessionModel** - `app/lib/models/session_model.dart`
+   - Added `projectName` nullable String field
+   - Updated fromFirestore factory to read projectName from Firestore
+
+3. **SessionCard Widget** - `app/lib/widgets/session_card.dart`
+   - Added project name row above the header when projectName is present
+   - Uses folder icon with subtle styling to match the card design
+   - Only renders when projectName is not null
+
+**Architecture Decision:**
+Made projectName optional and only set when provided. This allows:
+- Sessions to work without project info (backwards compatible)
+- projectName to be set once and persist across status updates (merge: true)
+- Future improvement: auto-detect from git remote or ralph.config.json
+
+**Files Changed:**
+- `mcp-server/src/tools/updateStatus.ts` - Added projectName parameter
+- `mcp-server/src/index.ts` - Added projectName to update_status schema
+- `app/lib/models/session_model.dart` - Added projectName field
+- `app/lib/widgets/session_card.dart` - Display projectName with folder icon
+
+**Verification:**
+- MCP server builds successfully (`npm run build`)
+- Flutter analyze passes with no new errors (only pre-existing warnings)
+- Project name can now be passed via update_status MCP tool
+
+**Learnings for Future Iterations:**
+- Use `Record<string, unknown>` type in TypeScript when building dynamic objects
+- Making fields optional and using merge: true allows data to persist across updates
+- Place new UI elements consistently - project info at the top of cards feels natural

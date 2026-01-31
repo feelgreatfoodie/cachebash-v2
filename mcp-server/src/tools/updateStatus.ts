@@ -6,6 +6,7 @@ interface UpdateStatusArgs {
   progress?: number;
   state?: "working" | "blocked" | "complete" | "pinned";
   sessionId?: string;
+  projectName?: string;
 }
 
 /**
@@ -21,7 +22,7 @@ export async function updateStatus(
   const sessionId = args.sessionId || `session_${Date.now()}`;
   const timestamp = serverTimestamp();
 
-  const sessionData = {
+  const sessionData: Record<string, unknown> = {
     name: args.status,
     status: args.status,
     state: args.state || "working",
@@ -29,6 +30,11 @@ export async function updateStatus(
     lastUpdate: timestamp,
     archived: false,
   };
+
+  // Only include projectName if provided (allows setting once and keeping it)
+  if (args.projectName) {
+    sessionData.projectName = args.projectName;
+  }
 
   // Update or create session document
   await db

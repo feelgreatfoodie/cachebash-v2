@@ -39,6 +39,7 @@ class SessionModel {
   final DateTime lastUpdate;
   final bool archived;
   final DateTime? archivedAt;
+  final String? projectName;
 
   /// Sessions are considered stale after this duration without updates
   static const staleDuration = Duration(minutes: 30);
@@ -52,6 +53,7 @@ class SessionModel {
     required this.lastUpdate,
     this.archived = false,
     this.archivedAt,
+    this.projectName,
   });
 
   factory SessionModel.fromFirestore(DocumentSnapshot doc) {
@@ -66,6 +68,7 @@ class SessionModel {
           (data?['lastUpdate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       archived: data?['archived'] ?? false,
       archivedAt: (data?['archivedAt'] as Timestamp?)?.toDate(),
+      projectName: data?['projectName'] as String?,
     );
   }
 

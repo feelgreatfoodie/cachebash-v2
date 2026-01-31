@@ -30,6 +30,27 @@ class SessionCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Project name row (if available)
+              if (session.projectName != null) ...[
+                Row(
+                  children: [
+                    Icon(
+                      Icons.folder_outlined,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      session.projectName!,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+              ],
+
               // Header row with state indicator
               Row(
                 children: [

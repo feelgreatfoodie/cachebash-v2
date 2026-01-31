@@ -147,6 +147,11 @@ async function main() {
                 type: "string",
                 description: "Optional session ID to update",
               },
+              projectName: {
+                type: "string",
+                description: "Project/repo name for this session (e.g., 'CacheBash')",
+                maxLength: 100,
+              },
             },
             required: ["status"],
           },
