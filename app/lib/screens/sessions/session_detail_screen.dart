@@ -75,7 +75,11 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             HapticService.light();
-            context.go('/home');
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/sessions');
+            }
           },
         ),
       ),

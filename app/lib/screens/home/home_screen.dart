@@ -183,7 +183,7 @@ class HomeScreen extends ConsumerWidget {
                                 session: entry.value,
                                 onTap: () {
                                   HapticService.light();
-                                  context.go('/sessions/${entry.value.id}');
+                                  context.push('/sessions/${entry.value.id}');
                                 },
                                 onArchive: () =>
                                     _archiveSession(context, ref, entry.value.id),
@@ -233,7 +233,7 @@ class HomeScreen extends ConsumerWidget {
                             showSwipeHint: sessions.indexOf(s) == 0,
                             onTap: () {
                               HapticService.light();
-                              context.go('/sessions/${s.id}');
+                              context.push('/sessions/${s.id}');
                             },
                             onArchive: () =>
                                 _archiveSession(context, ref, s.id),

@@ -107,7 +107,7 @@ class ArchivedSessionsScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             HapticService.light();
-            context.go('/home');
+            context.go('/sessions');
           },
         ),
       ),
@@ -165,7 +165,7 @@ class ArchivedSessionsScreen extends ConsumerWidget {
                         session: session,
                         onTap: () {
                           HapticService.light();
-                          context.go('/sessions/${session.id}');
+                          context.push('/sessions/${session.id}');
                         },
                         onUnarchive: () =>
                             _unarchiveSession(context, ref, session.id),

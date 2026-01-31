@@ -445,3 +445,55 @@ Widget build(BuildContext context) {
 - `FocusScope.of(context).unfocus()` is the standard way to dismiss keyboard in Flutter
 - Wrapping Scaffold with GestureDetector is cleaner than using `keyboardDismissBehavior` on ScrollViews
 - This pattern should be applied to all screens with text input for consistent UX
+
+### Iteration 13: 2026-01-31T07:00:00Z
+#### Story: [US-013] Fix Archived Sessions Back Navigation
+
+**Root Cause Analysis:**
+The archived sessions screen and session detail screen had inconsistent navigation behavior:
+
+1. `archived_sessions_screen.dart`: Back button used `context.go('/home')` instead of `/sessions`
+2. All session navigation used `context.go()` which replaces the route stack instead of pushing onto it
+3. `session_detail_screen.dart`: Back button always went to `/home` regardless of where user came from
+
+With go_router:
+- `go()` replaces the current route (no back history)
+- `push()` adds route to stack (back button works)
+- `pop()` removes top route (returns to previous screen)
+
+**Implementation:**
+1. **archived_sessions_screen.dart**:
+   - Changed back button from `context.go('/home')` to `context.go('/sessions')`
+   - Changed session card tap from `context.go()` to `context.push()` for proper back navigation
+
+2. **session_detail_screen.dart**:
+   - Changed back button to use `context.pop()` if navigation stack has entries
+   - Falls back to `context.go('/sessions')` if nothing to pop (direct URL access)
+
+3. **sessions_screen.dart**:
+   - Changed all 3 instances of `context.go('/sessions/${s.id}')` to `context.push()`
+
+4. **home_screen.dart**:
+   - Changed 2 instances of session navigation to use `context.push()`
+
+5. **search_screen.dart**:
+   - Changed session, question, and project navigation to use `context.push()`
+
+**Files Changed:**
+- `app/lib/screens/sessions/archived_sessions_screen.dart` - Back button and session tap navigation
+- `app/lib/screens/sessions/session_detail_screen.dart` - Smart back navigation with pop()
+- `app/lib/screens/sessions/sessions_screen.dart` - All session card navigation
+- `app/lib/screens/home/home_screen.dart` - Session card navigation
+- `app/lib/screens/search/search_screen.dart` - Search result navigation
+
+**Verification:**
+- Flutter analyze passes with no new errors (only pre-existing warnings)
+- iOS build succeeds
+- Back button from archived session now returns to sessions list
+- Navigation stack preserved for proper back button behavior
+
+**Learnings for Future Iterations:**
+- In go_router, use `push()` for detail/drill-down screens, `go()` for top-level navigation
+- Use `context.canPop()` to check if back navigation is possible before calling `pop()`
+- Consistent use of push/pop pattern throughout the app improves user experience
+- Lesson from US-011 (X button fix) applied here: modal/detail screens need `push()` not `go()`

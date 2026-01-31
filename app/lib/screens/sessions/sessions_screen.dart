@@ -309,7 +309,7 @@ class SessionsScreen extends ConsumerWidget {
                                     isSelected: selectionState.isSelected(s.id),
                                     onTap: () {
                                       HapticService.light();
-                                      context.go('/sessions/${s.id}');
+                                      context.push('/sessions/${s.id}');
                                     },
                                     onLongPress: () {
                                       if (!selectionState.isSelecting) {
@@ -347,7 +347,7 @@ class SessionsScreen extends ConsumerWidget {
                                     isSelected: selectionState.isSelected(s.id),
                                     onTap: () {
                                       HapticService.light();
-                                      context.go('/sessions/${s.id}');
+                                      context.push('/sessions/${s.id}');
                                     },
                                     onLongPress: () {
                                       if (!selectionState.isSelecting) {
@@ -385,7 +385,7 @@ class SessionsScreen extends ConsumerWidget {
                                     isSelected: selectionState.isSelected(s.id),
                                     onTap: () {
                                       HapticService.light();
-                                      context.go('/sessions/${s.id}');
+                                      context.push('/sessions/${s.id}');
                                     },
                                     onLongPress: () {
                                       if (!selectionState.isSelecting) {

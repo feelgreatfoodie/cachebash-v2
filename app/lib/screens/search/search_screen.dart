@@ -399,16 +399,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     HapticService.light();
     switch (result.type) {
       case 'question':
-        context.go('/questions/${result.id}');
+        context.push('/questions/${result.id}');
         break;
       case 'task':
         context.go('/tasks');
         break;
       case 'session':
-        context.go('/sessions/${result.id}');
+        context.push('/sessions/${result.id}');
         break;
       case 'project':
-        context.go('/projects/${result.id}');
+        context.push('/projects/${result.id}');
         break;
     }
   }
