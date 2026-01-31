@@ -653,4 +653,47 @@ flutter build appbundle  # Build for Android
 
 ---
 
+## Sprint Completion Checklist
+
+Before finishing a sprint or major feature, complete these steps:
+
+### 1. Check Work
+- Run `flutter analyze` to catch any issues
+- Verify the feature works end-to-end (test on device/simulator)
+- Review git diff to ensure no debug code or TODOs left behind
+
+### 2. Simplify Code
+- Use `/code-simplifier` skill on modified files
+- Remove dead code and unused variables
+- Extract repeated logic into helper functions
+- Replace verbose patterns with concise alternatives (e.g., `Future.wait` for parallel ops)
+- Ensure no over-engineering or premature abstractions
+
+### 3. Update Documentation
+- **CLAUDE.md**: Update schema, architecture, or workflow changes
+- **LEARNINGS.md**: Document gotchas, fixes, and technical findings
+- **Code comments**: Only where logic isn't self-evident (avoid obvious comments)
+
+### 4. Commit & Deploy
+- Write clear commit message summarizing changes
+- Push to GitHub
+- Deploy affected services:
+  - `firebase deploy --only firestore:rules,firestore:indexes`
+  - `firebase deploy --only functions` (if changed)
+  - MCP server (if changed)
+
+### Quick Commands
+```bash
+# Analyze Flutter code
+cd app && flutter analyze
+
+# Deploy Firestore
+cd firebase && firebase deploy --only firestore:rules,firestore:indexes
+
+# Build MCP server
+cd mcp-server && npm run build
+```
+
+---
+
 *Created: 2026-01-23*
