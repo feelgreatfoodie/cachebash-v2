@@ -109,17 +109,52 @@ await db.collection(`users/${userId}/messages`).doc(questionRef.id).set({
 - New clients get unified view
 - Can remove dual-write once migration complete
 
-### Cloud Run PORT Configuration
+### Cloud Run HTTP Transport (2026-01-30)
 
-**Issue:** MCP server fails to start on Cloud Run with "failed to listen on PORT".
+**Issue:** MCP server used `StdioServerTransport` (stdin/stdout) which doesn't work on Cloud Run.
 
-**Cause:** Express server not binding to `process.env.PORT`.
+**Solution:** Use `StreamableHTTPServerTransport` from the MCP SDK:
 
-**Fix:** Ensure server listens on the right port:
 ```typescript
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server listening on port ${PORT}`);
+import http from "http";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+
+const transport = new StreamableHTTPServerTransport({
+  sessionIdGenerator: () => randomUUID(),
+});
+
+await server.connect(transport);
+
+const httpServer = http.createServer(async (req, res) => {
+  if (req.url?.startsWith("/v1/mcp")) {
+    await transport.handleRequest(req, res);
+  }
+});
+
+httpServer.listen(process.env.PORT || 8080);
+```
+
+**Key points:**
+- SDK's `StreamableHTTPServerTransport` handles MCP protocol over HTTP
+- Requires `@hono/node-server` (transitive dep from SDK)
+- Auth via `Authorization: Bearer` header, stored per-session
+- Claude Code connects with `--transport http` flag
+
+### Per-Request Authentication
+
+**Pattern:** Store auth context per session ID for tool calls:
+
+```typescript
+const sessionAuthContexts = new Map<string, AuthContext>();
+
+// On request, validate API key and store for session
+const sessionId = req.headers["mcp-session-id"];
+sessionAuthContexts.set(sessionId, authContext);
+
+// In tool handler, retrieve auth context
+server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+  const authContext = sessionAuthContexts.get(extra?.sessionId);
+  // Use authContext for Firestore operations
 });
 ```
 

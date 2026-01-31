@@ -264,7 +264,7 @@ To enable CacheBash MCP tools in Claude Code:
 ### 2. Add MCP Server to Claude Code
 ```bash
 claude mcp add --transport http cachebash \
-  "https://cachebash-mcp-94772408270.us-central1.run.app/v1/messages" \
+  "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp" \
   --header "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -287,12 +287,12 @@ If MCP tools aren't working, use these steps to diagnose:
 
 ### Quick Health Check
 ```bash
-curl -s https://cachebash-mcp-94772408270.us-central1.run.app/v1/health
+curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/health
 ```
 
 ### Auth Diagnostic
 ```bash
-curl -s https://cachebash-mcp-94772408270.us-central1.run.app/v1/debug/auth \
+curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/debug/auth \
   -H "Authorization: Bearer YOUR_API_KEY" | jq
 ```
 
@@ -341,9 +341,9 @@ CacheBash enables asynchronous communication between Claude Code sessions and us
 
 ```
 cachebash/
-├── mcp-server/              # MCP server for Claude Code
+├── mcp-server/              # MCP server for Claude Code (deployed to Cloud Run)
 │   ├── src/
-│   │   ├── index.ts        # Server entry point
+│   │   ├── index.ts        # HTTP server entry point
 │   │   ├── tools/          # MCP tool implementations
 │   │   │   ├── askQuestion.ts
 │   │   │   ├── getResponse.ts
@@ -351,9 +351,11 @@ cachebash/
 │   │   │   ├── pinTask.ts
 │   │   │   ├── getInterrupts.ts
 │   │   │   └── getTasks.ts
+│   │   ├── auth/           # API key validation
 │   │   ├── encryption/     # E2E encryption
 │   │   │   └── crypto.ts
 │   │   └── firebase/       # Firebase client
+│   ├── Dockerfile          # Cloud Run deployment
 │   ├── package.json
 │   └── tsconfig.json
 │
@@ -655,32 +657,31 @@ flutter build appbundle  # Build for Android
 
 ## Sprint Completion Checklist
 
-Before finishing a sprint or major feature, complete these steps:
+**IMPORTANT:** Complete ALL these steps BEFORE telling the user the sprint is finished. Do not announce completion until steps 1-3 are done.
 
 ### 1. Check Work
-- Run `flutter analyze` to catch any issues
+- Run `flutter analyze` (if Flutter code changed)
+- Run `npm run build` in mcp-server (if MCP code changed)
 - Verify the feature works end-to-end (test on device/simulator)
-- Review git diff to ensure no debug code or TODOs left behind
+- Review `git diff` to ensure no debug code, console.logs, or TODOs left behind
 
 ### 2. Simplify Code
 - Use `/code-simplifier` skill on modified files
-- Remove dead code and unused variables
-- Extract repeated logic into helper functions
-- Replace verbose patterns with concise alternatives (e.g., `Future.wait` for parallel ops)
-- Ensure no over-engineering or premature abstractions
+- Remove dead code and unused imports
+- Look for repeated patterns that could be extracted
+- Replace verbose code with concise alternatives
+- Remove over-engineering or premature abstractions
 
 ### 3. Update Documentation
-- **CLAUDE.md**: Update schema, architecture, or workflow changes
-- **LEARNINGS.md**: Document gotchas, fixes, and technical findings
-- **Code comments**: Only where logic isn't self-evident (avoid obvious comments)
+- **CLAUDE.md**: Update if schema, architecture, URLs, or workflows changed
+- **LEARNINGS.md**: Document any gotchas, fixes, or technical findings
+- **Code comments**: Only where logic isn't self-evident
 
 ### 4. Commit & Deploy
+- Stage specific files (avoid `git add -A`)
 - Write clear commit message summarizing changes
 - Push to GitHub
-- Deploy affected services:
-  - `firebase deploy --only firestore:rules,firestore:indexes`
-  - `firebase deploy --only functions` (if changed)
-  - MCP server (if changed)
+- Deploy affected services (see commands below)
 
 ### Quick Commands
 ```bash
@@ -692,6 +693,9 @@ cd firebase && firebase deploy --only firestore:rules,firestore:indexes
 
 # Build MCP server
 cd mcp-server && npm run build
+
+# Deploy MCP server to Cloud Run
+cd mcp-server && gcloud run deploy cachebash-mcp --source . --region us-central1 --allow-unauthenticated --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=cachebash-app" --project cachebash-app
 ```
 
 ---

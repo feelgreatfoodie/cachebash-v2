@@ -1,14 +1,19 @@
 #!/usr/bin/env node
 
+import http from "http";
+import { randomUUID } from "crypto";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
 import { initializeFirebase } from "./firebase/client.js";
-import { validateApiKey, getAuthContext } from "./auth/apiKeyValidator.js";
+import {
+  validateApiKey,
+  type AuthContext,
+} from "./auth/apiKeyValidator.js";
 import { askQuestion } from "./tools/askQuestion.js";
 import { getResponse } from "./tools/getResponse.js";
 import { updateStatus } from "./tools/updateStatus.js";
@@ -16,26 +21,36 @@ import { pinTask, resumeTask } from "./tools/pinTask.js";
 import { getInterrupts } from "./tools/getInterrupts.js";
 import { getPendingTasks, claimTask, completeTask } from "./tools/getTasks.js";
 
+// Store per-session auth context
+const sessionAuthContexts = new Map<string, AuthContext>();
+
+// Tool handlers mapped by name
+const toolHandlers: Record<string, (auth: AuthContext, args: any) => Promise<any>> = {
+  ask_question: askQuestion,
+  get_response: getResponse,
+  update_status: updateStatus,
+  pin_task: pinTask,
+  resume_task: resumeTask,
+  get_interrupts: getInterrupts,
+  get_pending_tasks: getPendingTasks,
+  claim_task: claimTask,
+  complete_task: completeTask,
+};
+
+// Helper to extract Bearer token from Authorization header
+function extractBearerToken(authHeader: string | undefined): string | null {
+  return authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+}
+
+// Helper to send JSON response
+function sendJson(res: http.ServerResponse, status: number, data: object): void {
+  res.writeHead(status, { "Content-Type": "application/json" });
+  res.end(JSON.stringify(data));
+}
+
 async function main() {
-  // Get API key from environment
-  const apiKey = process.env.CACHEBASH_API_KEY;
-
-  if (!apiKey) {
-    console.error("Error: CACHEBASH_API_KEY environment variable is required");
-    process.exit(1);
-  }
-
   // Initialize Firebase Admin SDK
   initializeFirebase();
-
-  // Validate API key and get user context
-  const authContext = await validateApiKey(apiKey);
-  if (!authContext) {
-    console.error("Error: Invalid API key");
-    process.exit(1);
-  }
-
-  console.error(`Authenticated as user: ${authContext.userId}`);
 
   // Create MCP server
   const server = new Server(
@@ -64,11 +79,13 @@ async function main() {
               question: {
                 type: "string",
                 description: "The question to ask the user",
+                maxLength: 2000,
               },
               options: {
                 type: "array",
-                items: { type: "string" },
+                items: { type: "string", maxLength: 100 },
                 description: "Optional multiple choice options",
+                maxItems: 5,
               },
               priority: {
                 type: "string",
@@ -79,6 +96,11 @@ async function main() {
               context: {
                 type: "string",
                 description: "Context about what you're working on",
+                maxLength: 500,
+              },
+              projectId: {
+                type: "string",
+                description: "Optional project ID to group questions",
               },
             },
             required: ["question"],
@@ -107,6 +129,7 @@ async function main() {
               status: {
                 type: "string",
                 description: "Status message to display",
+                maxLength: 200,
               },
               progress: {
                 type: "number",
@@ -119,6 +142,10 @@ async function main() {
                 enum: ["working", "blocked", "complete", "pinned"],
                 description: "Current state",
                 default: "working",
+              },
+              sessionId: {
+                type: "string",
+                description: "Optional session ID to update",
               },
             },
             required: ["status"],
@@ -142,6 +169,7 @@ async function main() {
               context: {
                 type: "string",
                 description: "Summary of current state to resume from",
+                maxLength: 2000,
               },
             },
             required: ["taskId", "questionId", "context"],
@@ -164,17 +192,18 @@ async function main() {
         {
           name: "get_interrupts",
           description:
-            "Check for interrupt messages sent from the mobile app to the current session. Use this to see if the user has sent you any messages.",
+            "Check for messages sent from the mobile app to the current session",
           inputSchema: {
             type: "object",
             properties: {
               sessionId: {
                 type: "string",
-                description: "The session ID to check for interrupts",
+                description: "ID of the session to check for interrupts",
               },
               markAsRead: {
                 type: "boolean",
-                description: "Whether to mark interrupts as read (default: true)",
+                description:
+                  "Whether to mark interrupts as read after retrieving",
                 default: true,
               },
             },
@@ -184,19 +213,21 @@ async function main() {
         {
           name: "get_pending_tasks",
           description:
-            "Get pending tasks created by the user in the mobile app. Use this to check if there's work waiting for you to pick up.",
+            "Get tasks created by the user in the mobile app for Claude to work on",
           inputSchema: {
             type: "object",
             properties: {
               status: {
                 type: "string",
                 enum: ["pending", "in_progress", "all"],
-                description: "Filter by task status (default: pending)",
+                description: "Filter by task status",
                 default: "pending",
               },
               limit: {
                 type: "number",
-                description: "Maximum number of tasks to return (default: 10)",
+                minimum: 1,
+                maximum: 50,
+                description: "Maximum number of tasks to return",
                 default: 10,
               },
             },
@@ -204,14 +235,13 @@ async function main() {
         },
         {
           name: "claim_task",
-          description:
-            "Claim a pending task to start working on it. This marks the task as in_progress.",
+          description: "Claim a pending task to start working on it",
           inputSchema: {
             type: "object",
             properties: {
               taskId: {
                 type: "string",
-                description: "The ID of the task to claim",
+                description: "ID of the task to claim",
               },
               sessionId: {
                 type: "string",
@@ -223,13 +253,13 @@ async function main() {
         },
         {
           name: "complete_task",
-          description: "Mark a task as complete when you've finished working on it.",
+          description: "Mark a task as complete when finished",
           inputSchema: {
             type: "object",
             properties: {
               taskId: {
                 type: "string",
-                description: "The ID of the task to mark as complete",
+                description: "ID of the task to complete",
               },
             },
             required: ["taskId"],
@@ -240,49 +270,131 @@ async function main() {
   });
 
   // Handle tool calls
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const { name, arguments: args } = request.params;
+    const authContext = extra?.sessionId
+      ? sessionAuthContexts.get(extra.sessionId)
+      : null;
+
+    if (!authContext) {
+      return {
+        content: [{ type: "text", text: "Error: Not authenticated. Please ensure Authorization header is set." }],
+        isError: true,
+      };
+    }
+
+    const handler = toolHandlers[name];
+    if (!handler) {
+      return {
+        content: [{ type: "text", text: `Unknown tool: ${name}` }],
+        isError: true,
+      };
+    }
 
     try {
-      switch (name) {
-        case "ask_question":
-          return await askQuestion(authContext, args as any);
-        case "get_response":
-          return await getResponse(authContext, args as any);
-        case "update_status":
-          return await updateStatus(authContext, args as any);
-        case "pin_task":
-          return await pinTask(authContext, args as any);
-        case "resume_task":
-          return await resumeTask(authContext, args as any);
-        case "get_interrupts":
-          return await getInterrupts(authContext, args as any);
-        case "get_pending_tasks":
-          return await getPendingTasks(authContext, args as any);
-        case "claim_task":
-          return await claimTask(authContext, args as any);
-        case "complete_task":
-          return await completeTask(authContext, args as any);
-        default:
-          return {
-            content: [{ type: "text", text: `Unknown tool: ${name}` }],
-            isError: true,
-          };
-      }
+      return await handler(authContext, args);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
       return {
-        content: [{ type: "text", text: `Error: ${message}` }],
+        content: [{ type: "text", text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
         isError: true,
       };
     }
   });
 
-  // Start server with stdio transport
-  const transport = new StdioServerTransport();
+  // Create HTTP transport for Cloud Run
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => randomUUID(),
+  });
+
+  // Connect server to transport
   await server.connect(transport);
 
-  console.error("CacheBash MCP server running");
+  // Create HTTP server
+  const httpServer = http.createServer(async (req, res) => {
+    // CORS headers for all requests
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, Mcp-Session-Id"
+    );
+
+    // Handle preflight
+    if (req.method === "OPTIONS") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    // Health check endpoint (required by Cloud Run)
+    if (req.url === "/v1/health" || req.url === "/health") {
+      return sendJson(res, 200, { status: "ok", version: "1.0.0" });
+    }
+
+    // Debug auth endpoint
+    if (req.url === "/v1/debug/auth") {
+      const apiKey = extractBearerToken(req.headers.authorization);
+      if (!apiKey) {
+        return sendJson(res, 401, { error: "Missing Authorization header", hint: "Use: Authorization: Bearer YOUR_API_KEY" });
+      }
+      try {
+        const authContext = await validateApiKey(apiKey);
+        if (authContext) {
+          return sendJson(res, 200, { success: true, userId: authContext.userId, message: "API key is valid" });
+        }
+        return sendJson(res, 401, { success: false, error: "Invalid API key", hint: "Regenerate key in app and update claude mcp add command" });
+      } catch (error) {
+        return sendJson(res, 500, { success: false, error: error instanceof Error ? error.message : "Unknown error" });
+      }
+    }
+
+    // MCP endpoints - require authentication
+    if (req.url?.startsWith("/v1/mcp") || req.url?.startsWith("/mcp")) {
+      const apiKey = extractBearerToken(req.headers.authorization) ?? process.env.CACHEBASH_API_KEY;
+      if (!apiKey) {
+        return sendJson(res, 401, { error: "Missing API key", hint: "Set Authorization: Bearer YOUR_API_KEY header" });
+      }
+
+      const authContext = await validateApiKey(apiKey);
+      if (!authContext) {
+        return sendJson(res, 401, { error: "Invalid API key", hint: "Regenerate key in app and update claude mcp add command" });
+      }
+
+      // Store auth context for this session
+      const sessionId = req.headers["mcp-session-id"] as string | undefined;
+      if (sessionId) {
+        sessionAuthContexts.set(sessionId, authContext);
+      }
+
+      try {
+        await transport.handleRequest(req, res);
+      } catch (error) {
+        console.error("MCP transport error:", error);
+        if (!res.headersSent) {
+          sendJson(res, 500, { error: "Internal server error" });
+        }
+      }
+      return;
+    }
+
+    // 404 for unknown routes
+    sendJson(res, 404, { error: "Not found", hint: "MCP endpoint is at /v1/mcp" });
+  });
+
+  // Start listening
+  const PORT = parseInt(process.env.PORT || "8080", 10);
+  httpServer.listen(PORT, () => {
+    console.log(`CacheBash MCP server listening on port ${PORT}`);
+  });
+
+  // Handle graceful shutdown
+  process.on("SIGTERM", () => {
+    console.log("SIGTERM received, shutting down...");
+    httpServer.close(() => {
+      console.log("HTTP server closed");
+      process.exit(0);
+    });
+  });
 }
 
 main().catch((error) => {
