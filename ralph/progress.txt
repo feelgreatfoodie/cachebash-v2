@@ -402,3 +402,46 @@ Changed the compose button in MainShellWrapper from `context.go('/messages/new')
 - In go_router, use `push()` when you need a "back" button to work; use `go()` for top-level navigation changes
 - For modal/overlay screens like compose, always use `push()` so `pop()` works correctly
 - The messages_screen.dart FAB already used `push()` - this was just the compose button in bottom nav that was wrong
+
+### Iteration 12: 2026-01-31T06:00:00Z
+#### Story: [US-012] Add Keyboard Dismiss Behavior
+
+**Implementation:**
+Added keyboard dismiss behavior to all screens with text input fields. Tapping outside the keyboard now dismisses it.
+
+**Approach:**
+Wrapped each screen's Scaffold with a GestureDetector that calls `FocusScope.of(context).unfocus()` on tap. This is the standard Flutter pattern for dismissing the keyboard when tapping outside input fields.
+
+**Files Changed:**
+- `app/lib/screens/messages/create_message_screen.dart` - Added GestureDetector wrapper
+- `app/lib/screens/search/search_screen.dart` - Added GestureDetector wrapper
+- `app/lib/screens/questions/question_detail_screen.dart` - Added GestureDetector wrapper
+- `app/lib/screens/auth/login_screen.dart` - Added GestureDetector wrapper
+- `app/lib/screens/auth/register_screen.dart` - Added GestureDetector wrapper
+- `app/lib/screens/settings/profile_screen.dart` - Added GestureDetector wrapper
+- `app/lib/screens/settings/change_password_screen.dart` - Added GestureDetector wrapper
+
+**Pattern Used:**
+```dart
+void _dismissKeyboard() {
+  FocusScope.of(context).unfocus();
+}
+
+@override
+Widget build(BuildContext context) {
+  return GestureDetector(
+    onTap: _dismissKeyboard,
+    child: Scaffold(...),
+  );
+}
+```
+
+**Verification:**
+- Flutter analyze passes with no new errors
+- iOS build succeeds
+- Tapping outside text fields now dismisses the keyboard
+
+**Learnings for Future Iterations:**
+- `FocusScope.of(context).unfocus()` is the standard way to dismiss keyboard in Flutter
+- Wrapping Scaffold with GestureDetector is cleaner than using `keyboardDismissBehavior` on ScrollViews
+- This pattern should be applied to all screens with text input for consistent UX

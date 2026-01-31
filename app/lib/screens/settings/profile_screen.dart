@@ -74,14 +74,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
     final email = user?.email ?? 'No email';
     final initials = _getInitials(user?.displayName ?? '', email);
 
-    return Scaffold(
-      appBar: AppBar(
+    return GestureDetector(
+      onTap: _dismissKeyboard,
+      child: Scaffold(
+        appBar: AppBar(
         title: const Text('Edit Profile'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -242,6 +248,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

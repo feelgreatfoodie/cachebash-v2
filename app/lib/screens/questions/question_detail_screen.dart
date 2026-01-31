@@ -69,12 +69,18 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
     }
   }
 
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     final questionAsync = ref.watch(questionProvider(widget.questionId));
 
-    return Scaffold(
-      appBar: AppBar(
+    return GestureDetector(
+      onTap: _dismissKeyboard,
+      child: Scaffold(
+        appBar: AppBar(
         title: const Text('Question'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -316,6 +322,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
             ),
           );
         },
+      ),
       ),
     );
   }

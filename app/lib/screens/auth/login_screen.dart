@@ -41,13 +41,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authNotifierProvider);
     final isLoading = authState.isLoading;
 
-    return Scaffold(
-      body: SafeArea(
+    return GestureDetector(
+      onTap: _dismissKeyboard,
+      child: Scaffold(
+        body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -187,6 +193,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

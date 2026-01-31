@@ -75,17 +75,23 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
     }
   }
 
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Change Password'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/settings'),
+    return GestureDetector(
+      onTap: _dismissKeyboard,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Change Password'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/settings'),
+          ),
         ),
-      ),
-      body: Form(
+        body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -242,6 +248,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

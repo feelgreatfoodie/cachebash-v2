@@ -33,13 +33,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     super.dispose();
   }
 
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     final searchState = ref.watch(searchProvider);
     final groupedResults = ref.watch(groupedSearchResultsProvider);
 
-    return Scaffold(
-      appBar: AppBar(
+    return GestureDetector(
+      onTap: _dismissKeyboard,
+      child: Scaffold(
+        appBar: AppBar(
         title: const Text('Search'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -199,6 +205,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             : _buildResultsList(context, groupedResults),
           ),
         ],
+      ),
       ),
     );
   }

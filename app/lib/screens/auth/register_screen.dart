@@ -41,13 +41,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authNotifierProvider);
     final isLoading = authState.isLoading;
 
-    return Scaffold(
-      appBar: AppBar(
+    return GestureDetector(
+      onTap: _dismissKeyboard,
+      child: Scaffold(
+        appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/login'),
@@ -216,6 +222,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

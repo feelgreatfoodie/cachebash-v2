@@ -90,32 +90,38 @@ class _CreateMessageScreenState extends ConsumerState<CreateMessageScreen> {
     }
   }
 
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Message Claude'),
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () {
-            HapticService.light();
-            context.pop();
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: _isSubmitting ? null : _submitTask,
-            child: _isSubmitting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Send'),
+    return GestureDetector(
+      onTap: _dismissKeyboard,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Message Claude'),
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () {
+              HapticService.light();
+              context.pop();
+            },
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
+          actions: [
+            TextButton(
+              onPressed: _isSubmitting ? null : _submitTask,
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Send'),
+            ),
+          ],
+        ),
+        body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -227,6 +233,7 @@ class _CreateMessageScreenState extends ConsumerState<CreateMessageScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
