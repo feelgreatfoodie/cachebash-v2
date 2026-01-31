@@ -46,8 +46,10 @@ export const onMessageCreate = functions.firestore
         return;
       }
 
-      // Get message content (could be in 'content' or 'question' field)
-      const messageContent = message.content || message.question || "New message";
+      // Get message content for notification body
+      // Use 'preview' field (unencrypted) if available, otherwise fall back to content/question
+      // Note: content may be encrypted, so preview is preferred for readability
+      const messageContent = message.preview || message.content || message.question || "New message";
 
       // Build notification payload
       const notification: admin.messaging.Notification = {

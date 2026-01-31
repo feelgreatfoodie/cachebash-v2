@@ -531,6 +531,7 @@ Mark a task as complete when finished.
   - priority: 'low' | 'normal' | 'high'
   - status: 'pending' | 'answered' | 'expired'
   - context?: string (or encrypted)
+  - preview?: string                   # Plaintext preview for notifications (50 chars)
   - encrypted: boolean
   - createdAt: timestamp
   - response?: string (or encrypted)
@@ -561,6 +562,7 @@ Mark a task as complete when finished.
 /users/{userId}/messages/{messageId}  # UNIFIED INBOX
   - direction: 'to_user' | 'to_claude'
   - content: string                    # Question text OR task instructions
+  - preview?: string                   # Plaintext preview for notifications (50 chars)
   - title?: string                     # For toClaude messages
   - context?: string                   # What Claude is working on
   - options?: string[]                 # toUser: multiple choice

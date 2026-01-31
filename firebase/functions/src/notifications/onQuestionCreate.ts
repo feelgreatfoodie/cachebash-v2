@@ -39,9 +39,12 @@ export const onQuestionCreate = functions.firestore
       }
 
       // Build notification payload
+      // Use 'preview' field (unencrypted) if available, otherwise fall back to question
+      // Note: question field may be encrypted, so preview is preferred for readability
+      const questionText = question.preview || question.question || "New question";
       const notification: admin.messaging.Notification = {
         title: "Claude needs your input",
-        body: truncate(question.question, 100),
+        body: truncate(questionText, 100),
       };
 
       // Set priority based on question priority

@@ -23,6 +23,11 @@ export async function askQuestion(
   const db = getFirestore();
   const shouldEncrypt = args.encrypt !== false;
 
+  // Create plaintext preview for notification display (50 chars max)
+  const preview = args.question.length > 50
+    ? args.question.substring(0, 47) + "..."
+    : args.question;
+
   // Prepare base question data
   let questionData: Record<string, unknown> = {
     priority: args.priority || "normal",
@@ -30,6 +35,7 @@ export async function askQuestion(
     createdAt: serverTimestamp(),
     response: null,
     answeredAt: null,
+    preview, // Unencrypted preview for notifications
   };
 
   if (shouldEncrypt) {
@@ -68,7 +74,7 @@ export async function askQuestion(
   const messageData: Record<string, unknown> = {
     ...questionData,
     direction: "to_user",
-    content: questionData.question, // Map question -> content
+    content: questionData.question, // Map question -> content (encrypted if enabled)
     archived: false,
     deletedAt: null,
   };

@@ -1,9 +1,44 @@
-# Progress Log - cachebash
+# Progress Log - cachebash-improvements
 
-Started: Fri Jan 30 20:23:23 PST 2026
+Started: Thu Jan 30 2026
+Branch: ralph/cachebash-improvements
+
+## PRD Summary
+- Total Stories: 14
+- Priority 1 (Critical): 3 stories (notifications, real-time updates, sessions visibility)
+- Priority 2 (High): 5 stories (archive fixes, session cards, project identifier)
+- Priority 3 (Medium): 5 stories (UI polish, navigation fixes)
+- Priority 4 (Low): 1 story (help/feedback icon)
 
 ## Codebase Patterns
 <!-- Patterns discovered during implementation will be added here -->
 
 ## Iteration Log
-<!-- Each Ralph iteration will append its progress here -->
+
+### Iteration 1: 2026-01-30T23:00:00Z
+#### Story: [US-001] Fix Push Notifications
+
+**Root Cause Analysis:**
+The `onMessageCreate` Cloud Function was defined in the codebase but NOT deployed to Firebase. Only `onQuestionCreate` and `onUserCreate` were deployed. This meant notifications for the unified `/messages` collection were never triggered.
+
+**Implementation:**
+1. Deployed the missing `onMessageCreate` Cloud Function
+2. Added `preview` field to store unencrypted question preview (50 chars max) for notification body
+   - Without this, encrypted questions would show base64 gibberish in notifications
+3. Updated both `onMessageCreate` and `onQuestionCreate` to use the preview field
+4. Updated MCP server's `askQuestion` tool to include preview in both legacy and unified collections
+
+**Files Changed:**
+- `mcp-server/src/tools/askQuestion.ts` - Added preview field generation
+- `firebase/functions/src/notifications/onMessageCreate.ts` - Use preview for notification body
+- `firebase/functions/src/notifications/onQuestionCreate.ts` - Use preview for notification body
+
+**Deployments:**
+- Firebase Cloud Functions: `onMessageCreate` now deployed alongside existing functions
+- MCP Server: Redeployed to Cloud Run with preview field support
+
+**Learnings for Future Iterations:**
+- Always verify that Cloud Functions are actually deployed, not just defined in code
+- When encryption is enabled, notification content needs a separate plaintext preview
+- The MCP server writes to both `/questions` (legacy) and `/messages` (unified) collections
+- Firebase Functions v1 triggers use `functions.firestore.document().onCreate()`
