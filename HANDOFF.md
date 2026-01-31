@@ -1,12 +1,66 @@
 # CacheBash Session Handoff
 
-**Last Updated:** 2026-01-30
-**Status:** Full MCP integration working ✅
+**Last Updated:** 2026-01-31
+**Status:** All PRD items complete ✅ | Build 14 deployed to TestFlight
 **Branch:** `main`
 
 ---
 
-## CURRENT SESSION - MCP Protocol & Task Tools
+## PRD Status: COMPLETE
+
+All 14 user stories from `ralph/prd.md` are complete:
+
+| Priority | Stories | Status |
+|----------|---------|--------|
+| P1 Critical | US-001 Push Notifications, US-002 Real-Time Updates, US-003 Sessions on Home | ✅ |
+| P2 High | US-004 Archive Error, US-005 Archive Folder, US-006 Session Cards, US-007 Session History, US-008 Project Identifier | ✅ |
+| P3 Medium | US-009 Nav Icons, US-010 Remove Task Button, US-011 X Button, US-012 Keyboard Dismiss, US-013 Back Navigation | ✅ |
+| P4 Low | US-014 Help/Feedback | ✅ |
+
+---
+
+## CURRENT SESSION - Push Notification Hardening
+
+### What Was Done
+- Fixed FCM token registration race condition
+- Added app lifecycle observer to sync token on resume
+- Added token validation (min 100 chars)
+- Expanded Cloud Function token cleanup (4 error codes)
+- Deployed Firebase Functions
+- Built and uploaded iOS build 14 to TestFlight
+
+### Commits
+- `5a1205e` - Fix push notification reliability issues
+
+---
+
+## PREVIOUS SESSION - Fixed Task Retrieval Bug
+
+### Root Cause
+MCP config in `~/.claude.json` was pointing to old Cloud Run service URL.
+
+- **Old (wrong):** `cachebash-mcp-94772408270.us-central1.run.app/v1/messages`
+- **New (correct):** `cachebash-mcp-922749444863.us-central1.run.app/v1/mcp`
+
+### What Was Fixed
+1. Updated `~/.claude.json` MCP config with correct URL
+2. Updated `HANDOFF.md` - all URLs now point to correct service
+3. Updated `app/lib/screens/auth/api_key_screen.dart` - test connection URL
+4. Added `/v1/debug/messages` endpoint to MCP server for diagnostics
+
+### Verification
+```bash
+# Debug endpoint confirmed 10 pending tasks exist for the authenticated user
+curl -s '.../v1/debug/messages' -H 'Authorization: Bearer ...' | jq '.count'
+# Returns: 10
+```
+
+### Next Step
+**Restart Claude Code** - MCP servers are loaded at startup.
+
+---
+
+## PREVIOUS SESSION - MCP Protocol & Task Tools
 
 ### Context
 Fixed Claude Code MCP integration and added all 9 MCP tools with E2E encryption support.
@@ -71,7 +125,7 @@ The Cloud Run service was deployed in GCP project `cache-bash-app` but Firestore
 ### Verification Results
 
 ```
-$ curl -s https://cachebash-mcp-94772408270.us-central1.run.app/v1/debug/auth \
+$ curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/debug/auth \
   -H "Authorization: Bearer <key>" | jq
 {
   "keyProvided": true,
@@ -151,7 +205,7 @@ After restarting Claude Code with new API key:
 - TestFlight deployed
 
 ### Phase 2: Cloud-Hosted MCP Server - COMPLETE
-- Cloud Run deployment at `https://cachebash-mcp-94772408270.us-central1.run.app`
+- Cloud Run deployment at `https://cachebash-mcp-922749444863.us-central1.run.app`
 - SSE transport with Bearer token auth
 - All 17 stories complete
 - Projects feature with archive/delete
@@ -414,7 +468,7 @@ echo -n "YOUR_API_KEY" | shasum -a 256
 
 **Debug endpoint** (after deployment):
 ```bash
-curl -s https://cachebash-mcp-94772408270.us-central1.run.app/v1/debug/auth \
+curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/debug/auth \
   -H "Authorization: Bearer YOUR_API_KEY" | jq
 ```
 
@@ -440,14 +494,14 @@ echo -n "YOUR_API_KEY" | shasum -a 256
 
 ```bash
 # Health check (no auth)
-curl -s https://cachebash-mcp-94772408270.us-central1.run.app/v1/health
+curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/health
 
 # Auth diagnostic
-curl -s https://cachebash-mcp-94772408270.us-central1.run.app/v1/debug/auth \
+curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/debug/auth \
   -H "Authorization: Bearer YOUR_API_KEY" | jq
 
 # SSE connection test
-curl -s -m 5 https://cachebash-mcp-94772408270.us-central1.run.app/v1/sse \
+curl -s -m 5 https://cachebash-mcp-922749444863.us-central1.run.app/v1/sse \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Accept: text/event-stream"
 ```
