@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 
 import http from "http";
-import { randomUUID } from "crypto";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { CustomHTTPTransport } from "./transport/CustomHTTPTransport.js";
 
 import { initializeFirebase } from "./firebase/client.js";
 import {
@@ -63,6 +62,69 @@ function extractBearerToken(authHeader: string | undefined): string | null {
 function sendJson(res: http.ServerResponse, status: number, data: object): void {
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(data));
+}
+
+// Convert Node.js IncomingMessage to Web API Request
+async function nodeRequestToWebRequest(req: http.IncomingMessage): Promise<Request> {
+  // Check if socket is TLS
+  const protocol = (req.socket as any).encrypted ? 'https' : 'http';
+  const host = req.headers.host || 'localhost';
+  const url = `${protocol}://${host}${req.url}`;
+
+  // Collect body chunks
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.from(chunk));
+  }
+  const body = chunks.length > 0 ? Buffer.concat(chunks) : null;
+
+  // Convert headers
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value !== undefined) {
+      if (Array.isArray(value)) {
+        value.forEach(v => headers.append(key, v));
+      } else {
+        headers.append(key, value);
+      }
+    }
+  }
+
+  return new Request(url, {
+    method: req.method || 'GET',
+    headers,
+    body,
+  });
+}
+
+// Convert Web API Response to Node.js ServerResponse
+async function webResponseToNodeResponse(
+  webResponse: Response,
+  nodeResponse: http.ServerResponse
+): Promise<void> {
+  // Set status
+  nodeResponse.statusCode = webResponse.status;
+
+  // Set headers
+  webResponse.headers.forEach((value, key) => {
+    nodeResponse.setHeader(key, value);
+  });
+
+  // Send body
+  if (webResponse.body) {
+    const reader = webResponse.body.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        nodeResponse.write(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  nodeResponse.end();
 }
 
 async function main() {
@@ -350,9 +412,11 @@ async function main() {
     }
   });
 
-  // Create HTTP transport for Cloud Run
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => randomUUID(),
+  // Create custom HTTP transport with relaxed header validation
+  const transport = new CustomHTTPTransport({
+    sessionTimeout: SESSION_TIMEOUT_MS,
+    enableDnsRebindingProtection: false, // Disabled by default
+    strictAcceptHeader: false, // Lenient mode - allows Claude Code without Accept header
   });
 
   // Connect server to transport
@@ -449,26 +513,15 @@ async function main() {
         sessionAuthContexts.set(sessionId, authContext);
       }
 
-      // WORKAROUND: Claude Code v2.0.71+ doesn't send the required Accept header
-      // The MCP spec requires "Accept: application/json, text/event-stream" for POST requests
-      // but Claude Code's HTTP client has a bug where it doesn't send this header.
-      // See: https://github.com/anthropics/claude-code/issues/15523
-      //
-      // Hono's getRequestListener() reads from req.rawHeaders (array) directly, not req.headers (object).
-      // We must modify the rawHeaders array to inject the Accept header if missing.
-      // rawHeaders format: ['Header1', 'value1', 'Header2', 'value2', ...]
-      if (req.method === "POST" && Array.isArray(req.rawHeaders)) {
-        const hasAcceptHeader = req.rawHeaders.some((header, i) =>
-          i % 2 === 0 && header?.toLowerCase() === "accept"
-        );
-
-        if (!hasAcceptHeader) {
-          req.rawHeaders.push("Accept", "application/json, text/event-stream");
-        }
-      }
-
       try {
-        await transport.handleRequest(req, res);
+        // Convert Node.js request to Web API Request
+        const webRequest = await nodeRequestToWebRequest(req);
+
+        // Handle request with custom transport (passes auth context)
+        const webResponse = await transport.handleRequest(webRequest, authContext);
+
+        // Convert Web API Response to Node.js response
+        await webResponseToNodeResponse(webResponse, res);
       } catch (error) {
         console.error("MCP transport error:", error);
         if (!res.headersSent) {

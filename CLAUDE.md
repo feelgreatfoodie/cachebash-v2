@@ -445,6 +445,112 @@ echo -n "YOUR_API_KEY" | shasum -a 256
 
 ---
 
+## MCP Transport Architecture
+
+### Custom HTTP Transport
+
+The MCP server uses a **custom HTTP transport layer** (`CustomHTTPTransport`) instead of the SDK's default `StreamableHTTPServerTransport`. This was implemented to work around a bug in Claude Code v2.0.71+ where the required `Accept: application/json, text/event-stream` header is not sent.
+
+**Key Features:**
+
+1. **Relaxed Accept Header Validation** (Lenient Mode - Default)
+   - Accept header is OPTIONAL (allows Claude Code without the header)
+   - If present, must include `application/json` OR `text/event-stream`
+   - Logs when clients send proper headers (for monitoring compliance)
+   - Can be switched to strict mode via config: `strictAcceptHeader: true`
+
+2. **Firestore-Backed Session Storage**
+   - Sessions stored at: `users/{userId}/mcp_sessions/{sessionId}`
+   - Survives Cloud Run scaling to zero and instance restarts
+   - Works across multiple Cloud Run instances
+   - Automatic cleanup via Cloud Function (every 5 min, deletes sessions older than 30 min)
+
+3. **Security Features**
+   - DNS rebinding protection (opt-in, disabled by default)
+   - Content-Type validation for POST requests
+   - Standard security headers (X-Content-Type-Options, X-Frame-Options, etc.)
+   - API key authentication before session creation
+
+4. **Protocol Support**
+   - POST: JSON-RPC message processing (JSON responses only)
+   - GET: SKIPPED in v1 (SSE streaming deferred to future)
+   - DELETE: Session cleanup
+
+### Transport Files
+
+```
+mcp-server/src/transport/
+├── CustomHTTPTransport.ts    # Core transport implementing Transport interface
+├── SessionManager.ts          # Firestore session lifecycle management
+├── MessageParser.ts           # JSON-RPC parsing and validation
+├── ResponseBuilder.ts         # HTTP response construction
+└── types.ts                   # TypeScript interfaces
+
+mcp-server/src/security/
+└── dns-rebinding.ts           # Host/Origin validation (opt-in)
+
+firebase/functions/src/sessions/
+└── cleanupExpiredSessions.ts  # Cloud Function for session cleanup
+```
+
+### Session Lifecycle
+
+1. **Initialize Request** (no session)
+   - Client sends initialize request WITHOUT `Mcp-Session-Id` header
+   - Transport creates new session in Firestore
+   - Returns session ID in `Mcp-Session-Id` response header
+
+2. **Subsequent Requests** (with session)
+   - Client includes `Mcp-Session-Id` header from initialize response
+   - Transport validates session exists and hasn't expired (30 min)
+   - Updates `lastActivity` timestamp on each request
+
+3. **Session Expiry**
+   - Cloud Function runs every 5 minutes
+   - Deletes sessions where `lastActivity < now - 30 minutes`
+   - Client must re-initialize if session expired
+
+4. **Manual Cleanup**
+   - DELETE request with `Mcp-Session-Id` header deletes the session immediately
+
+### Configuration
+
+Transport config in `mcp-server/src/index.ts`:
+
+```typescript
+const transport = new CustomHTTPTransport({
+  sessionTimeout: 30 * 60 * 1000,        // 30 minutes
+  enableDnsRebindingProtection: false,   // Disabled by default
+  strictAcceptHeader: false,              // Lenient mode (allows Claude Code)
+});
+```
+
+### Troubleshooting Transport Issues
+
+**Logs to Check:**
+
+```bash
+# Cloud Run logs
+gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=cachebash-mcp" \
+  --limit 20 --project cachebash-app
+
+# Look for:
+# - "[CustomHTTPTransport] Client missing Accept header - lenient mode allows this"
+# - "[CustomHTTPTransport] Client sent proper Accept header - spec compliant"
+# - "[SessionManager] Created session {sessionId} for user {userId}"
+# - "[SessionManager] Cleaned up {count} expired sessions"
+```
+
+**Common Issues:**
+
+| Issue | Symptom | Fix |
+|-------|---------|-----|
+| Session expired | 32001 error "Session expired" | Client must re-initialize (send new initialize request) |
+| Missing session ID | 32600 error "Mcp-Session-Id header is required" | Include session ID from initialize response |
+| Initialize with session | 32600 error "Initialize request must not include Mcp-Session-Id" | Remove session ID header for initialize |
+
+---
+
 ## Project Overview
 
 CacheBash enables asynchronous communication between Claude Code sessions and users via push notifications. When Claude needs clarification, it sends a question to the user's phone. The user can respond from anywhere, and Claude continues working.
@@ -471,6 +577,14 @@ cachebash/
 ├── mcp-server/              # MCP server for Claude Code (deployed to Cloud Run)
 │   ├── src/
 │   │   ├── index.ts        # HTTP server entry point
+│   │   ├── transport/      # Custom HTTP transport layer
+│   │   │   ├── CustomHTTPTransport.ts  # Relaxed header validation
+│   │   │   ├── SessionManager.ts       # Firestore session storage
+│   │   │   ├── MessageParser.ts        # JSON-RPC parsing
+│   │   │   ├── ResponseBuilder.ts      # HTTP response helpers
+│   │   │   └── types.ts                # Transport interfaces
+│   │   ├── security/       # Security features
+│   │   │   └── dns-rebinding.ts        # DNS rebinding protection
 │   │   ├── tools/          # MCP tool implementations
 │   │   │   ├── askQuestion.ts
 │   │   │   ├── getResponse.ts

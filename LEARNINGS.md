@@ -312,3 +312,241 @@ Using `toUser`/`toClaude` instead of `question`/`task` because:
 ---
 
 *Last updated: 2026-02-01*
+
+---
+
+## MCP Transport & Claude Code Compatibility (2026-02-01)
+
+### Claude Code Accept Header Bug
+
+**Problem:** Claude Code v2.0.71+ doesn't send the required `Accept: application/json, text/event-stream` header on POST requests to MCP servers.
+
+**MCP Spec Requirement:** MCP specification requires POST requests to include this header to indicate the client accepts both JSON-RPC responses and SSE streaming.
+
+**Impact:** SDK's `StreamableHTTPServerTransport` validates headers at initialization and returns HTTP 406 "Not Acceptable" before any custom code runs.
+
+**Why rawHeaders Workaround Failed:**
+- Attempted to inject missing header into `req.rawHeaders` array
+- SDK's Hono server reads headers BEFORE our middleware executes
+- Header validation happens in SDK's internal code at line 363-365 of `webStandardStreamableHttp.js`
+
+**GitHub Issue:** Tracked as [#15523](https://github.com/anthropics/claude-code/issues/15523)
+
+### Custom HTTP Transport Solution
+
+**Approach:** Built custom HTTP transport layer that implements MCP SDK's `Transport` interface but with relaxed header validation.
+
+**Key Components:**
+
+1. **CustomHTTPTransport** (`mcp-server/src/transport/CustomHTTPTransport.ts`)
+   - Implements `Transport` interface from MCP SDK
+   - Handles HTTP → JSON-RPC translation
+   - **Lenient mode (default):** Accept header is optional
+   - **Strict mode (opt-in):** Requires full header (for future when Claude Code bug is fixed)
+
+2. **SessionManager** (`mcp-server/src/transport/SessionManager.ts`)
+   - **Critical:** Firestore-backed session storage (NOT in-memory)
+   - Cloud Run scales to zero → in-memory sessions would be lost
+   - Sessions stored at: `users/{userId}/mcp_sessions/{sessionId}`
+   - Cleanup via Cloud Function every 5 minutes (deletes sessions older than 30 min)
+
+3. **MessageParser** (`mcp-server/src/transport/MessageParser.ts`)
+   - JSON-RPC validation using SDK's `JSONRPCMessageSchema`
+   - Handles both single and batch messages
+   - Helper functions: `isInitializeRequest`, `isNotification`, `isRequest`, `isResponse`
+
+4. **ResponseBuilder** (`mcp-server/src/transport/ResponseBuilder.ts`)
+   - Standardized HTTP response construction
+   - JSON-RPC error formatting
+   - Security headers injection
+
+**Header Validation Strategy:**
+
+Three-tier approach:
+
+1. **Strict Mode** (opt-in via `strictAcceptHeader: true`):
+   - Requires both `application/json` AND `text/event-stream`
+   - Full MCP spec compliance
+
+2. **Lenient Mode** (default, `strictAcceptHeader: false`):
+   - Accept header is OPTIONAL (allows Claude Code)
+   - If present, must include at least one of: `application/json` OR `text/event-stream`
+   - Logs missing headers for monitoring
+
+3. **Feature Detection**:
+   - Logs when clients DO send proper headers
+   - Helps identify when to tighten validation in future
+
+**Benefits:**
+
+- ✅ Works with Claude Code's buggy client (no Accept header required)
+- ✅ Stays MCP spec compliant (validates JSON-RPC messages with SDK schemas)
+- ✅ Enterprise-grade (security headers, DNS rebinding protection, monitoring)
+- ✅ No changes to existing tools (drop-in transport replacement)
+- ✅ Scalable (Firestore session storage works across Cloud Run instances)
+
+**Deployment:**
+
+```bash
+# MCP Server
+cd mcp-server && gcloud run deploy cachebash-mcp \
+  --source . --region us-central1 \
+  --project cachebash-app
+
+# Session Cleanup Cloud Function
+cd firebase && firebase deploy --only functions:cleanupExpiredSessions \
+  --project cachebash-app
+```
+
+**Verification:**
+
+```bash
+# Health check
+curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/health
+
+# Test without Accept header (Claude Code scenario)
+curl -X POST "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{...}}'
+
+# Should return JSON response, NOT 406 Not Acceptable
+```
+
+**Future Enhancements:**
+
+- SSE streaming support (GET requests) - currently deferred to v2
+- WebSocket transport for bidirectional communication
+- Multi-region deployment for lower latency
+- JWT-based stateless session tokens
+
+### Node.js to Web API Request Conversion
+
+**Challenge:** MCP SDK uses Web API `Request` and `Response` types, but Cloud Run gives us Node.js `http.IncomingMessage` and `http.ServerResponse`.
+
+**Solution:** Helper functions to convert between Node.js and Web API types.
+
+**Gotchas:**
+
+1. **Body consumption:** Must fully consume Node.js request body before creating Web API Request
+2. **Headers conversion:** Node.js headers can be string | string[] | undefined
+3. **Socket encryption check:** `req.socket.encrypted` doesn't exist in types, use `(req.socket as any).encrypted`
+4. **Stream handling:** Web API Response.body is a ReadableStream, must use reader to pipe to Node.js response
+
+**Implementation:**
+
+```typescript
+async function nodeRequestToWebRequest(req: http.IncomingMessage): Promise<Request> {
+  // Collect body chunks
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.from(chunk));
+  }
+  const body = chunks.length > 0 ? Buffer.concat(chunks) : null;
+
+  // Convert headers
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value !== undefined) {
+      if (Array.isArray(value)) {
+        value.forEach(v => headers.append(key, v));
+      } else {
+        headers.append(key, value);
+      }
+    }
+  }
+
+  return new Request(url, { method: req.method, headers, body });
+}
+
+async function webResponseToNodeResponse(
+  webResponse: Response,
+  nodeResponse: http.ServerResponse
+): Promise<void> {
+  nodeResponse.statusCode = webResponse.status;
+  webResponse.headers.forEach((value, key) => {
+    nodeResponse.setHeader(key, value);
+  });
+
+  if (webResponse.body) {
+    const reader = webResponse.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      nodeResponse.write(value);
+    }
+  }
+  
+  nodeResponse.end();
+}
+```
+
+### Firestore Session Schema
+
+**Collection:** `users/{userId}/mcp_sessions/{sessionId}`
+
+**Fields:**
+- `sessionId`: string (hex random bytes)
+- `userId`: string (from auth context)
+- `authContext`: object (API key and userId)
+- `lastActivity`: number (timestamp in ms)
+- `protocolVersion`: string (optional, set after initialize)
+- `createdAt`: number (timestamp in ms)
+
+**Indexes:** Created automatically by Firestore
+- Single field index on `lastActivity` (for cleanup queries)
+
+**Cleanup Query:**
+
+```typescript
+const expiryThreshold = now - sessionTimeout;
+const expiredSnapshot = await sessionsRef
+  .where('lastActivity', '<', expiryThreshold)
+  .get();
+```
+
+**Why Firestore vs In-Memory:**
+
+Cloud Run characteristics:
+- Scales to zero when idle
+- Spins up new instances on demand
+- No guarantee of instance persistence
+- Multiple instances may serve requests concurrently
+
+In-memory sessions would:
+- ❌ Be lost when instance scales to zero
+- ❌ Not work across multiple instances
+- ❌ Cause session ID collisions
+
+Firestore sessions:
+- ✅ Persist across instance restarts
+- ✅ Work with multiple Cloud Run instances
+- ✅ Already encrypted at rest
+- ✅ Low latency (< 10ms reads/writes)
+
+### DNS Rebinding Protection
+
+**Feature:** Validates `Host` and `Origin` headers to prevent DNS rebinding attacks.
+
+**Implementation:** `mcp-server/src/security/dns-rebinding.ts`
+
+**Default:** DISABLED (to allow local development)
+
+**Enable via config:**
+
+```typescript
+const transport = new CustomHTTPTransport({
+  enableDnsRebindingProtection: true,
+  allowedOrigins: ['cachebash-mcp-922749444863.us-central1.run.app', 'localhost'],
+});
+```
+
+**Why disabled by default:**
+
+Cloud Run already provides protection:
+- HTTPS enforcement
+- Certificate validation
+- Origin validation at load balancer level
+
+Custom DNS rebinding check is opt-in for additional security layer.
+
