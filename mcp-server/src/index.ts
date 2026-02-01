@@ -449,6 +449,31 @@ async function main() {
         sessionAuthContexts.set(sessionId, authContext);
       }
 
+      // WORKAROUND: Claude Code v2.0.71+ doesn't send the required Accept header
+      // The MCP spec requires "Accept: application/json, text/event-stream" for POST requests
+      // but Claude Code's HTTP client has a bug where it doesn't send this header.
+      // See: https://github.com/anthropics/claude-code/issues/15523
+      //
+      // Hono's getRequestListener() reads from req.rawHeaders (array) directly, not req.headers (object).
+      // We must modify the rawHeaders array to inject the Accept header if missing.
+      // rawHeaders format: ['Header1', 'value1', 'Header2', 'value2', ...]
+      if (req.method === "POST" && Array.isArray(req.rawHeaders)) {
+        // Check if Accept header already exists (case-insensitive)
+        let hasAcceptHeader = false;
+        for (let i = 0; i < req.rawHeaders.length; i += 2) {
+          const headerName = req.rawHeaders[i];
+          if (headerName?.toLowerCase() === "accept") {
+            hasAcceptHeader = true;
+            break;
+          }
+        }
+
+        // If missing, append Accept header to rawHeaders array
+        if (!hasAcceptHeader) {
+          req.rawHeaders.push("Accept", "application/json, text/event-stream");
+        }
+      }
+
       try {
         await transport.handleRequest(req, res);
       } catch (error) {
