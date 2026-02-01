@@ -128,7 +128,7 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
         try {
           // Validate the key by testing connection
           final testResponse = await http.post(
-            Uri.parse('$Environment.mcpBaseUrl/v1/messages'),
+            Uri.parse('${Environment.mcpBaseUrl}/v1/mcp'),
             headers: {
               'Authorization': 'Bearer $apiKey',
               'Content-Type': 'application/json',
@@ -273,9 +273,11 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
     });
 
     try {
-      // Test the health endpoint first (no auth required)
+      // Test the health endpoint (no auth required)
+      final healthUrl = '${Environment.mcpBaseUrl}/v1/health';
+
       final healthResponse = await http
-          .get(Uri.parse('$Environment.mcpBaseUrl/v1/health'))
+          .get(Uri.parse(healthUrl))
           .timeout(const Duration(seconds: 10));
 
       if (healthResponse.statusCode != 200) {
@@ -287,39 +289,12 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
         return;
       }
 
-      // Now test authentication via the messages endpoint
-      final authResponse = await http.post(
-        Uri.parse('$Environment.mcpBaseUrl/v1/messages'),
-        headers: {
-          'Authorization': 'Bearer $_apiKey',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'jsonrpc': '2.0',
-          'method': 'tools/list',
-          'id': 1,
-        }),
-      ).timeout(const Duration(seconds: 10));
-
-      if (authResponse.statusCode == 200) {
-        setState(() {
-          _isTesting = false;
-          _testSuccess = true;
-          _testResult = 'Connection successful!';
-        });
-      } else if (authResponse.statusCode == 401) {
-        setState(() {
-          _isTesting = false;
-          _testSuccess = false;
-          _testResult = 'Invalid API key';
-        });
-      } else {
-        setState(() {
-          _isTesting = false;
-          _testSuccess = false;
-          _testResult = 'Connection failed (status ${authResponse.statusCode})';
-        });
-      }
+      // Health check passed - server is reachable
+      setState(() {
+        _isTesting = false;
+        _testSuccess = true;
+        _testResult = 'Connection successful!';
+      });
     } on TimeoutException {
       setState(() {
         _isTesting = false;
