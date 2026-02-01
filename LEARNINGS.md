@@ -550,3 +550,115 @@ Cloud Run already provides protection:
 
 Custom DNS rebinding check is opt-in for additional security layer.
 
+---
+
+## Flutter Notifications & Deep Linking (2026-02-01)
+
+### Android Notification Channels
+
+**Problem:** Notifications don't appear when app is closed on Android 8.0+.
+
+**Root Cause:** Android requires notification channels to be created before notifications can be displayed. Cloud Function was sending notifications to channel ID "questions" but the channel didn't exist.
+
+**Fix:** Create notification channel in `MainActivity.kt`:
+
+```kotlin
+private fun createNotificationChannels() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val channel = NotificationChannel(
+            "questions",
+            "Questions from Claude",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Notifications when Claude needs your input"
+            enableVibration(true)
+            setShowBadge(true)
+        }
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(channel)
+    }
+}
+```
+
+**When:** Call in `configureFlutterEngine()` override so it runs before Flutter initialization.
+
+### iOS Background Notifications
+
+**Problem:** Notifications don't appear when app is closed on iOS.
+
+**Root Cause:** Missing `UIBackgroundModes` in `Info.plist`.
+
+**Fix:** Add to `Info.plist`:
+
+```xml
+<key>UIBackgroundModes</key>
+<array>
+    <string>remote-notification</string>
+</array>
+```
+
+This enables the app to receive remote notifications while in background or terminated state.
+
+### Notification Tap Handling
+
+**Problem:** Tapping notifications doesn't navigate to the correct screen.
+
+**Root Cause:** Missing handlers for notification tap events.
+
+**Solution:** Implement both handlers in FCM service:
+
+1. **getInitialMessage** - App launched from terminated state:
+```dart
+final initialMessage = await _messaging.getInitialMessage();
+if (initialMessage != null) {
+  _handleNotificationTap(initialMessage);
+}
+```
+
+2. **onMessageOpenedApp** - App opened from background:
+```dart
+FirebaseMessaging.onMessageOpenedApp.listen((message) {
+  _handleNotificationTap(message);
+});
+```
+
+**Navigation:** Extract `messageId` or `questionId` from `message.data` and use GoRouter:
+
+```dart
+final messageId = message.data['messageId'] ?? message.data['questionId'];
+if (messageId?.isNotEmpty ?? false) {
+  router.go('/questions/$messageId');
+}
+```
+
+**Gotcha:** Router must be passed to FCM service during initialization. Move FCM init to app widget's `didChangeDependencies()` to access the router after it's created.
+
+### Session Interrupts → Messages Migration
+
+**Problem:** Session replies stored in `/sessions/{id}/interrupts` don't appear in unified messages inbox.
+
+**Solution:** Update `SessionsService.sendInterrupt()` to write to `/messages` collection:
+
+```dart
+await messageRef.set({
+  'direction': 'to_claude',
+  'content': message,
+  'title': 'Session reply',
+  'sessionId': sessionId,
+  'priority': 'high',
+  'status': 'pending',
+  'action': 'interrupt',
+  'createdAt': FieldValue.serverTimestamp(),
+  'archived': false,
+  'deletedAt': null,
+  'encrypted': false,
+});
+```
+
+**Migration:** Created Cloud Function `migrateInterruptsToMessages` to convert existing interrupts for users. Runs per-user via callable function.
+
+**Deployment:**
+```bash
+firebase deploy --only functions:migrateInterruptsToMessages
+```
+
