@@ -458,17 +458,10 @@ async function main() {
       // We must modify the rawHeaders array to inject the Accept header if missing.
       // rawHeaders format: ['Header1', 'value1', 'Header2', 'value2', ...]
       if (req.method === "POST" && Array.isArray(req.rawHeaders)) {
-        // Check if Accept header already exists (case-insensitive)
-        let hasAcceptHeader = false;
-        for (let i = 0; i < req.rawHeaders.length; i += 2) {
-          const headerName = req.rawHeaders[i];
-          if (headerName?.toLowerCase() === "accept") {
-            hasAcceptHeader = true;
-            break;
-          }
-        }
+        const hasAcceptHeader = req.rawHeaders.some((header, i) =>
+          i % 2 === 0 && header?.toLowerCase() === "accept"
+        );
 
-        // If missing, append Accept header to rawHeaders array
         if (!hasAcceptHeader) {
           req.rawHeaders.push("Accept", "application/json, text/event-stream");
         }
