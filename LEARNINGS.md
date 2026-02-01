@@ -295,10 +295,20 @@ Using `toUser`/`toClaude` instead of `question`/`task` because:
 
 1. **Firestore** - `firebase deploy --only firestore:rules,firestore:indexes`
 2. **Functions** - `firebase deploy --only functions` (if changed)
-3. **MCP Server** - `gcloud run deploy cachebash-mcp --source . --region us-central1`
+3. **MCP Server** (CRITICAL - must deploy after local changes):
+   ```bash
+   cd mcp-server && gcloud run deploy cachebash-mcp \
+     --source . \
+     --region us-central1 \
+     --allow-unauthenticated \
+     --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=cachebash-app" \
+     --project cachebash-app
+   ```
 4. **iOS TestFlight** - `flutter build ipa` → Transporter
 5. **Android Internal** - `flutter build appbundle` → Play Console
 
+**Important:** MCP server changes are LOCAL until deployed to Cloud Run. New Claude sessions will fail to connect if you commit fixes but forget to deploy.
+
 ---
 
-*Last updated: 2026-01-30*
+*Last updated: 2026-02-01*
