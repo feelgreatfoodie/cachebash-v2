@@ -1,6 +1,6 @@
 {
   "name": "cachebash-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server for CacheBash - Claude Code mobile companion",
   "main": "dist/index.js",
   "bin": {
