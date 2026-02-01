@@ -56,9 +56,7 @@ export class CustomHTTPTransport implements Transport {
    */
   async close(): Promise<void> {
     console.log('[CustomHTTPTransport] Transport closed');
-    if (this.onclose) {
-      this.onclose();
-    }
+    this.onclose?.();
   }
 
   /**
@@ -88,6 +86,13 @@ export class CustomHTTPTransport implements Transport {
       // Note: This is synchronous, but setProtocolVersion in SessionManager is async
       // We'll need to handle this carefully in handleRequest
     }
+  }
+
+  /**
+   * Extract error message from unknown error type
+   */
+  private getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   /**
@@ -125,8 +130,7 @@ export class CustomHTTPTransport implements Transport {
       }
     } catch (error) {
       console.error('[CustomHTTPTransport] Request handling error:', error);
-      const message = error instanceof Error ? error.message : String(error);
-      return this.createResponse(internalErrorResponse(message));
+      return this.createResponse(internalErrorResponse(this.getErrorMessage(error)));
     }
   }
 
@@ -319,8 +323,7 @@ export class CustomHTTPTransport implements Transport {
       }
     } catch (error) {
       console.error('[CustomHTTPTransport] Error processing messages:', error);
-      const message = error instanceof Error ? error.message : String(error);
-      return this.createResponse(internalErrorResponse(message));
+      return this.createResponse(internalErrorResponse(this.getErrorMessage(error)));
     }
   }
 
@@ -352,8 +355,7 @@ export class CustomHTTPTransport implements Transport {
       });
     } catch (error) {
       console.error('[CustomHTTPTransport] Error deleting session:', error);
-      const message = error instanceof Error ? error.message : String(error);
-      return this.createResponse(internalErrorResponse(message));
+      return this.createResponse(internalErrorResponse(this.getErrorMessage(error)));
     }
   }
 
