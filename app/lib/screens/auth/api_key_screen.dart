@@ -594,8 +594,8 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
 {
   "mcpServers": {
     "cachebash": {
+      "type": "http",
       "url": "${Environment.mcpBaseUrl}/v1/mcp",
-      "transport": "http",
       "headers": {
         "Authorization": "Bearer $apiKey"
       }
