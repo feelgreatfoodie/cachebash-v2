@@ -189,12 +189,11 @@ class QuestionsService {
     bool shouldEncrypt = encrypt && isQuestionEncrypted;
 
     if (shouldEncrypt) {
-      final encrypted = await _encryptionService.encrypt(response);
-      if (encrypted != null) {
-        finalResponse = encrypted;
+      try {
+        finalResponse = await _encryptionService.encrypt(response);
         _log('Response encrypted successfully');
-      } else {
-        _log('Encryption failed, storing unencrypted');
+      } catch (e) {
+        _log('Encryption failed, storing unencrypted: $e');
         shouldEncrypt = false;
       }
     }

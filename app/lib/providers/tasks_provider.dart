@@ -110,18 +110,14 @@ class TasksService {
     bool isEncrypted = false;
 
     if (encrypt) {
-      final encryptedTitle = await _encryptionService.encrypt(title);
-      final encryptedInstructions = await _encryptionService.encrypt(instructions);
-      final encryptedAction = await _encryptionService.encrypt(action.value);
-
-      if (encryptedTitle != null && encryptedInstructions != null && encryptedAction != null) {
-        finalTitle = encryptedTitle;
-        finalInstructions = encryptedInstructions;
-        finalAction = encryptedAction;
+      try {
+        finalTitle = await _encryptionService.encrypt(title);
+        finalInstructions = await _encryptionService.encrypt(instructions);
+        finalAction = await _encryptionService.encrypt(action.value);
         isEncrypted = true;
         _log('Task encrypted successfully');
-      } else {
-        _log('Encryption failed, storing unencrypted');
+      } catch (e) {
+        _log('Encryption failed, storing unencrypted: $e');
       }
     }
 

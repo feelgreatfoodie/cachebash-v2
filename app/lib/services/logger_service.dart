@@ -10,20 +10,26 @@ class Log {
   }
 
   static void i(String tag, String message) {
-    print('[$tag] INFO: $message');
+    if (kDebugMode) {
+      print('[$tag] INFO: $message');
+    }
   }
 
   static void w(String tag, String message) {
-    print('[$tag] WARN: $message');
+    if (kDebugMode) {
+      print('[$tag] WARN: $message');
+    }
   }
 
   static void e(String tag, String message, [Object? error, StackTrace? stack]) {
-    print('[$tag] ERROR: $message');
-    if (error != null) {
-      print('[$tag] Exception: $error');
-    }
-    if (stack != null && kDebugMode) {
-      print('[$tag] Stack: $stack');
+    if (kDebugMode) {
+      print('[$tag] ERROR: $message');
+      if (error != null) {
+        print('[$tag] Exception: $error');
+      }
+      if (stack != null) {
+        print('[$tag] Stack: $stack');
+      }
     }
   }
 }
