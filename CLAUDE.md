@@ -809,6 +809,9 @@ flutter build appbundle  # Build for Android
 ### 4. Commit & Deploy
 - Stage specific files (avoid `git add -A`)
 - Write clear commit message summarizing changes
+- **All commits authored by `feelgreatfoodie` (NEVER add co-author)**
+- Use `--author="feelgreatfoodie <feelgreatfoodie@users.noreply.github.com>"` flag
+- **NEVER use `Co-Authored-By:` in commit messages**
 - Push to GitHub
 - Deploy affected services (see commands below)
 
