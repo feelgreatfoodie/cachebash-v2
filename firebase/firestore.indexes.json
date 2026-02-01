@@ -140,6 +140,14 @@
       "collectionGroup": "messages",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "direction", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "deletedAt", "order": "ASCENDING" },
         { "fieldPath": "archived", "order": "ASCENDING" },
         { "fieldPath": "projectId", "order": "ASCENDING" },
