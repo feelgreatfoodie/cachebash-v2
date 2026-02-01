@@ -615,16 +615,17 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
   }
 
   String _getMcpConfigExample(String apiKey) {
-    return '''{
+    return """
+{
   "mcpServers": {
     "cachebash": {
-      "url": "$Environment.mcpBaseUrl/v1/sse",
-      "transport": "sse",
+      "url": "${Environment.mcpBaseUrl}/v1/mcp",
+      "transport": "http",
       "headers": {
         "Authorization": "Bearer $apiKey"
       }
     }
   }
-}''';
+}""";
   }
 }
