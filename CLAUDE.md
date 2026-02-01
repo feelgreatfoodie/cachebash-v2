@@ -46,6 +46,109 @@ Tasks have an `action` field that controls how/when Claude should handle them:
 
 ---
 
+## Active AFK Mode with Message Checking
+
+### Trigger Phrases
+When the user says any of these, enter active AFK mode:
+- "go afk"
+- "afk mode"
+- "enter afk mode"
+- "monitor for tasks"
+- "keep working"
+- "I'm going to lunch"
+- Or any variant indicating they're stepping away but want Claude to keep working
+
+### AFK Mode Behavior
+When triggered:
+
+1. **Prevent sleep:** Run `caffeinate -dims &` in background (keeps system awake during sprint)
+2. **Generate session ID:** `session_afk_[timestamp]`
+3. **Set status:** Call `update_status({ status: "AFK: Working on [task]", state: "working", sessionId })`
+4. **Check for existing work:** Call `get_pending_tasks()` immediately
+5. **Continue working:** Execute tasks normally, checking for messages at natural breakpoints
+
+### Check at Natural Breakpoints
+
+**During active work, check for CacheBash messages at these moments:**
+
+1. **After completing work items:**
+   - Finished editing a file
+   - Tests pass or fail
+   - Git commit completed
+   - Task from todo list finished
+
+2. **Before starting new work:**
+   - About to edit next file
+   - About to run next command
+   - Between todo list tasks
+
+3. **When waiting/blocked:**
+   - Waiting for long-running build/test
+   - Waiting for question response from mobile
+
+**What to check:**
+```typescript
+// At each breakpoint:
+1. get_interrupts({ sessionId, markAsRead: true })
+   → User messages like "How's it going?", "Stop", "Change approach"
+
+2. get_pending_tasks({ status: "pending" })
+   → New tasks from mobile (interrupt > parallel > queue > backlog)
+
+3. get_response({ questionId }) for any pending questions
+   → Escalating: 30s → 1min → 2min based on time waiting
+```
+
+**Terminal Output (Brief):**
+- Only log when messages are FOUND (don't spam "no messages")
+- Keep it one line: `✓ Message from user: "How's it going?"`
+- Respond inline, then continue work
+
+### Exit Commands (via interrupt or terminal)
+- "end afk"
+- "stop"
+- "I'm back"
+- "back"
+- "here"
+- User types anything in terminal
+
+### Example Work Log
+```
+[12:30:00] ✓ Updated authentication middleware
+[12:30:01] Running tests...
+[12:30:15] ✓ Tests passed
+
+[12:30:16] ✓ Message from user: "How's it going?"
+           → Responding: "Just finished auth middleware, tests passing..."
+
+[12:30:18] Starting next task: Add validation layer...
+[12:35:42] ✓ Added input validation
+[12:35:43] Running tests...
+[12:36:01] ✓ Tests passed
+[12:36:02] Committing changes...
+
+[12:36:03] ✓ New task from mobile: "Add rate limiting" (action: queue)
+           → Added to queue, will handle after current work
+
+[12:36:05] Starting next task: Add error handling...
+```
+
+### Race Condition Handling
+If interrupt/task arrives while working:
+- **Action: interrupt** → Pause current work, pin it, handle interrupt
+- **Action: parallel** → Spawn subagent, continue current work
+- **Action: queue** → Add to queue, finish current task first
+- **Action: backlog** → Note it, continue current work
+
+### Question Timeout Behavior
+When question expires without answer:
+- Log expiration
+- Update status to show decision made autonomously
+- Continue with reasonable default choice (document in work log)
+- Send summary of decision via new question
+
+---
+
 ## AFK Mode Protocol
 
 When the user says "I'm going AFK" (or similar: "keep working", "brb", "going to lunch"), enter AFK mode for autonomous operation with mobile communication.
