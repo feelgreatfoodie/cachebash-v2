@@ -162,6 +162,41 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
 
 ## Flutter / Riverpod
 
+### Raw String Literals Prevent Interpolation (2026-01-31)
+
+**Problem:** MCP configuration example displayed literal text "Environment.mcpBaseUrl" instead of the actual URL, causing "No host specified in URI" errors.
+
+**Root Cause:** Using raw string literals (triple quotes `'''...'''`) in Dart prevents string interpolation:
+
+```dart
+// ❌ WRONG - No interpolation in raw strings
+String _getMcpConfigExample(String apiKey) {
+  return '''{
+    "url": "$Environment.mcpBaseUrl/v1/sse",  // Treated as literal text!
+  }''';
+}
+```
+
+**Solution:** Use regular multi-line strings with double quotes:
+
+```dart
+// ✅ CORRECT - Interpolation works
+String _getMcpConfigExample(String apiKey) {
+  return """
+{
+  "url": "${Environment.mcpBaseUrl}/v1/mcp",  // Properly interpolated
+}""";
+}
+```
+
+**Key Takeaways:**
+- Raw strings (`r"..."` or `'''...'''`) treat `$variable` as literal text
+- Use `"""..."""` for multi-line strings that need interpolation
+- Add curly braces `${expression}` for clarity and to support property access
+- Lint warning `prefer_single_quotes` can be ignored when interpolation is needed
+
+**File:** `app/lib/screens/auth/api_key_screen.dart:617-629`
+
 ### Parallel Decryption with Future.wait
 
 **Before (sequential, slow):**
