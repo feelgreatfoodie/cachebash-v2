@@ -158,6 +158,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
 });
 ```
 
+### Claude Code v2.0.71+ Accept Header Issue (2026-02-01)
+
+**Problem:** Claude Code v2.0.71+ fails to connect to MCP server with "✗ Failed to connect" error.
+
+**Root Cause:** Claude Code's HTTP client doesn't send the `Accept` header that the MCP spec requires for POST requests. The SDK's `StreamableHTTPServerTransport` expects `Accept: application/json, text/event-stream` but Claude Code omits it.
+
+**Solution:** Inject the Accept header if missing by modifying the `rawHeaders` array:
+
+```typescript
+// WORKAROUND: Claude Code v2.0.71+ doesn't send required Accept header
+if (req.method === "POST" && Array.isArray(req.rawHeaders)) {
+  const hasAcceptHeader = req.rawHeaders.some((header, i) =>
+    i % 2 === 0 && header?.toLowerCase() === "accept"
+  );
+
+  if (!hasAcceptHeader) {
+    req.rawHeaders.push("Accept", "application/json, text/event-stream");
+  }
+}
+```
+
+**Key Points:**
+- Must modify `req.rawHeaders` array, not `req.headers` object
+- Hono's `getRequestListener()` reads from `rawHeaders` directly
+- `rawHeaders` format: `['Header1', 'value1', 'Header2', 'value2', ...]`
+- Check only even indices for header names (odd indices are values)
+
+**Deployment Required:** After fixing this issue locally, **you must redeploy to Cloud Run** for the fix to take effect. New Claude sessions will fail to connect until deployed.
+
+**Reference:** [Claude Code issue #15523](https://github.com/anthropics/claude-code/issues/15523)
+
 ---
 
 ## Flutter / Riverpod

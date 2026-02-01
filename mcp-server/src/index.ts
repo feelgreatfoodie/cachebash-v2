@@ -73,7 +73,7 @@ async function main() {
   const server = new Server(
     {
       name: "cachebash",
-      version: "1.0.0",
+      version: "1.0.1",
     },
     {
       capabilities: {
@@ -377,7 +377,7 @@ async function main() {
 
     // Health check endpoint (required by Cloud Run)
     if (req.url === "/v1/health" || req.url === "/health") {
-      return sendJson(res, 200, { status: "ok", version: "1.0.0" });
+      return sendJson(res, 200, { status: "ok", version: "1.0.1" });
     }
 
     // Debug endpoints - only available in development
