@@ -12,6 +12,7 @@ export { onMessageCreate } from "./notifications/onMessageCreate";
 
 // Export migration functions
 export { migrateUserToMessages } from "./migrations/migrateToMessages";
+export { migrateInterruptsToMessages } from "./migrations/migrateInterruptsToMessages";
 
 // Export session cleanup
 export { cleanupExpiredSessions } from "./sessions/cleanupExpiredSessions";

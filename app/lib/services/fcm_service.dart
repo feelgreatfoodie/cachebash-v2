@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_app_badger/flutter_app_badger.dart';
+import 'package:go_router/go_router.dart';
 
 import 'logger_service.dart';
 
@@ -29,9 +30,11 @@ class FcmService with WidgetsBindingObserver {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String? _currentToken;
+  GoRouter? _router;
 
   /// Initialize FCM and request permissions
-  Future<void> initialize() async {
+  Future<void> initialize({GoRouter? router}) async {
+    _router = router;
     // Skip FCM on desktop platforms
     if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
       Log.d(_tag, 'initialize: Skipping - not supported on desktop');
@@ -64,6 +67,7 @@ class FcmService with WidgetsBindingObserver {
       await _setupToken();
       _setupTokenRefresh();
       _setupForegroundHandler();
+      await _setupNotificationHandlers();
 
       // Register lifecycle observer to sync token on app resume
       WidgetsBinding.instance.addObserver(this);
@@ -99,11 +103,8 @@ class FcmService with WidgetsBindingObserver {
   }
 
   /// Validate FCM token format
-  bool _isValidFcmToken(String? token) {
-    if (token == null || token.isEmpty) return false;
-    if (token.length < 100) return false; // FCM tokens are typically 150+ chars
-    return true;
-  }
+  bool _isValidFcmToken(String? token) =>
+      token != null && token.isNotEmpty && token.length >= 100;
 
   /// Clean up resources
   void dispose() {
@@ -153,6 +154,38 @@ class FcmService with WidgetsBindingObserver {
     });
   }
 
+  /// Setup notification tap handlers
+  Future<void> _setupNotificationHandlers() async {
+    // Handle notification tap when app was terminated
+    final initialMessage = await _messaging.getInitialMessage();
+    if (initialMessage != null) {
+      Log.d(_tag, '_setupNotificationHandlers: App launched from notification');
+      _handleNotificationTap(initialMessage);
+    }
+
+    // Handle notification tap when app is in background
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      Log.d(_tag, '_setupNotificationHandlers: Notification tapped from background');
+      _handleNotificationTap(message);
+    });
+  }
+
+  /// Handle notification tap navigation
+  void _handleNotificationTap(RemoteMessage message) {
+    if (_router == null) {
+      Log.w(_tag, '_handleNotificationTap: Router not available');
+      return;
+    }
+
+    final messageId = message.data['messageId'] ?? message.data['questionId'];
+    if (messageId?.isNotEmpty ?? false) {
+      Log.d(_tag, '_handleNotificationTap: Navigating to message $messageId');
+      _router!.go('/questions/$messageId');
+    } else {
+      Log.w(_tag, '_handleNotificationTap: No messageId in notification data');
+    }
+  }
+
   /// Save FCM token to Firestore
   Future<void> _saveTokenToFirestore(String token) async {
     final user = _auth.currentUser;
@@ -162,10 +195,10 @@ class FcmService with WidgetsBindingObserver {
     }
 
     final deviceId = _getDeviceId(token);
-    String platform = 'unknown';
-    if (Platform.isIOS) platform = 'ios';
-    if (Platform.isAndroid) platform = 'android';
-    if (Platform.isMacOS) platform = 'macos';
+    final platform = Platform.isIOS ? 'ios'
+        : Platform.isAndroid ? 'android'
+        : Platform.isMacOS ? 'macos'
+        : 'unknown';
 
     Log.d(_tag, '_saveTokenToFirestore: Saving device $deviceId ($platform)');
     try {
@@ -233,11 +266,11 @@ class FcmService with WidgetsBindingObserver {
   /// Remove token when user logs out
   Future<void> onUserLogout() async {
     Log.d(_tag, 'onUserLogout: Called');
-    if (_currentToken != null) {
-      await _deleteTokenFromFirestore(_currentToken!);
-    } else {
+    if (_currentToken == null) {
       Log.d(_tag, 'onUserLogout: No token to delete');
+      return;
     }
+    await _deleteTokenFromFirestore(_currentToken!);
   }
 
   /// Get current token
@@ -256,7 +289,5 @@ class FcmService with WidgetsBindingObserver {
   }
 
   /// Public method to clear badge (call when app comes to foreground)
-  Future<void> clearBadge() async {
-    await _clearBadge();
-  }
+  Future<void> clearBadge() => _clearBadge();
 }

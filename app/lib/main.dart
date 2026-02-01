@@ -36,11 +36,7 @@ void main() async {
       debugPrint('Firebase init error: $e\n$st');
     }
 
-    try {
-      await FcmService.instance.initialize();
-    } catch (e) {
-      debugPrint('FCM init error (non-fatal): $e');
-    }
+    // Note: FCM initialization happens in CacheBashApp after router is available
 
     runApp(
       const ProviderScope(

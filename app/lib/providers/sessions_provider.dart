@@ -144,17 +144,25 @@ class SessionsService {
   }) async {
     _log('Sending interrupt to session $sessionId');
 
-    final interruptRef = _firestore
-        .collection('users/$userId/sessions/$sessionId/interrupts')
+    final messageRef = _firestore
+        .collection('users/$userId/messages')
         .doc();
 
-    await interruptRef.set({
-      'message': message,
-      'createdAt': FieldValue.serverTimestamp(),
+    await messageRef.set({
+      'direction': 'to_claude',
+      'content': message,
+      'title': 'Session reply',
+      'sessionId': sessionId,
+      'priority': 'high',
       'status': 'pending',
+      'action': 'interrupt',
+      'createdAt': FieldValue.serverTimestamp(),
+      'archived': false,
+      'deletedAt': null,
+      'encrypted': false,
     });
 
-    _log('Interrupt sent with ID ${interruptRef.id}');
+    _log('Interrupt sent as message with ID ${messageRef.id}');
   }
 
   /// Archive a session

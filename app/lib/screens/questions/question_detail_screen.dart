@@ -18,12 +18,14 @@ class QuestionDetailScreen extends ConsumerStatefulWidget {
 
 class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
   final _responseController = TextEditingController();
+  final _contextController = TextEditingController();
   String? _selectedOption;
   bool _isSubmitting = false;
 
   @override
   void dispose() {
     _responseController.dispose();
+    _contextController.dispose();
     super.dispose();
   }
 
@@ -31,12 +33,18 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
-    final response = _selectedOption ?? _responseController.text.trim();
-    if (response.isEmpty) {
+    String finalResponse = _selectedOption ?? _responseController.text.trim();
+    if (finalResponse.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a response')),
       );
       return;
+    }
+
+    // Append additional context if provided
+    final contextText = _contextController.text.trim();
+    if (contextText.isNotEmpty) {
+      finalResponse += '\n\n[Additional Context]\n$contextText';
     }
 
     setState(() => _isSubmitting = true);
@@ -45,7 +53,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
       await ref.read(questionsServiceProvider).answerQuestion(
             userId: user.uid,
             questionId: widget.questionId,
-            response: response,
+            response: finalResponse,
           );
 
       if (mounted) {
@@ -53,7 +61,11 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Response sent!')),
         );
-        context.go('/home');
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/messages');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -84,7 +96,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
         title: const Text('Question'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/home'),
+          onPressed: () => context.pop(),
         ),
       ),
       body: questionAsync.when(
@@ -285,6 +297,20 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
                         setState(() => _selectedOption = null);
                       }
                     },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Additional context field
+                  TextField(
+                    controller: _contextController,
+                    maxLines: 3,
+                    maxLength: 500,
+                    decoration: const InputDecoration(
+                      labelText: 'Additional Context (optional)',
+                      hintText: 'Add any clarifying details or questions...',
+                      border: OutlineInputBorder(),
+                      helperText: 'Provide extra context to help Claude understand your response',
+                    ),
                   ),
                   const SizedBox(height: 24),
 

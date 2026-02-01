@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'providers/auth_provider.dart';
+import 'services/fcm_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/auth/api_key_screen.dart';
@@ -181,11 +182,30 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-class CacheBashApp extends ConsumerWidget {
+class CacheBashApp extends ConsumerStatefulWidget {
   const CacheBashApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CacheBashApp> createState() => _CacheBashAppState();
+}
+
+class _CacheBashAppState extends ConsumerState<CacheBashApp> {
+  bool _fcmInitialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Initialize FCM with router after the first build
+    if (!_fcmInitialized) {
+      _fcmInitialized = true;
+      final router = ref.read(routerProvider);
+      FcmService.instance.initialize(router: router);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
