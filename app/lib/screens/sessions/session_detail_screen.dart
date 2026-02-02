@@ -64,6 +64,35 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
     }
   }
 
+  Future<void> _requestStatusUpdate() async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+
+    HapticService.medium();
+
+    try {
+      await ref.read(sessionsServiceProvider).sendInterrupt(
+            userId: user.uid,
+            sessionId: widget.sessionId,
+            message: 'Please provide a status update on what you\'re currently working on.',
+          );
+
+      if (mounted) {
+        HapticService.success();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Status update requested')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        HapticService.error();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessionAsync = ref.watch(sessionProvider(widget.sessionId));
@@ -82,6 +111,13 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
             }
           },
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Request Status Update',
+            onPressed: _requestStatusUpdate,
+          ),
+        ],
       ),
       body: sessionAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
