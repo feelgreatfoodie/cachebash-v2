@@ -134,6 +134,10 @@ class MessageModel {
   final DateTime? completedAt;
   final String? sessionId;
 
+  // Threading fields
+  final String? threadId; // Groups related messages into a conversation thread
+  final String? inReplyTo; // ID of the message this is replying to
+
   // Common metadata
   final String priority; // low, normal, high
   final String status; // pending, in_progress, answered, complete, expired, cancelled
@@ -156,6 +160,8 @@ class MessageModel {
     this.startedAt,
     this.completedAt,
     this.sessionId,
+    this.threadId,
+    this.inReplyTo,
     required this.priority,
     required this.status,
     required this.createdAt,
@@ -185,6 +191,8 @@ class MessageModel {
       startedAt: (data?['startedAt'] as Timestamp?)?.toDate(),
       completedAt: (data?['completedAt'] as Timestamp?)?.toDate(),
       sessionId: data?['sessionId'] as String?,
+      threadId: data?['threadId'] as String?,
+      inReplyTo: data?['inReplyTo'] as String?,
       priority: data?['priority'] ?? 'normal',
       status: data?['status'] ?? 'pending',
       createdAt: (data?['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -236,6 +244,8 @@ class MessageModel {
       startedAt: (data?['startedAt'] as Timestamp?)?.toDate(),
       completedAt: (data?['completedAt'] as Timestamp?)?.toDate(),
       sessionId: data?['sessionId'] as String?,
+      threadId: data?['threadId'] as String?,
+      inReplyTo: data?['inReplyTo'] as String?,
       priority: data?['priority'] ?? 'normal',
       status: data?['status'] ?? 'pending',
       createdAt: (data?['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -283,6 +293,11 @@ class MessageModel {
   bool get isDeleted => deletedAt != null;
   bool get hasProject => projectId != null;
 
+  // Threading helpers
+  bool get isInThread => threadId != null;
+  bool get isReply => inReplyTo != null;
+  bool get isThreadStarter => threadId != null && inReplyTo == null;
+
   /// Get a display title for the message
   String get displayTitle {
     if (isToClaude && title != null && title!.isNotEmpty) {
@@ -321,6 +336,8 @@ class MessageModel {
     DateTime? startedAt,
     DateTime? completedAt,
     String? sessionId,
+    String? threadId,
+    String? inReplyTo,
     String? priority,
     String? status,
     DateTime? createdAt,
@@ -342,6 +359,8 @@ class MessageModel {
       startedAt: startedAt ?? this.startedAt,
       completedAt: completedAt ?? this.completedAt,
       sessionId: sessionId ?? this.sessionId,
+      threadId: threadId ?? this.threadId,
+      inReplyTo: inReplyTo ?? this.inReplyTo,
       priority: priority ?? this.priority,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,

@@ -977,6 +977,8 @@ Mark a task as complete when finished.
   - startedAt?: timestamp              # toClaude: when claimed
   - completedAt?: timestamp            # toClaude: when finished
   - sessionId?: string                 # toClaude: session working on it
+  - threadId?: string                  # Groups related messages into conversation threads
+  - inReplyTo?: string                 # ID of message this is replying to
   - priority: 'low' | 'normal' | 'high'
   - status: 'pending' | 'in_progress' | 'answered' | 'complete' | 'expired' | 'cancelled'
   - createdAt: timestamp
