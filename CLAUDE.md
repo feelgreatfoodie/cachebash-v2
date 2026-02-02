@@ -531,6 +531,39 @@ When user returns:
 4. Commit & push
 5. Deploy if needed
 
+### Sprint/Task Completion Pause (AFK/Ralph)
+
+**When all known tasks are complete in AFK or Ralph mode**, pause before finalizing to give the user a chance to add scope:
+
+1. **Send completion summary via `ask_question`:**
+   ```typescript
+   ask_question({
+     question: "Sprint complete! Here's what I finished:\n\n" +
+       "- [x] Task 1\n" +
+       "- [x] Task 2\n" +
+       "- [x] Task 3\n\n" +
+       "Anything else to add before I wrap up?",
+     options: [
+       "Looks good, finalize",
+       "Add more scope",
+       "Let's discuss when I'm back"
+     ],
+     priority: "normal",
+     context: "Sprint completion - all planned work done"
+   })
+   ```
+
+2. **Wait for response before finalizing:**
+   - **"Looks good, finalize"** → Run Work Completion Checklist, mark complete, exit AFK
+   - **"Add more scope"** → Ask follow-up for new tasks, continue working
+   - **"Let's discuss when I'm back"** → Pin current state, update status to pinned
+
+3. **If no response after 30 minutes:**
+   - Send one reminder: "Still waiting to finalize. Approve or add tasks?"
+   - Continue polling indefinitely (don't auto-finalize)
+
+**Why this matters:** Users often think of "one more thing" after seeing work complete. This pause catches scope additions before Claude exits, avoiding the need to restart a new session.
+
 ---
 
 ## Asking Questions via Mobile
@@ -972,6 +1005,7 @@ Keep a task alive during long-running work. Prevents orphan cleanup.
 ```
 /users/{userId}
   - apiKeyHash: string
+  - avatarGradientId?: string         # User's chosen gradient (e.g., "brand_cyan_purple")
   - createdAt: timestamp
 
 /users/{userId}/devices/{deviceId}
@@ -1142,6 +1176,9 @@ flutter build appbundle  # Build for Android
 - **Ralph/autonomous** - Before each iteration checkpoint
 
 Complete ALL steps. Do not announce completion until done.
+
+### 0. Pause for Scope Check (AFK/Ralph only)
+Before running the checklist, send a completion summary via `ask_question` and wait for user confirmation (see "Sprint/Task Completion Pause" section above). Skip this step in interactive terminal sessions.
 
 ### 1. Check Work (`check_work`)
 ```bash
