@@ -432,10 +432,34 @@ CacheBash provides two ways for users to send messages from the mobile app to Cl
   - `queue` - Handle after current work completes
   - `backlog` - Low priority, handle when idle
 - **Lifecycle:** pending → in_progress (when claimed) → complete
+- **Heartbeat:** Tasks have `lastHeartbeat` field for crash recovery (see below)
 - **Examples:**
   - "Add authentication to the API" (queue, normal)
   - "Fix critical bug in checkout flow" (interrupt, high)
   - "Update documentation" (backlog, low)
+
+### Task Heartbeat Protocol (Crash Recovery)
+
+When working on a claimed task during AFK mode, **update the task's heartbeat every 10-15 minutes** to signal you're still working:
+
+```typescript
+// Heartbeat is set automatically when claiming via claim_task
+// But for long-running tasks, periodically update it:
+await db.doc(`users/${userId}/messages/${taskId}`).update({
+  lastHeartbeat: FieldValue.serverTimestamp(),
+});
+```
+
+**Why this matters:**
+- If Claude crashes mid-task, the task stays `in_progress` forever (orphaned)
+- A Cloud Function runs every 5 minutes and reverts tasks with `lastHeartbeat` > 30 minutes ago
+- Reverted tasks become `pending` again so another Claude session can claim them
+
+**Heartbeat checklist:**
+1. ✅ `claim_task` automatically sets `lastHeartbeat` on claim
+2. ✅ Update heartbeat every 10-15 minutes during long work
+3. ✅ `complete_task` clears heartbeat on completion
+4. ✅ Orphaned tasks auto-revert to pending after 30 min no heartbeat
 
 **2. Session Interrupts (via `get_interrupts`)**
 - **Use for:** Quick messages, status checks, or course corrections

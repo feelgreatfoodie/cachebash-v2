@@ -16,3 +16,6 @@ export { migrateInterruptsToMessages } from "./migrations/migrateInterruptsToMes
 
 // Export session cleanup
 export { cleanupExpiredSessions } from "./sessions/cleanupExpiredSessions";
+
+// Export orphaned task cleanup
+export { cleanupOrphanedTasks, cleanupOrphanedLegacyTasks } from "./tasks/cleanupOrphanedTasks";

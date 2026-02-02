@@ -24,8 +24,8 @@ import { listSessions } from "./tools/listSessions.js";
 import { checkRateLimit, cleanupRateLimits, getRateLimitResetIn } from "./middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "./logging/auditLogger.js";
 
-// Session timeout (30 minutes of inactivity)
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+// Session timeout (60 minutes of inactivity) - aligned with SessionManager
+const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 
 // Store per-session auth context with activity tracking
 interface SessionInfo {

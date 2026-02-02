@@ -1,4 +1,5 @@
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
+import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { decrypt, isEncrypted } from "../encryption/crypto.js";
 import {
@@ -233,9 +234,9 @@ export async function getPendingTasks(
 
 /**
  * Claim a task to start working on it.
- * This marks the task as in_progress so it won't be picked up again.
+ * Uses Firestore transaction to prevent double-claiming race condition.
  *
- * Updates both /tasks (legacy) and /messages (unified) collections.
+ * Updates both /tasks (legacy) and /messages (unified) collections atomically.
  */
 export async function claimTask(
   auth: AuthContext,
@@ -244,91 +245,118 @@ export async function claimTask(
   const args = ClaimTaskSchema.parse(rawArgs);
   const db = getFirestore();
 
-  // Try messages collection first
   const messageRef = db.doc(`users/${auth.userId}/messages/${args.taskId}`);
-  const messageDoc = await messageRef.get();
-
-  // Fall back to legacy tasks collection
   const taskRef = db.doc(`users/${auth.userId}/tasks/${args.taskId}`);
-  const taskDoc = await taskRef.get();
 
-  const doc = messageDoc.exists ? messageDoc : taskDoc;
+  try {
+    const result = await db.runTransaction(async (transaction) => {
+      // Read both possible locations within transaction
+      const messageDoc = await transaction.get(messageRef);
+      const taskDoc = await transaction.get(taskRef);
 
-  if (!doc.exists) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            success: false,
-            error: "Task not found",
-          }),
-        },
-      ],
-    };
-  }
+      const doc = messageDoc.exists ? messageDoc : taskDoc;
 
-  const taskData = doc.data();
+      if (!doc.exists) {
+        return { error: "Task not found" };
+      }
 
-  if (taskData?.status !== "pending") {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            success: false,
-            error: `Task is not pending (current status: ${taskData?.status})`,
-          }),
-        },
-      ],
-    };
-  }
+      const taskData = doc.data()!;
 
-  const updateData = {
-    status: "in_progress",
-    startedAt: serverTimestamp(),
-    sessionId: args.sessionId || null,
-  };
+      // Idempotent: already claimed by this session
+      if (taskData.status === "in_progress" && taskData.sessionId === args.sessionId) {
+        return {
+          alreadyClaimed: true,
+          taskData,
+        };
+      }
 
-  // Update both collections
-  if (messageDoc.exists) {
-    await messageRef.update(updateData);
-  }
-  if (taskDoc.exists) {
-    await taskRef.update(updateData);
-  }
+      // Error: not claimable
+      if (taskData.status !== "pending") {
+        return { error: `Task not claimable (status: ${taskData.status})` };
+      }
 
-  // Decrypt task data before returning
-  const decrypted = decryptTaskData(
-    {
-      title: taskData.title || taskData.content?.substring(0, 50) || "Untitled",
-      instructions: taskData.content || taskData.instructions || "",
-      action: taskData.action,
-      encrypted: taskData.encrypted,
-    },
-    auth.apiKey
-  );
+      // Atomic claim with heartbeat timestamp
+      const updateData = {
+        status: "in_progress",
+        startedAt: admin.firestore.FieldValue.serverTimestamp(),
+        sessionId: args.sessionId || null,
+        lastHeartbeat: admin.firestore.FieldValue.serverTimestamp(),
+      };
 
-  return {
-    content: [
+      // Update both collections atomically within transaction
+      if (messageDoc.exists) {
+        transaction.update(messageRef, updateData);
+      }
+      if (taskDoc.exists) {
+        transaction.update(taskRef, updateData);
+      }
+
+      return { taskData };
+    });
+
+    if ("error" in result) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: false,
+              error: result.error,
+            }),
+          },
+        ],
+      };
+    }
+
+    const taskData = result.taskData;
+    const decrypted = decryptTaskData(
       {
-        type: "text",
-        text: JSON.stringify({
-          success: true,
-          taskId: args.taskId,
-          title: decrypted.title,
-          instructions: decrypted.instructions,
-          action: decrypted.action,
-          priority: taskData.priority,
-          message: "Task claimed. You can now work on it.",
-        }),
+        title: taskData.title || taskData.content?.substring(0, 50) || "Untitled",
+        instructions: taskData.content || taskData.instructions || "",
+        action: taskData.action,
+        encrypted: taskData.encrypted,
       },
-    ],
-  };
+      auth.apiKey
+    );
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            success: true,
+            taskId: args.taskId,
+            title: decrypted.title,
+            instructions: decrypted.instructions,
+            action: decrypted.action,
+            priority: taskData.priority,
+            alreadyClaimed: result.alreadyClaimed || false,
+            message: result.alreadyClaimed
+              ? "Task already claimed by this session."
+              : "Task claimed. You can now work on it.",
+          }),
+        },
+      ],
+    };
+  } catch (error) {
+    console.error("[claimTask] Transaction failed:", error);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            success: false,
+            error: `Failed to claim task: ${error instanceof Error ? error.message : String(error)}`,
+          }),
+        },
+      ],
+    };
+  }
 }
 
 /**
  * Mark a task as complete.
+ * Uses Firestore transaction for atomic updates.
  *
  * Updates both /tasks (legacy) and /messages (unified) collections.
  */
@@ -339,51 +367,72 @@ export async function completeTask(
   const args = CompleteTaskSchema.parse(rawArgs);
   const db = getFirestore();
 
-  // Try messages collection first
   const messageRef = db.doc(`users/${auth.userId}/messages/${args.taskId}`);
-  const messageDoc = await messageRef.get();
-
-  // Fall back to legacy tasks collection
   const taskRef = db.doc(`users/${auth.userId}/tasks/${args.taskId}`);
-  const taskDoc = await taskRef.get();
 
-  if (!messageDoc.exists && !taskDoc.exists) {
+  try {
+    const result = await db.runTransaction(async (transaction) => {
+      const messageDoc = await transaction.get(messageRef);
+      const taskDoc = await transaction.get(taskRef);
+
+      if (!messageDoc.exists && !taskDoc.exists) {
+        return { error: "Task not found" };
+      }
+
+      const updateData = {
+        status: "complete",
+        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastHeartbeat: null, // Clear heartbeat on completion
+      };
+
+      if (messageDoc.exists) {
+        transaction.update(messageRef, updateData);
+      }
+      if (taskDoc.exists) {
+        transaction.update(taskRef, updateData);
+      }
+
+      return { success: true };
+    });
+
+    if ("error" in result) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: false,
+              error: result.error,
+            }),
+          },
+        ],
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            success: true,
+            taskId: args.taskId,
+            message: "Task marked as complete",
+          }),
+        },
+      ],
+    };
+  } catch (error) {
+    console.error("[completeTask] Transaction failed:", error);
     return {
       content: [
         {
           type: "text",
           text: JSON.stringify({
             success: false,
-            error: "Task not found",
+            error: `Failed to complete task: ${error instanceof Error ? error.message : String(error)}`,
           }),
         },
       ],
     };
   }
-
-  const updateData = {
-    status: "complete",
-    completedAt: serverTimestamp(),
-  };
-
-  // Update both collections
-  if (messageDoc.exists) {
-    await messageRef.update(updateData);
-  }
-  if (taskDoc.exists) {
-    await taskRef.update(updateData);
-  }
-
-  return {
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify({
-          success: true,
-          taskId: args.taskId,
-          message: "Task marked as complete",
-        }),
-      },
-    ],
-  };
 }

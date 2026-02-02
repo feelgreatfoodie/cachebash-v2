@@ -746,3 +746,182 @@ firebase deploy --only functions:migrateInterruptsToMessages
 
 **Related:** Issue #10 in original improvement plan - "MCP session auto-reinitialization"
 
+---
+
+## Transaction Safety for Task Operations (2026-02-02)
+
+### Double-Claiming Race Condition
+
+**Problem:** The original `claimTask` function used a read-then-write pattern that was vulnerable to race conditions:
+
+```typescript
+// VULNERABLE - Another Claude can claim between read and write
+const doc = await taskRef.get();
+if (doc.status !== 'pending') return error;
+// ... race window here ...
+await taskRef.update({ status: 'in_progress' });
+```
+
+When multiple Claude sessions poll for tasks simultaneously, both could read "pending" status and both attempt to claim, leading to:
+- Both claiming the same task
+- Conflicting work
+- Inconsistent state
+
+**Solution:** Use Firestore transactions for atomic read-modify-write:
+
+```typescript
+const result = await db.runTransaction(async (transaction) => {
+  const doc = await transaction.get(taskRef);
+
+  // Idempotent: already claimed by this session
+  if (doc.data().status === 'in_progress' && doc.data().sessionId === sessionId) {
+    return { alreadyClaimed: true, taskData: doc.data() };
+  }
+
+  if (doc.data().status !== 'pending') {
+    return { error: 'Task not claimable' };
+  }
+
+  // Atomic claim - guaranteed no race condition
+  transaction.update(taskRef, {
+    status: 'in_progress',
+    sessionId,
+    lastHeartbeat: FieldValue.serverTimestamp(),
+  });
+
+  return { taskData: doc.data() };
+});
+```
+
+**Key Transaction Properties:**
+1. **Atomicity:** All reads and writes in transaction succeed or fail together
+2. **Isolation:** No other operation can see partial state
+3. **Retry:** Firestore automatically retries on contention
+4. **Idempotency:** Same session claiming again returns success (not error)
+
+### Heartbeat for Crash Recovery
+
+**Problem:** If Claude crashes while working on a task, the task stays `in_progress` forever (orphaned).
+
+**Solution:** Add `lastHeartbeat` timestamp field:
+
+1. Set `lastHeartbeat` on claim
+2. Update `lastHeartbeat` periodically during work (every 10-15 min recommended)
+3. Cloud Function detects orphans: `in_progress` with `lastHeartbeat` > 30 min ago
+4. Revert orphaned tasks to `pending` so another Claude can claim
+
+**Cloud Function Pattern - Scalable Orphan Detection:**
+
+```typescript
+// SCALABLE: Single collection group query across ALL users
+const orphanedSnapshot = await db
+  .collectionGroup('messages')
+  .where('direction', '==', 'to_claude')
+  .where('status', '==', 'in_progress')
+  .where('lastHeartbeat', '<', staleThreshold)
+  .limit(500)
+  .get();
+
+// Batch revert to pending
+const batch = db.batch();
+orphanedSnapshot.docs.forEach(doc => {
+  batch.update(doc.ref, {
+    status: 'pending',
+    sessionId: null,
+    revertReason: 'heartbeat_timeout',
+  });
+});
+await batch.commit();
+```
+
+**Why Collection Group Query?**
+- Traditional pattern: Iterate all users, query each user's tasks
+- Problem: O(users) reads even if no orphans exist
+- Solution: Collection group query is O(orphans) - single query finds all orphans
+- Scales to 10,000+ users without performance degradation
+
+**Index Required for Collection Group Query:**
+
+```json
+{
+  "collectionGroup": "messages",
+  "queryScope": "COLLECTION_GROUP",
+  "fields": [
+    { "fieldPath": "direction", "order": "ASCENDING" },
+    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "lastHeartbeat", "order": "ASCENDING" }
+  ]
+}
+```
+
+### Atomic Interrupt Claiming
+
+**Problem:** Similar race condition exists for `getInterrupts` - two Claude instances polling could both process the same interrupt.
+
+**Solution:** Transaction-based claiming:
+
+```typescript
+const result = await db.runTransaction(async (transaction) => {
+  const claimedInterrupts = [];
+
+  for (const doc of interruptsSnapshot.docs) {
+    const freshDoc = await transaction.get(doc.ref);
+
+    // Skip if already claimed by another session
+    if (freshDoc.data().status !== 'pending') continue;
+
+    transaction.update(doc.ref, {
+      status: 'read',
+      claimedBy: sessionId,
+    });
+
+    claimedInterrupts.push({ id: doc.id, message: freshDoc.data().message });
+  }
+
+  return claimedInterrupts;
+});
+```
+
+### Session Timeout Alignment
+
+**Issue:** Inconsistent timeouts caused premature session expiry.
+
+**Before:**
+- `index.ts`: SESSION_TIMEOUT_MS = 30 minutes
+- `SessionManager.ts`: SESSION_TIMEOUT = 60 minutes
+- `cleanupExpiredSessions.ts`: SESSION_TIMEOUT = 60 minutes
+
+**After:**
+- All aligned to 60 minutes
+- Cleanup function uses 65 minutes (5 min grace period to avoid race with heartbeat)
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `mcp-server/src/index.ts` | Timeout 30→60 min |
+| `mcp-server/src/transport/SessionManager.ts` | Retry logic for updateActivity |
+| `mcp-server/src/tools/getTasks.ts` | Transaction for claimTask/completeTask, lastHeartbeat field |
+| `mcp-server/src/tools/getInterrupts.ts` | Transaction for atomic interrupt claiming |
+| `firebase/functions/src/sessions/cleanupExpiredSessions.ts` | Grace period 60→65 min |
+| `firebase/functions/src/tasks/cleanupOrphanedTasks.ts` | NEW: Scalable orphan cleanup |
+| `firebase/firestore.indexes.json` | Collection group indexes for orphan queries |
+
+### Testing Transaction Safety
+
+```typescript
+// Test concurrent claims
+it('should prevent double-claiming via race condition', async () => {
+  // Create pending task
+  // Launch 10 concurrent claim attempts
+  // Verify exactly 1 succeeds
+});
+
+// Test idempotency
+it('should be idempotent for same session', async () => {
+  // Claim task
+  // Claim again with same sessionId
+  // Verify no error, returns success
+});
+```
+

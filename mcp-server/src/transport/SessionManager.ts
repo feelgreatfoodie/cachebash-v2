@@ -90,15 +90,28 @@ export class SessionManager {
   }
 
   /**
-   * Update session activity timestamp
+   * Update session activity timestamp with retry logic
    */
-  async updateActivity(sessionId: string, userId: string): Promise<void> {
+  async updateActivity(sessionId: string, userId: string, retries = 3): Promise<void> {
     const db = getFirestore();
     const sessionRef = db.collection('users').doc(userId).collection('mcp_sessions').doc(sessionId);
 
-    await sessionRef.update({
-      lastActivity: Date.now(),
-    });
+    for (let i = 0; i < retries; i++) {
+      try {
+        await sessionRef.update({
+          lastActivity: Date.now(),
+        });
+        return;
+      } catch (error) {
+        if (i === retries - 1) {
+          console.error(`[SessionManager] Failed to update activity after ${retries} attempts:`, error);
+          throw error;
+        }
+        const backoffMs = Math.pow(2, i) * 100;
+        console.log(`[SessionManager] Retry ${i + 1}/${retries} for updateActivity after ${backoffMs}ms`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+      }
+    }
   }
 
   /**

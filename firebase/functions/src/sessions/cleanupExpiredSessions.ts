@@ -8,7 +8,8 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
-const SESSION_TIMEOUT = 60 * 60 * 1000; // 60 minutes
+// 65 minutes - 5 minute grace period to avoid race with heartbeat
+const SESSION_TIMEOUT = 65 * 60 * 1000;
 
 /**
  * Scheduled function to cleanup expired sessions across all users
