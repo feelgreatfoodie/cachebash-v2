@@ -417,6 +417,7 @@ async function main() {
     sessionTimeout: SESSION_TIMEOUT_MS,
     enableDnsRebindingProtection: false, // Disabled by default
     strictAcceptHeader: false, // Lenient mode - allows Claude Code without Accept header
+    responseQueueTimeout: 2000, // 2 second max wait for responses
   });
 
   // Connect server to transport
@@ -424,6 +425,21 @@ async function main() {
 
   // Create HTTP server
   const httpServer = http.createServer(async (req, res) => {
+    // Log request details
+    const requestId = Math.random().toString(36).substring(7);
+    console.log(`[${requestId}] ${req.method} ${req.url}`);
+    console.log(`[${requestId}] Headers:`, JSON.stringify(req.headers, null, 2));
+    const requestStartTime = Date.now();
+
+    // Wrap response.end to log response
+    const originalEnd = res.end.bind(res);
+    res.end = function(...args: any[]) {
+      const duration = Date.now() - requestStartTime;
+      console.log(`[${requestId}] Response: ${res.statusCode} (${duration}ms)`);
+      console.log(`[${requestId}] Response Headers:`, res.getHeaders());
+      return originalEnd(...args);
+    } as any;
+
     // Minimal CORS - MCP clients don't need browser CORS
     // Only allow specific headers needed for MCP protocol
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
@@ -441,7 +457,29 @@ async function main() {
 
     // Health check endpoint (required by Cloud Run)
     if (req.url === "/v1/health" || req.url === "/health") {
-      return sendJson(res, 200, { status: "ok", version: "1.0.1" });
+      try {
+        // Test Firestore connectivity
+        const { getFirestore } = await import("./firebase/client.js");
+        const db = getFirestore();
+        const testDoc = await db.collection('health_check').doc('ping').get();
+
+        return sendJson(res, 200, {
+          status: "ok",
+          version: "1.0.1",
+          firestore: "connected",
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error('[Health Check] Firestore connectivity issue:', error);
+        // Return 200 with degraded status instead of failing
+        return sendJson(res, 200, {
+          status: "degraded",
+          version: "1.0.1",
+          firestore: "error",
+          error: error instanceof Error ? error.message : String(error),
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
 
     // Debug endpoints - only available in development
@@ -519,6 +557,16 @@ async function main() {
 
         // Handle request with custom transport (passes auth context)
         const webResponse = await transport.handleRequest(webRequest, authContext);
+
+        // Validate response has JSON content type
+        const contentType = webResponse.headers.get('Content-Type');
+        if (!contentType?.includes('application/json')) {
+          console.error('[CRITICAL] Non-JSON response detected!', {
+            status: webResponse.status,
+            contentType,
+            headers: Object.fromEntries(webResponse.headers.entries()),
+          });
+        }
 
         // Convert Web API Response to Node.js response
         await webResponseToNodeResponse(webResponse, res);

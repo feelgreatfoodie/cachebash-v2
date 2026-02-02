@@ -27,6 +27,7 @@ export interface TransportConfig {
   enableDnsRebindingProtection: boolean;
   allowedOrigins?: string[];
   strictAcceptHeader?: boolean; // Default false (lenient for Claude Code)
+  responseQueueTimeout?: number; // Max milliseconds to wait for responses (default: 2000)
 }
 
 /**

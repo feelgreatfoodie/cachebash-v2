@@ -9,6 +9,18 @@ import { ParseResult } from './types.js';
  * Parse JSON body from HTTP request
  */
 export function parseJsonBody(body: string): ParseResult {
+  if (body === null || body === undefined || body === '') {
+    console.error('[MessageParser] Received null/empty body');
+    return {
+      success: false,
+      error: {
+        code: -32700,
+        message: 'Parse error: Request body is empty',
+        data: { receivedBody: body },
+      },
+    };
+  }
+
   try {
     const parsed = JSON.parse(body);
 

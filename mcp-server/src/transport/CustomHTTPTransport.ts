@@ -288,6 +288,7 @@ export class CustomHTTPTransport implements Transport {
     try {
       // Clear pending responses for this session
       this.pendingResponses.delete(this.sessionId);
+      console.log('[Transport] Cleared pending responses for session', this.sessionId);
 
       // Emit messages to MCP server via onmessage callback
       for (const msg of messages) {
@@ -295,14 +296,30 @@ export class CustomHTTPTransport implements Transport {
           // Note: MessageExtraInfo doesn't have authInfo field in SDK 1.25.3
           // The auth context is passed separately to handleRequest
           this.onmessage(msg);
+          console.log('[Transport] Emitted message to MCP server:', (msg as any).method || 'notification');
         }
       }
 
-      // Wait briefly for responses to be queued via send()
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Wait for responses to be queued via send()
+      // Use adaptive timeout: poll every 50ms up to max timeout
+      const maxWait = this.config.responseQueueTimeout || 2000;
+      const pollInterval = 50;
+      const startTime = Date.now();
+      let responses: any[] = [];
 
-      // Get queued responses
-      const responses = this.pendingResponses.get(this.sessionId) || [];
+      while (Date.now() - startTime < maxWait) {
+        responses = this.pendingResponses.get(this.sessionId) || [];
+        if (responses.length > 0) {
+          console.log(`[Transport] Got ${responses.length} response(s) after ${Date.now() - startTime}ms`);
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
+
+      if (responses.length === 0) {
+        console.warn(`[Transport] No responses after ${Date.now() - startTime}ms - returning 204`);
+      }
+
       this.pendingResponses.delete(this.sessionId);
 
       // Return response(s)
@@ -364,6 +381,17 @@ export class CustomHTTPTransport implements Transport {
    */
   private createResponse(transportResponse: TransportResponse): Response {
     const { status, headers, body } = transportResponse;
+
+    // Validate Content-Type is JSON
+    const contentType = headers['Content-Type'] || headers['content-type'];
+    if (!contentType?.includes('application/json') && !contentType?.includes('text/event-stream')) {
+      console.error('[CustomHTTPTransport] CRITICAL: Non-JSON response created!', {
+        status,
+        headers,
+        bodyPreview: typeof body === 'string' ? body.substring(0, 100) : '<ReadableStream>',
+      });
+      throw new Error(`Invalid response content type: ${contentType}. Must be application/json or text/event-stream.`);
+    }
 
     return new Response(body, {
       status,

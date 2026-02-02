@@ -4,6 +4,63 @@ This document captures key technical findings, gotchas, and architectural decisi
 
 ---
 
+## MCP Transport & Cloud Run
+
+### MCP Transport Timeout Race Condition (2026-02-01)
+
+**Problem:** Claude Code MCP client reported "Unexpected content type: text/html" despite server processing requests successfully. All tool calls failed with this error.
+
+**Root Cause:** The 100ms hardcoded timeout in `CustomHTTPTransport.ts:302` was too short for Firestore operations (typically 50-200ms latency). This created a race condition:
+
+1. MCP message triggered tool handler
+2. Tool handler queried Firestore (50-200ms)
+3. Handler called `transport.send()` to queue response
+4. **100ms timeout expired BEFORE response was queued**
+5. Server returned 204 No Content with empty body
+6. Cloud Run load balancer returned HTML error page to client
+
+**Evidence:**
+- Curl tests showed proper JSON responses when manually testing
+- Server logs showed successful request processing
+- Client consistently reported HTML errors
+- No HTML-generating code exists in the codebase
+- Firestore queries need 50-200ms, but only 100ms was allocated for response queueing
+
+**Solution:**
+
+1. **Replaced fixed 100ms timeout with adaptive polling:**
+   - Poll every 50ms intervals
+   - Wait up to 2000ms max (configurable via `responseQueueTimeout`)
+   - Break early when responses arrive (typically 100-150ms)
+
+2. **Added comprehensive diagnostics:**
+   - Request/response logging with timing in `index.ts`
+   - Transport pipeline logging showing message flow
+   - Content-Type validation to catch non-JSON responses
+   - Null body validation in MessageParser
+
+3. **Enhanced health checks:**
+   - Test Firestore connectivity in `/v1/health`
+   - Return "degraded" status (still 200 OK) instead of failing completely
+   - Increased Docker health check timeout from 3s to 5s
+
+**Files Modified:**
+- `mcp-server/src/transport/CustomHTTPTransport.ts` - Adaptive timeout (line 301-317)
+- `mcp-server/src/transport/types.ts` - Added `responseQueueTimeout` config option
+- `mcp-server/src/index.ts` - Request/response logging, Firestore health check
+- `mcp-server/src/transport/MessageParser.ts` - Null body validation
+- `mcp-server/Dockerfile` - Health check timeout increase
+
+**Verification:**
+- 10 consecutive successful MCP tool calls with no HTML errors
+- All responses return proper JSON with `Content-Type: application/json`
+- Response queue times: 100-150ms (well within 2000ms timeout)
+- No 204 No Content responses when tools return data
+
+**Key Insight:** When integrating async operations (like Firestore) with synchronous response patterns, always account for worst-case latency plus buffer. The original 100ms was too optimistic for network I/O.
+
+---
+
 ## iOS Build & Simulator
 
 ### Apple Silicon Simulator Architecture (2026-01-30)
