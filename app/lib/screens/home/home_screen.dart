@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../providers/auth_provider.dart';
+import '../../providers/messages_provider.dart';
 import '../../providers/questions_provider.dart';
 import '../../providers/sessions_provider.dart';
 import '../../services/haptic_service.dart';
@@ -80,6 +81,21 @@ class HomeScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _answerQuestion(
+    WidgetRef ref,
+    String questionId,
+    String response,
+  ) async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+
+    await ref.read(messagesServiceProvider).answerMessage(
+          userId: user.uid,
+          messageId: questionId,
+          response: response,
+        );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pendingQuestions = ref.watch(pendingQuestionsProvider);
@@ -150,6 +166,12 @@ class HomeScreen extends ConsumerWidget {
                               child: QuestionCard(
                                 question: entry.value,
                                 onTap: () => context.push('/questions/${entry.value.id}'),
+                                showQuickReply: true,
+                                onAnswer: (response) => _answerQuestion(
+                                  ref,
+                                  entry.value.id,
+                                  response,
+                                ),
                               ),
                             ),
                           ))

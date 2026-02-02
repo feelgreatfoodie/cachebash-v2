@@ -3,17 +3,55 @@ import 'package:flutter/material.dart';
 import '../models/question_model.dart';
 import '../services/haptic_service.dart';
 
-class QuestionCard extends StatelessWidget {
+class QuestionCard extends StatefulWidget {
   final QuestionModel question;
   final VoidCallback? onTap;
   final bool handleTap; // If false, parent handles tap (e.g., SelectableCard)
+  final Future<void> Function(String response)? onAnswer; // Quick answer callback
+  final bool showQuickReply; // Show quick reply button on homescreen
 
   const QuestionCard({
     super.key,
     required this.question,
     this.onTap,
     this.handleTap = true,
+    this.onAnswer,
+    this.showQuickReply = false,
   });
+
+  @override
+  State<QuestionCard> createState() => _QuestionCardState();
+}
+
+class _QuestionCardState extends State<QuestionCard> {
+  bool _isExpanded = false;
+  bool _isSubmitting = false;
+
+  Future<void> _handleQuickAnswer(String response) async {
+    if (_isSubmitting || widget.onAnswer == null) return;
+
+    setState(() => _isSubmitting = true);
+    HapticService.medium();
+
+    try {
+      await widget.onAnswer!(response);
+      if (mounted) {
+        HapticService.success();
+        setState(() => _isExpanded = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        HapticService.error();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +63,7 @@ class QuestionCard extends StatelessWidget {
               // Header row with priority and status
               Row(
                 children: [
-                  if (question.isHighPriority) ...[
+                  if (widget.question.isHighPriority) ...[
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -63,7 +101,7 @@ class QuestionCard extends StatelessWidget {
                   _buildStatusChip(context),
                   const Spacer(),
                   Text(
-                    _formatTime(question.createdAt),
+                    _formatTime(widget.question.createdAt),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color:
                               Theme.of(context).colorScheme.onSurfaceVariant,
@@ -75,18 +113,18 @@ class QuestionCard extends StatelessWidget {
 
               // Question text
               Text(
-                question.question,
+                widget.question.question,
                 style: Theme.of(context).textTheme.bodyLarge,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
+                maxLines: _isExpanded ? null : 3,
+                overflow: _isExpanded ? null : TextOverflow.ellipsis,
               ),
 
-              // Options preview
-              if (question.hasOptions) ...[
+              // Options preview (only if not expanded)
+              if (widget.question.hasOptions && !_isExpanded) ...[
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
-                  children: question.options!
+                  children: widget.question.options!
                       .take(3)
                       .map((option) => Chip(
                             label: Text(
@@ -99,8 +137,72 @@ class QuestionCard extends StatelessWidget {
                 ),
               ],
 
+              // Quick reply section (expanded)
+              if (_isExpanded && widget.question.hasOptions) ...[
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 12),
+                if (_isSubmitting)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: widget.question.options!
+                        .map((option) => ActionChip(
+                              label: Text(option),
+                              onPressed: () => _handleQuickAnswer(option),
+                              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                              labelStyle: TextStyle(
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              ),
+                            ))
+                        .toList(),
+                  ),
+              ],
+
+              // Quick reply button
+              if (widget.showQuickReply &&
+                  widget.question.isPending &&
+                  widget.question.hasOptions &&
+                  widget.onAnswer != null &&
+                  !widget.question.isAnswered) ...[
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () {
+                              setState(() => _isExpanded = !_isExpanded);
+                              HapticService.light();
+                            },
+                      icon: Icon(
+                        _isExpanded ? Icons.expand_less : Icons.reply,
+                        size: 18,
+                      ),
+                      label: Text(_isExpanded ? 'Cancel' : 'Quick Reply'),
+                    ),
+                    if (!_isExpanded)
+                      TextButton(
+                        onPressed: () {
+                          HapticService.light();
+                          widget.onTap?.call();
+                        },
+                        child: const Text('View Details'),
+                      ),
+                  ],
+                ),
+              ],
+
               // Response preview if answered
-              if (question.isAnswered && question.response != null) ...[
+              if (widget.question.isAnswered && widget.question.response != null) ...[
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -119,7 +221,7 @@ class QuestionCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          question.response!,
+                          widget.question.response!,
                           style: TextStyle(
                             color: Theme.of(context)
                                 .colorScheme
@@ -139,11 +241,11 @@ class QuestionCard extends StatelessWidget {
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: handleTap
+      child: widget.handleTap && !_isExpanded
           ? InkWell(
               onTap: () {
                 HapticService.light();
-                onTap?.call();
+                widget.onTap?.call();
               },
               child: content,
             )
@@ -157,12 +259,12 @@ class QuestionCard extends StatelessWidget {
     String label;
     IconData icon;
 
-    if (question.isPending) {
+    if (widget.question.isPending) {
       backgroundColor = Theme.of(context).colorScheme.tertiaryContainer;
       textColor = Theme.of(context).colorScheme.onTertiaryContainer;
       label = 'Pending';
       icon = Icons.schedule;
-    } else if (question.isAnswered) {
+    } else if (widget.question.isAnswered) {
       backgroundColor = Theme.of(context).colorScheme.primaryContainer;
       textColor = Theme.of(context).colorScheme.onPrimaryContainer;
       label = 'Answered';
