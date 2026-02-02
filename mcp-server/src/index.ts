@@ -19,6 +19,8 @@ import { updateStatus } from "./tools/updateStatus.js";
 import { pinTask, resumeTask } from "./tools/pinTask.js";
 import { getInterrupts } from "./tools/getInterrupts.js";
 import { getPendingTasks, claimTask, completeTask } from "./tools/getTasks.js";
+import { createSession } from "./tools/createSession.js";
+import { listSessions } from "./tools/listSessions.js";
 import { checkRateLimit, cleanupRateLimits, getRateLimitResetIn } from "./middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "./logging/auditLogger.js";
 
@@ -51,6 +53,8 @@ const toolHandlers: Record<string, (auth: AuthContext, args: any) => Promise<any
   get_pending_tasks: getPendingTasks,
   claim_task: claimTask,
   complete_task: completeTask,
+  create_session: createSession,
+  list_sessions: listSessions,
 };
 
 // Helper to extract Bearer token from Authorization header
@@ -347,6 +351,70 @@ async function main() {
               },
             },
             required: ["taskId"],
+          },
+        },
+        {
+          name: "create_session",
+          description: "Create a new session to track work progress",
+          inputSchema: {
+            type: "object",
+            properties: {
+              name: {
+                type: "string",
+                description: "Name/description of the session",
+                maxLength: 200,
+              },
+              status: {
+                type: "string",
+                description: "Initial status message",
+                maxLength: 200,
+              },
+              state: {
+                type: "string",
+                enum: ["working", "blocked", "complete", "pinned"],
+                description: "Initial state",
+                default: "working",
+              },
+              progress: {
+                type: "number",
+                minimum: 0,
+                maximum: 100,
+                description: "Initial progress percentage",
+              },
+              projectName: {
+                type: "string",
+                description: "Project/repo name",
+                maxLength: 100,
+              },
+            },
+            required: ["name"],
+          },
+        },
+        {
+          name: "list_sessions",
+          description: "List active sessions for the authenticated user",
+          inputSchema: {
+            type: "object",
+            properties: {
+              state: {
+                type: "string",
+                enum: ["working", "blocked", "pinned", "complete", "all"],
+                description: "Filter by session state",
+                default: "all",
+              },
+              limit: {
+                type: "number",
+                minimum: 1,
+                maximum: 50,
+                description: "Maximum number of sessions to return",
+                default: 10,
+              },
+              includeArchived: {
+                type: "boolean",
+                description: "Include archived sessions",
+                default: false,
+              },
+            },
           },
         },
       ],
