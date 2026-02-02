@@ -512,12 +512,24 @@ Check `get_interrupts` for messages from the mobile app:
 
 When user returns:
 
-1. Update status to `working`
-2. Provide concise summary:
+1. **Complete the Work Completion Checklist** (see below) if work is done
+2. Update status to `working`
+3. Provide summary using the **Work Session Summary Template**:
    - Work completed
+   - Files modified
+   - Deployments done
    - Decisions made autonomously (and why)
    - Questions asked/answered
-   - Current state and next steps
+   - Next steps
+
+### Before Completing ANY Task (AFK or Interactive)
+
+**ALWAYS run through the Work Completion Checklist before announcing done:**
+1. `check_work` - builds pass, no errors
+2. `minimize-code` - run /code-simplifier on modified files
+3. Update docs - LEARNINGS.md, CLAUDE.md if needed
+4. Commit & push
+5. Deploy if needed
 
 ---
 
@@ -1122,50 +1134,122 @@ flutter build appbundle  # Build for Android
 
 ---
 
-## Sprint Completion Checklist
+## Work Completion Checklist (MANDATORY)
 
-**IMPORTANT:** Complete ALL these steps BEFORE telling the user the sprint is finished. Do not announce completion until steps 1-3 are done.
+**CRITICAL:** This checklist applies to ALL work modes:
+- **Terminal sessions** - Before saying "done" or asking what's next
+- **AFK mode** - Before pinning task or sending completion status
+- **Ralph/autonomous** - Before each iteration checkpoint
 
-### 1. Check Work
-- Run `flutter analyze` (if Flutter code changed)
-- Run `npm run build` in mcp-server (if MCP code changed)
-- Verify the feature works end-to-end (test on device/simulator)
-- Review `git diff` to ensure no debug code, console.logs, or TODOs left behind
+Complete ALL steps. Do not announce completion until done.
 
-### 2. Simplify Code
-- Use `/code-simplifier` skill on modified files
-- Remove dead code and unused imports
-- Look for repeated patterns that could be extracted
-- Replace verbose code with concise alternatives
-- Remove over-engineering or premature abstractions
-
-### 3. Update Documentation
-- **CLAUDE.md**: Update if schema, architecture, URLs, or workflows changed
-- **LEARNINGS.md**: Document any gotchas, fixes, or technical findings
-- **Code comments**: Only where logic isn't self-evident
-
-### 4. Commit & Deploy
-- Stage specific files (avoid `git add -A`)
-- Write clear commit message summarizing changes
-- **All commits authored by `feelgreatfoodie` (NEVER add co-author)**
-- Use `--author="feelgreatfoodie <feelgreatfoodie@users.noreply.github.com>"` flag
-- **NEVER use `Co-Authored-By:` in commit messages**
-- Push to GitHub
-- Deploy affected services (see commands below)
-
-### Quick Commands
+### 1. Check Work (`check_work`)
 ```bash
-# Analyze Flutter code
+# Flutter
 cd app && flutter analyze
 
-# Deploy Firestore
-cd firebase && firebase deploy --only firestore:rules,firestore:indexes
-
-# Build MCP server
+# MCP Server
 cd mcp-server && npm run build
 
-# Deploy MCP server to Cloud Run
+# Firebase Functions
+cd firebase/functions && npm run build
+```
+- Verify builds pass with no errors
+- Review `git diff` - no debug code, console.logs, or TODOs
+- Test the feature works (device/simulator if UI changed)
+
+### 2. Simplify Code (`minimize-code`)
+- Run `/code-simplifier` skill on all modified files
+- Remove dead code and unused imports
+- Use Dart 3 pattern matching where applicable
+- Replace verbose patterns with concise alternatives
+- No over-engineering or premature abstractions
+
+### 3. Update Documentation
+Update ALL relevant docs before committing:
+
+| Document | When to Update |
+|----------|----------------|
+| **CLAUDE.md** | Schema changes, new MCP tools, architecture changes, workflow changes, URL changes |
+| **LEARNINGS.md** | Gotchas, bugs fixed, technical findings, patterns discovered |
+| **Plan file** | Mark completed items, update status, note blockers |
+| **Code comments** | Only where logic isn't self-evident (rare) |
+
+**Handoff documentation** (for context continuity):
+- What was completed
+- What's remaining / next steps
+- Any blockers or decisions needed
+- Files modified in this session
+
+### 4. Commit & Deploy
+```bash
+# Stage specific files (never git add -A)
+git add <specific files>
+
+# Commit with proper authorship
+git commit --author="feelgreatfoodie <feelgreatfoodie@users.noreply.github.com>" -m "Clear message"
+
+# Push
+git push origin main
+```
+
+**Commit rules:**
+- All commits authored by `feelgreatfoodie`
+- **NEVER** use `Co-Authored-By:` in commit messages
+- Stage specific files, not `-A` or `.`
+- Clear commit messages describing what changed
+
+**Deploy commands:**
+```bash
+# Firestore indexes/rules
+cd firebase && firebase deploy --only firestore:rules,firestore:indexes --project cachebash-app
+
+# MCP server
 cd mcp-server && gcloud run deploy cachebash-mcp --source . --region us-central1 --allow-unauthenticated --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=cachebash-app" --project cachebash-app
+
+# Firebase Functions
+cd firebase && firebase deploy --only functions --project cachebash-app
+
+# Flutter (open Xcode for TestFlight)
+open app/ios/Runner.xcworkspace
+```
+
+### 5. Status Update (AFK/Ralph only)
+```typescript
+update_status({
+  status: "Complete: [brief description]",
+  state: "complete",
+  progress: 100
+})
+```
+
+---
+
+## Work Session Summary Template
+
+When completing ANY work session, provide this summary:
+
+```markdown
+## Completed
+- [x] Feature/fix 1
+- [x] Feature/fix 2
+
+## Files Modified
+- path/to/file1.dart
+- path/to/file2.ts
+
+## Deployed
+- [ ] Firestore indexes
+- [ ] MCP server
+- [ ] Firebase Functions
+- [ ] TestFlight build #XX
+
+## Next Steps
+1. Next task 1
+2. Next task 2
+
+## Blockers/Decisions Needed
+- (none) or list any blockers
 ```
 
 ---
