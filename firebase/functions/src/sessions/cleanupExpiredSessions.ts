@@ -2,13 +2,13 @@
  * Cloud Function to cleanup expired MCP sessions
  *
  * Runs every 5 minutes via Cloud Scheduler
- * Deletes sessions where lastActivity < now - 30 minutes
+ * Deletes sessions where lastActivity < now - 60 minutes
  */
 
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
-const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+const SESSION_TIMEOUT = 60 * 60 * 1000; // 60 minutes
 
 /**
  * Scheduled function to cleanup expired sessions across all users

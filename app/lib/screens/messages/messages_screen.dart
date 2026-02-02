@@ -134,8 +134,8 @@ class MessagesScreen extends ConsumerWidget {
   void _navigateToMessage(BuildContext context, MessageModel message) {
     HapticService.light();
     if (message.isToUser) {
-      // Navigate to question detail (keep existing route for now)
-      context.go('/questions/${message.id}');
+      // Push to question detail to maintain navigation stack
+      context.push('/questions/${message.id}');
     } else {
       // Show task detail in bottom sheet
       _showTaskDetails(context, message);

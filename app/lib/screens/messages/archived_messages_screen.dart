@@ -115,7 +115,11 @@ class ArchivedMessagesScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             HapticService.light();
-            context.go('/messages');
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/messages');
+            }
           },
         ),
       ),

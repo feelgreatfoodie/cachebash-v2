@@ -93,7 +93,7 @@ class ProjectDetailScreen extends ConsumerWidget {
               final question = questions[index];
               return _QuestionListTile(
                 question: question,
-                onTap: () => context.go('/questions/${question.id}'),
+                onTap: () => context.push('/questions/${question.id}'),
                 onArchive: () => _archiveQuestion(context, ref, question),
                 onDelete: () => _deleteQuestion(context, ref, question),
               );

@@ -295,7 +295,7 @@ class QuestionsScreen extends ConsumerWidget {
                             child: SelectableCard(
                               isSelecting: selectionState.isSelecting,
                               isSelected: selectionState.isSelected(question.id),
-                              onTap: () => context.go('/questions/${question.id}'),
+                              onTap: () => context.push('/questions/${question.id}'),
                               onLongPress: () {
                                 if (!selectionState.isSelecting) {
                                   ref.read(questionsSelectionProvider.notifier).enterSelectionMode();

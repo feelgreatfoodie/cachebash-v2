@@ -149,7 +149,7 @@ class HomeScreen extends ConsumerWidget {
                               padding: const EdgeInsets.only(bottom: 12),
                               child: QuestionCard(
                                 question: entry.value,
-                                onTap: () => context.go('/questions/${entry.value.id}'),
+                                onTap: () => context.push('/questions/${entry.value.id}'),
                               ),
                             ),
                           ))

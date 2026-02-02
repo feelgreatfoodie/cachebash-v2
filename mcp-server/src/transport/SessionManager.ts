@@ -9,7 +9,7 @@ import { getFirestore } from '../firebase/client.js';
 import { SessionInfo, SessionValidation } from './types.js';
 import { randomBytes } from 'crypto';
 
-const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+const SESSION_TIMEOUT = 60 * 60 * 1000; // 60 minutes
 
 /**
  * Generate a secure session ID
