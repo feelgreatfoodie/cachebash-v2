@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../providers/questions_provider.dart';
+import '../providers/messages_provider.dart';
 import '../services/haptic_service.dart';
 
 /// Shell wrapper that provides persistent bottom nav for all authenticated routes
@@ -25,8 +25,8 @@ class MainShellWrapper extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = _getSelectedIndex(context);
-    final pendingQuestions = ref.watch(pendingQuestionsProvider);
-    final pendingCount = pendingQuestions.valueOrNull?.length ?? 0;
+    final pendingMessages = ref.watch(pendingMessagesProvider);
+    final pendingCount = pendingMessages.valueOrNull?.length ?? 0;
 
     return Column(
       children: [
