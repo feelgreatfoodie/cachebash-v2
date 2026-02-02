@@ -925,3 +925,68 @@ it('should be idempotent for same session', async () => {
 });
 ```
 
+
+---
+
+## Sprint 2: Alert Type, Status Ping, Heartbeat, Threading
+
+### Dart 3 Pattern Matching
+
+**Learning:** Dart 3 switch expressions with record destructuring dramatically reduce boilerplate.
+
+**Before (29 lines):**
+```dart
+Widget _buildAlertTypeBadge(AlertType? alertType) {
+  Color color;
+  IconData icon;
+  String label;
+  switch (alertType) {
+    case AlertType.error:
+      color = Theme.of(context).colorScheme.error;
+      icon = Icons.error;
+      label = 'Error';
+      break;
+    case AlertType.warning:
+      color = Colors.orange;
+      // ... 20+ more lines
+  }
+}
+```
+
+**After (8 lines):**
+```dart
+Widget _buildAlertTypeBadge(AlertType? alertType) {
+  final config = switch (alertType) {
+    AlertType.error => (Theme.of(context).colorScheme.error, Icons.error, 'Error'),
+    AlertType.warning => (Colors.orange, Icons.warning, 'Warning'),
+    AlertType.success => (Colors.green, Icons.check_circle, 'Success'),
+    _ => (Colors.blue, Icons.info, 'Info'),
+  };
+  final (color, icon, label) = config;
+  // ... use color, icon, label
+}
+```
+
+### Ambiguous Imports in Dart
+
+**Issue:** `ThreadGroup` and `groupMessagesByThread` were defined in both `messages_provider.dart` and `thread_card.dart`, causing ambiguous import errors.
+
+**Solution:** Use `hide` directive on one import:
+```dart
+import '../../providers/messages_provider.dart' hide ThreadGroup, groupMessagesByThread;
+import '../../widgets/thread_card.dart';
+```
+
+**Better approach:** Keep related types with their widget - `ThreadGroup` belongs in `thread_card.dart` since it's used exclusively by `ThreadCard`.
+
+### Threading Data Model
+
+**Schema pattern for message threading:**
+```
+threadId: string | null   // Groups messages into a conversation
+inReplyTo: string | null  // Points to parent message ID
+```
+
+- First message in thread: `threadId = null`, `inReplyTo = null`
+- Reply to message: `threadId = parentMessage.threadId ?? parentMessage.id`, `inReplyTo = parentMessage.id`
+- This allows both flat queries (all messages) and threaded queries (by threadId)
