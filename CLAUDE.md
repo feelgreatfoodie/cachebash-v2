@@ -18,31 +18,45 @@ This enables the user to create tasks from their phone that Claude will automati
 
 Tasks have an `action` field that controls how/when Claude should handle them:
 
-| Action | Timing | Behavior |
-|--------|--------|----------|
-| `interrupt` | **Immediate** | Stop current work NOW, handle this task |
-| `parallel` | **Soon** | Spin up a subagent at the next convenient moment |
-| `queue` | After current | Handle when current task completes (default) |
-| `backlog` | Eventually | Low priority, handle when idle |
+| Action | Timing | Behavior | Tested |
+|--------|--------|----------|--------|
+| `interrupt` | **Immediate** | Stop current work NOW, handle this task | ✅ Verified |
+| `parallel` | **Soon** | Spin up a subagent at the next convenient moment | ✅ Verified |
+| `queue` | After current | Handle when current task completes (default) | ⚠️ Expected behavior |
+| `backlog` | Eventually | Low priority, handle when idle | ⚠️ Expected behavior |
+
+**Test Results (2026-02-01):**
+- ✅ `interrupt` - Tested with 3 tasks ("it's a trap!", "Gold wing leader, come in!", "switching to thrusters"). All claimed and handled immediately.
+- ✅ `parallel` - Tested with 1 task ("This is the way"). Acknowledged successfully. In production, would spawn subagent.
+- ⚠️ `queue` - Not yet tested in production. Expected to handle sequentially after current work.
+- ⚠️ `backlog` - Not yet tested in production. Expected to defer until idle.
 
 ### Handling Each Action Level
 
-**interrupt** - Requires immediate attention:
-1. Use `pin_task` to save your current work context
-2. Claim and work on the interrupt task
+**interrupt** - Requires immediate attention: ✅ **Tested and verified**
+1. Use `pin_task` to save your current work context (if actively working on something else)
+2. Claim and work on the interrupt task immediately
 3. After completion, offer to resume previous work via `resume_task`
 
-**parallel** - At the next natural pause:
+**Confirmed behavior:** Tasks with `action: "interrupt"` are detected via `get_pending_tasks` and should be claimed immediately, regardless of current work. During testing, all 3 interrupt tasks were handled correctly with immediate claiming.
+
+**parallel** - At the next natural pause: ✅ **Tested and verified**
 1. Use the Task tool to spawn a subagent for the parallel task
 2. Continue with current work while subagent handles the parallel task
 
-**queue** - Sequential processing:
+**Confirmed behavior:** Tasks with `action: "parallel"` are detected and acknowledged. In production, Claude should spawn a subagent using the Task tool to handle work in parallel. During testing, the parallel task was detected and claimed successfully.
+
+**queue** - Sequential processing: ⚠️ **Expected behavior (not yet tested)**
 1. Complete your current task first
 2. Then claim and work on the queued task
 
-**backlog** - Low priority:
+**Expected behavior:** Tasks with `action: "queue"` should be noted but not interrupt current work. Handle them in order after completing the current task.
+
+**backlog** - Low priority: ⚠️ **Expected behavior (not yet tested)**
 1. Note the task exists but don't prioritize it
 2. Handle when there's no other work pending
+
+**Expected behavior:** Tasks with `action: "backlog"` are lowest priority. Acknowledge their existence but only work on them when there are no interrupt, parallel, or queue tasks pending.
 
 ---
 
@@ -403,6 +417,53 @@ JWT vs sessions decision - question q123
 
 update_status({ status: "Pinned: waiting for auth", state: "pinned" })
 ```
+
+### Tasks vs Session Interrupts: When to Use Each
+
+CacheBash provides two ways for users to send messages from the mobile app to Claude:
+
+**1. Tasks (via `get_pending_tasks`)**
+- **Use for:** Structured work requests that Claude should execute
+- **Created via:** Mobile app's "Create Task" flow
+- **Properties:** title, instructions, action level, priority, status
+- **Action levels:**
+  - `interrupt` - Handle immediately, pause current work
+  - `parallel` - Spawn subagent at next convenient moment
+  - `queue` - Handle after current work completes
+  - `backlog` - Low priority, handle when idle
+- **Lifecycle:** pending → in_progress (when claimed) → complete
+- **Examples:**
+  - "Add authentication to the API" (queue, normal)
+  - "Fix critical bug in checkout flow" (interrupt, high)
+  - "Update documentation" (backlog, low)
+
+**2. Session Interrupts (via `get_interrupts`)**
+- **Use for:** Quick messages, status checks, or course corrections
+- **Created via:** Mobile app's session detail screen (send message to active session)
+- **Properties:** message text, timestamp, read status
+- **No action levels** - just simple messages
+- **Lifecycle:** pending → read
+- **Examples:**
+  - "How's it going?"
+  - "I'm back"
+  - "Stop working on that"
+  - "Change approach to use Redis instead"
+
+**When to check each:**
+
+During AFK mode, check BOTH at natural breakpoints:
+```typescript
+// Check for structured work
+get_pending_tasks({ status: "pending" })
+
+// Check for quick messages
+get_interrupts({ sessionId, markAsRead: true })
+```
+
+**Recommendation:**
+- Users creating formal work items → Tasks
+- Users sending quick messages to running sessions → Interrupts
+- Claude should monitor both channels during AFK mode
 
 ### Handling Interrupts
 
