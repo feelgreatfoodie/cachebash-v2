@@ -4,12 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../models/message_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/messages_provider.dart';
+import '../../providers/messages_provider.dart' hide ThreadGroup, groupMessagesByThread;
 import '../../providers/selection_provider.dart';
 import '../../services/haptic_service.dart';
 import '../../widgets/animated_list_item.dart';
-import '../../widgets/message_card.dart';
-import '../../widgets/selectable_card.dart';
+import '../../widgets/thread_card.dart';
 import '../../widgets/selection_action_bar.dart';
 import '../../widgets/shimmer_card.dart';
 
@@ -129,185 +128,6 @@ class MessagesScreen extends ConsumerWidget {
         );
       }
     }
-  }
-
-  Future<void> _archiveSingle(
-    BuildContext context,
-    WidgetRef ref,
-    MessageModel message,
-  ) async {
-    final user = ref.read(currentUserProvider);
-    if (user == null) return;
-
-    try {
-      final service = ref.read(messagesServiceProvider);
-      await service.archiveMessage(userId: user.uid, messageId: message.id);
-      HapticService.success();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Message archived')),
-        );
-      }
-    } catch (e) {
-      HapticService.error();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _deleteSingle(
-    BuildContext context,
-    WidgetRef ref,
-    MessageModel message,
-  ) async {
-    final user = ref.read(currentUserProvider);
-    if (user == null) return;
-
-    try {
-      final service = ref.read(messagesServiceProvider);
-      await service.deleteMessage(userId: user.uid, messageId: message.id);
-      HapticService.success();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Message deleted')),
-        );
-      }
-    } catch (e) {
-      HapticService.error();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
-    }
-  }
-
-  Widget _buildSwipeBackground({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required bool isLeft,
-  }) {
-    return Container(
-      alignment: isLeft ? Alignment.centerLeft : Alignment.centerRight,
-      padding: EdgeInsets.only(left: isLeft ? 20 : 0, right: isLeft ? 0 : 20),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisAlignment: isLeft ? MainAxisAlignment.start : MainAxisAlignment.end,
-        children: isLeft
-            ? [
-                Icon(icon, color: Colors.white, size: 28),
-                const SizedBox(width: 12),
-                Text(label,
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-              ]
-            : [
-                Text(label,
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(width: 12),
-                Icon(icon, color: Colors.white, size: 28),
-              ],
-      ),
-    );
-  }
-
-  Widget _buildSelectableMessageCard({
-    required WidgetRef ref,
-    required BuildContext context,
-    required MessageModel message,
-    required SelectionState selectionState,
-  }) {
-    return SelectableCard(
-      isSelecting: selectionState.isSelecting,
-      isSelected: selectionState.isSelected(message.id),
-      onTap: () => _navigateToMessage(context, message),
-      onLongPress: () {
-        if (!selectionState.isSelecting) {
-          ref.read(messagesSelectionProvider.notifier).enterSelectionMode();
-        }
-        ref.read(messagesSelectionProvider.notifier).toggleSelection(message.id);
-      },
-      onToggleSelection: () =>
-          ref.read(messagesSelectionProvider.notifier).toggleSelection(message.id),
-      child: MessageCard(message: message, handleTap: false),
-    );
-  }
-
-  Widget _buildDismissibleMessage({
-    required BuildContext context,
-    required WidgetRef ref,
-    required MessageModel message,
-    required SelectionState selectionState,
-  }) {
-    if (selectionState.isSelecting) {
-      return _buildSelectableMessageCard(
-        ref: ref,
-        context: context,
-        message: message,
-        selectionState: selectionState,
-      );
-    }
-
-    return Dismissible(
-      key: Key(message.id),
-      background: _buildSwipeBackground(
-        label: 'Archive',
-        icon: Icons.archive,
-        color: Colors.blue,
-        isLeft: true,
-      ),
-      secondaryBackground: _buildSwipeBackground(
-        label: 'Delete',
-        icon: Icons.delete,
-        color: Colors.red,
-        isLeft: false,
-      ),
-      confirmDismiss: (direction) async {
-        HapticService.medium();
-        if (direction == DismissDirection.startToEnd) return true;
-
-        return await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Delete Message?'),
-            content: const Text('This cannot be undone.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  HapticService.medium();
-                  Navigator.pop(context, true);
-                },
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error,
-                ),
-                child: const Text('Delete'),
-              ),
-            ],
-          ),
-        );
-      },
-      onDismissed: (direction) => direction == DismissDirection.startToEnd
-          ? _archiveSingle(context, ref, message)
-          : _deleteSingle(context, ref, message),
-      child: _buildSelectableMessageCard(
-        ref: ref,
-        context: context,
-        message: message,
-        selectionState: selectionState,
-      ),
-    );
   }
 
   void _navigateToMessage(BuildContext context, MessageModel message) {
@@ -737,133 +557,108 @@ class MessagesScreen extends ConsumerWidget {
                       );
                     }
 
-                    // Group messages by direction for better organization
-                    final pendingQuestions = messages.where((m) => m.isToUser && m.isPending).toList();
-                    final pendingTasks = messages.where((m) => m.isToClaude && m.isPending).toList();
-                    final answeredQuestions = messages.where((m) => m.isToUser && m.isAnswered).toList();
-                    final completedTasks = messages.where((m) => m.isToClaude && m.isComplete).toList();
+                    // Group messages into threads
+                    final threads = groupMessagesByThread(messages);
 
-                    final categorized = {
-                      ...pendingQuestions,
-                      ...pendingTasks,
-                      ...answeredQuestions,
-                      ...completedTasks,
+                    // Categorize threads by their most urgent status
+                    bool threadHasPendingQuestion(ThreadGroup t) =>
+                        t.messages.any((m) => m.isToUser && m.isPending);
+                    bool threadHasPendingTask(ThreadGroup t) =>
+                        t.messages.any((m) => m.isToClaude && m.isPending);
+                    bool threadIsAnswered(ThreadGroup t) =>
+                        t.messages.every((m) => !m.isPending) &&
+                        t.messages.any((m) => m.isToUser && m.isAnswered);
+                    bool threadIsCompleted(ThreadGroup t) =>
+                        t.messages.every((m) => !m.isPending) &&
+                        t.messages.any((m) => m.isToClaude && m.isComplete);
+
+                    final pendingQuestionThreads = threads.where(threadHasPendingQuestion).toList();
+                    final pendingTaskThreads = threads.where((t) =>
+                        !threadHasPendingQuestion(t) && threadHasPendingTask(t)).toList();
+                    final answeredThreads = threads.where((t) =>
+                        !threadHasPendingQuestion(t) && !threadHasPendingTask(t) && threadIsAnswered(t)).toList();
+                    final completedThreads = threads.where((t) =>
+                        !threadHasPendingQuestion(t) && !threadHasPendingTask(t) && !threadIsAnswered(t) && threadIsCompleted(t)).toList();
+
+                    final categorizedIds = {
+                      ...pendingQuestionThreads.map((t) => t.threadId),
+                      ...pendingTaskThreads.map((t) => t.threadId),
+                      ...answeredThreads.map((t) => t.threadId),
+                      ...completedThreads.map((t) => t.threadId),
                     };
-                    final otherMessages = messages.where((m) => !categorized.contains(m)).toList();
+                    final otherThreads = threads.where((t) => !categorizedIds.contains(t.threadId)).toList();
 
                     int animationIndex = 0;
+
+                    Widget buildThreadItem(ThreadGroup thread) {
+                      return AnimatedListItem(
+                        index: animationIndex++,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: ThreadCard(
+                            thread: thread,
+                            onMessageTap: (message) => _navigateToMessage(context, message),
+                          ),
+                        ),
+                      );
+                    }
 
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(16),
                       children: [
                         // Pending Questions (needs response)
-                        if (pendingQuestions.isNotEmpty) ...[
+                        if (pendingQuestionThreads.isNotEmpty) ...[
                           AnimatedListItem(
                             index: animationIndex++,
                             child: _buildSectionHeader(context, 'Needs Response', Icons.help_outline),
                           ),
                           const SizedBox(height: 12),
-                          ...pendingQuestions.map((m) => AnimatedListItem(
-                                index: animationIndex++,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _buildDismissibleMessage(
-                                    context: context,
-                                    ref: ref,
-                                    message: m,
-                                    selectionState: selectionState,
-                                  ),
-                                ),
-                              )),
+                          ...pendingQuestionThreads.map(buildThreadItem),
                           const SizedBox(height: 16),
                         ],
 
                         // Pending Tasks (awaiting Claude)
-                        if (pendingTasks.isNotEmpty) ...[
+                        if (pendingTaskThreads.isNotEmpty) ...[
                           AnimatedListItem(
                             index: animationIndex++,
                             child: _buildSectionHeader(context, 'Awaiting Claude', Icons.hourglass_empty),
                           ),
                           const SizedBox(height: 12),
-                          ...pendingTasks.map((m) => AnimatedListItem(
-                                index: animationIndex++,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _buildDismissibleMessage(
-                                    context: context,
-                                    ref: ref,
-                                    message: m,
-                                    selectionState: selectionState,
-                                  ),
-                                ),
-                              )),
+                          ...pendingTaskThreads.map(buildThreadItem),
                           const SizedBox(height: 16),
                         ],
 
                         // Answered Questions
-                        if (answeredQuestions.isNotEmpty) ...[
+                        if (answeredThreads.isNotEmpty) ...[
                           AnimatedListItem(
                             index: animationIndex++,
                             child: _buildSectionHeader(context, 'Answered', Icons.check_circle_outline),
                           ),
                           const SizedBox(height: 12),
-                          ...answeredQuestions.take(5).map((m) => AnimatedListItem(
-                                index: animationIndex++,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _buildDismissibleMessage(
-                                    context: context,
-                                    ref: ref,
-                                    message: m,
-                                    selectionState: selectionState,
-                                  ),
-                                ),
-                              )),
+                          ...answeredThreads.take(5).map(buildThreadItem),
                           const SizedBox(height: 16),
                         ],
 
                         // Completed Tasks
-                        if (completedTasks.isNotEmpty) ...[
+                        if (completedThreads.isNotEmpty) ...[
                           AnimatedListItem(
                             index: animationIndex++,
                             child: _buildSectionHeader(context, 'Completed', Icons.task_alt),
                           ),
                           const SizedBox(height: 12),
-                          ...completedTasks.take(5).map((m) => AnimatedListItem(
-                                index: animationIndex++,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _buildDismissibleMessage(
-                                    context: context,
-                                    ref: ref,
-                                    message: m,
-                                    selectionState: selectionState,
-                                  ),
-                                ),
-                              )),
+                          ...completedThreads.take(5).map(buildThreadItem),
                           const SizedBox(height: 16),
                         ],
 
-                        // Other messages (expired, cancelled, etc.)
-                        if (otherMessages.isNotEmpty) ...[
+                        // Other threads (expired, cancelled, etc.)
+                        if (otherThreads.isNotEmpty) ...[
                           AnimatedListItem(
                             index: animationIndex++,
                             child: _buildSectionHeader(context, 'Other', Icons.more_horiz),
                           ),
                           const SizedBox(height: 12),
-                          ...otherMessages.take(5).map((m) => AnimatedListItem(
-                                index: animationIndex++,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _buildDismissibleMessage(
-                                    context: context,
-                                    ref: ref,
-                                    message: m,
-                                    selectionState: selectionState,
-                                  ),
-                                ),
-                              )),
+                          ...otherThreads.take(5).map(buildThreadItem),
                         ],
 
                         const SizedBox(height: 80), // Space for FAB
