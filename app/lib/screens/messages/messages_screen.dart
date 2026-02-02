@@ -185,138 +185,127 @@ class MessagesScreen extends ConsumerWidget {
     }
   }
 
+  Widget _buildSwipeBackground({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required bool isLeft,
+  }) {
+    return Container(
+      alignment: isLeft ? Alignment.centerLeft : Alignment.centerRight,
+      padding: EdgeInsets.only(left: isLeft ? 20 : 0, right: isLeft ? 0 : 20),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: isLeft ? MainAxisAlignment.start : MainAxisAlignment.end,
+        children: isLeft
+            ? [
+                Icon(icon, color: Colors.white, size: 28),
+                const SizedBox(width: 12),
+                Text(label,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              ]
+            : [
+                Text(label,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 12),
+                Icon(icon, color: Colors.white, size: 28),
+              ],
+      ),
+    );
+  }
+
+  Widget _buildSelectableMessageCard({
+    required WidgetRef ref,
+    required BuildContext context,
+    required MessageModel message,
+    required SelectionState selectionState,
+  }) {
+    return SelectableCard(
+      isSelecting: selectionState.isSelecting,
+      isSelected: selectionState.isSelected(message.id),
+      onTap: () => _navigateToMessage(context, message),
+      onLongPress: () {
+        if (!selectionState.isSelecting) {
+          ref.read(messagesSelectionProvider.notifier).enterSelectionMode();
+        }
+        ref.read(messagesSelectionProvider.notifier).toggleSelection(message.id);
+      },
+      onToggleSelection: () =>
+          ref.read(messagesSelectionProvider.notifier).toggleSelection(message.id),
+      child: MessageCard(message: message, handleTap: false),
+    );
+  }
+
   Widget _buildDismissibleMessage({
     required BuildContext context,
     required WidgetRef ref,
     required MessageModel message,
     required SelectionState selectionState,
   }) {
-    // Don't allow swipe when in selection mode
     if (selectionState.isSelecting) {
-      return SelectableCard(
-        isSelecting: selectionState.isSelecting,
-        isSelected: selectionState.isSelected(message.id),
-        onTap: () => _navigateToMessage(context, message),
-        onLongPress: () {
-          if (!selectionState.isSelecting) {
-            ref.read(messagesSelectionProvider.notifier).enterSelectionMode();
-          }
-          ref.read(messagesSelectionProvider.notifier).toggleSelection(message.id);
-        },
-        onToggleSelection: () {
-          ref.read(messagesSelectionProvider.notifier).toggleSelection(message.id);
-        },
-        child: MessageCard(
-          message: message,
-          handleTap: false,
-        ),
+      return _buildSelectableMessageCard(
+        ref: ref,
+        context: context,
+        message: message,
+        selectionState: selectionState,
       );
     }
 
     return Dismissible(
       key: Key(message.id),
-      background: Container(
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.only(left: 20),
-        decoration: BoxDecoration(
-          color: Colors.blue,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.archive, color: Colors.white, size: 28),
-            SizedBox(width: 12),
-            Text(
-              'Archive',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
+      background: _buildSwipeBackground(
+        label: 'Archive',
+        icon: Icons.archive,
+        color: Colors.blue,
+        isLeft: true,
       ),
-      secondaryBackground: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        decoration: BoxDecoration(
-          color: Colors.red,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Text(
-              'Delete',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(width: 12),
-            Icon(Icons.delete, color: Colors.white, size: 28),
-          ],
-        ),
+      secondaryBackground: _buildSwipeBackground(
+        label: 'Delete',
+        icon: Icons.delete,
+        color: Colors.red,
+        isLeft: false,
       ),
       confirmDismiss: (direction) async {
         HapticService.medium();
+        if (direction == DismissDirection.startToEnd) return true;
 
-        if (direction == DismissDirection.startToEnd) {
-          // Right swipe = Archive (no confirmation needed)
-          return true;
-        } else {
-          // Left swipe = Delete (needs confirmation)
-          return await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Delete Message?'),
-              content: const Text('This cannot be undone.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancel'),
+        return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Delete Message?'),
+            content: const Text('This cannot be undone.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  HapticService.medium();
+                  Navigator.pop(context, true);
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
                 ),
-                FilledButton(
-                  onPressed: () {
-                    HapticService.medium();
-                    Navigator.pop(context, true);
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                  ),
-                  child: const Text('Delete'),
-                ),
-              ],
-            ),
-          );
-        }
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        );
       },
-      onDismissed: (direction) {
-        if (direction == DismissDirection.startToEnd) {
-          _archiveSingle(context, ref, message);
-        } else {
-          _deleteSingle(context, ref, message);
-        }
-      },
-      child: SelectableCard(
-        isSelecting: selectionState.isSelecting,
-        isSelected: selectionState.isSelected(message.id),
-        onTap: () => _navigateToMessage(context, message),
-        onLongPress: () {
-          if (!selectionState.isSelecting) {
-            ref.read(messagesSelectionProvider.notifier).enterSelectionMode();
-          }
-          ref.read(messagesSelectionProvider.notifier).toggleSelection(message.id);
-        },
-        onToggleSelection: () {
-          ref.read(messagesSelectionProvider.notifier).toggleSelection(message.id);
-        },
-        child: MessageCard(
-          message: message,
-          handleTap: false,
-        ),
+      onDismissed: (direction) => direction == DismissDirection.startToEnd
+          ? _archiveSingle(context, ref, message)
+          : _deleteSingle(context, ref, message),
+      child: _buildSelectableMessageCard(
+        ref: ref,
+        context: context,
+        message: message,
+        selectionState: selectionState,
       ),
     );
   }
@@ -753,11 +742,14 @@ class MessagesScreen extends ConsumerWidget {
                     final pendingTasks = messages.where((m) => m.isToClaude && m.isPending).toList();
                     final answeredQuestions = messages.where((m) => m.isToUser && m.isAnswered).toList();
                     final completedTasks = messages.where((m) => m.isToClaude && m.isComplete).toList();
-                    final otherMessages = messages.where((m) =>
-                        !pendingQuestions.contains(m) &&
-                        !pendingTasks.contains(m) &&
-                        !answeredQuestions.contains(m) &&
-                        !completedTasks.contains(m)).toList();
+
+                    final categorized = {
+                      ...pendingQuestions,
+                      ...pendingTasks,
+                      ...answeredQuestions,
+                      ...completedTasks,
+                    };
+                    final otherMessages = messages.where((m) => !categorized.contains(m)).toList();
 
                     int animationIndex = 0;
 
