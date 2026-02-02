@@ -328,33 +328,13 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
   }
 
   Widget _buildAlertTypeBadge(AlertType? alertType) {
-    Color color;
-    IconData icon;
-    String label;
-
-    switch (alertType) {
-      case AlertType.error:
-        color = Theme.of(context).colorScheme.error;
-        icon = Icons.error;
-        label = 'Error';
-        break;
-      case AlertType.warning:
-        color = Colors.orange;
-        icon = Icons.warning;
-        label = 'Warning';
-        break;
-      case AlertType.success:
-        color = Colors.green;
-        icon = Icons.check_circle;
-        label = 'Success';
-        break;
-      case AlertType.info:
-      default:
-        color = Colors.blue;
-        icon = Icons.info;
-        label = 'Info';
-        break;
-    }
+    final config = switch (alertType) {
+      AlertType.error => (Theme.of(context).colorScheme.error, Icons.error, 'Error'),
+      AlertType.warning => (Colors.orange, Icons.warning, 'Warning'),
+      AlertType.success => (Colors.green, Icons.check_circle, 'Success'),
+      _ => (Colors.blue, Icons.info, 'Info'),
+    };
+    final (color, icon, label) = config;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -368,13 +348,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
         children: [
           Icon(icon, size: 16, color: color),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
         ],
       ),
     );

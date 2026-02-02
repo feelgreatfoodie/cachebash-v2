@@ -260,39 +260,18 @@ class _ThreadCardState extends State<ThreadCard> {
   }
 
   Widget _buildStatusBadge(BuildContext context, MessageModel message) {
-    Color color;
-    String label;
-
-    if (message.isToUser) {
-      if (message.isPending) {
-        color = Colors.orange;
-        label = 'Pending';
-      } else if (message.isAnswered) {
-        color = Colors.green;
-        label = 'Answered';
-      } else {
-        color = Colors.grey;
-        label = 'Expired';
-      }
-    } else {
-      switch (message.status) {
-        case 'pending':
-          color = Colors.orange;
-          label = 'Pending';
-          break;
-        case 'in_progress':
-          color = Colors.blue;
-          label = 'In Progress';
-          break;
-        case 'complete':
-          color = Colors.green;
-          label = 'Complete';
-          break;
-        default:
-          color = Colors.grey;
-          label = message.status;
-      }
-    }
+    final (color, label) = message.isToUser
+        ? message.isPending
+            ? (Colors.orange, 'Pending')
+            : message.isAnswered
+                ? (Colors.green, 'Answered')
+                : (Colors.grey, 'Expired')
+        : switch (message.status) {
+            'pending' => (Colors.orange, 'Pending'),
+            'in_progress' => (Colors.blue, 'In Progress'),
+            'complete' => (Colors.green, 'Complete'),
+            _ => (Colors.grey, message.status),
+          };
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -300,10 +279,7 @@ class _ThreadCardState extends State<ThreadCard> {
         color: color.withAlpha(30),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 10, color: color),
-      ),
+      child: Text(label, style: TextStyle(fontSize: 10, color: color)),
     );
   }
 
