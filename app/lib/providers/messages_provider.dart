@@ -413,6 +413,8 @@ class MessagesService {
     String priority = 'normal',
     MessageAction action = MessageAction.queue,
     bool encrypt = false,
+    String? threadId,
+    String? inReplyTo,
   }) async {
     _log('Creating task message: $title (action: ${action.value})');
 
@@ -451,6 +453,8 @@ class MessagesService {
       'archived': false,
       'deletedAt': null,
       'encrypted': isEncrypted,
+      'threadId': threadId,
+      'inReplyTo': inReplyTo,
     });
 
     _log('Task message created with ID ${messageRef.id}');
@@ -645,9 +649,87 @@ class MessagesService {
       'priority': priority,
     });
   }
+
+  /// Acknowledge an alert message (marks it as seen without requiring a response)
+  Future<void> acknowledgeAlert({
+    required String userId,
+    required String messageId,
+  }) async {
+    _log('Acknowledging alert $messageId');
+
+    await _firestore.doc('users/$userId/messages/$messageId').update({
+      'status': 'acknowledged',
+      'acknowledgedAt': FieldValue.serverTimestamp(),
+    });
+
+    _log('Alert $messageId acknowledged');
+  }
 }
 
 /// Provider for messages service
 final messagesServiceProvider = Provider<MessagesService>((ref) {
   return MessagesService();
+});
+
+/// Thread group model for grouping related messages
+class ThreadGroup {
+  final String threadId;
+  final List<MessageModel> messages;
+
+  ThreadGroup({required this.threadId, required this.messages});
+
+  MessageModel get latestMessage =>
+      messages.reduce((a, b) => a.createdAt.isAfter(b.createdAt) ? a : b);
+
+  MessageModel get threadStarter =>
+      messages.firstWhere((m) => m.inReplyTo == null, orElse: () => messages.first);
+
+  bool get hasMultipleMessages => messages.length > 1;
+  int get messageCount => messages.length;
+  int get replyCount => messages.length - 1;
+}
+
+/// Groups a flat list of messages by their threadId
+/// Messages without a threadId become standalone "threads" of size 1
+List<ThreadGroup> groupMessagesByThread(List<MessageModel> messages) {
+  final Map<String, List<MessageModel>> groups = {};
+  final List<MessageModel> standalone = [];
+
+  for (final message in messages) {
+    if (message.threadId != null) {
+      groups.putIfAbsent(message.threadId!, () => []).add(message);
+    } else {
+      standalone.add(message);
+    }
+  }
+
+  // Convert to ThreadGroups
+  final result = <ThreadGroup>[];
+
+  for (final entry in groups.entries) {
+    // Sort messages within thread by createdAt ascending (oldest first)
+    entry.value.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    result.add(ThreadGroup(threadId: entry.key, messages: entry.value));
+  }
+
+  // Add standalone messages as single-message threads
+  for (final message in standalone) {
+    result.add(ThreadGroup(threadId: message.id, messages: [message]));
+  }
+
+  // Sort threads by latest message timestamp (newest first)
+  result.sort((a, b) => b.latestMessage.createdAt.compareTo(a.latestMessage.createdAt));
+
+  return result;
+}
+
+/// Provider for messages grouped by thread
+final threadedMessagesProvider = StreamProvider<List<ThreadGroup>>((ref) {
+  final messagesAsync = ref.watch(activeMessagesProvider);
+
+  return messagesAsync.when(
+    data: (messages) => Stream.value(groupMessagesByThread(messages)),
+    loading: () => const Stream.empty(),
+    error: (e, s) => Stream.error(e, s),
+  );
 });

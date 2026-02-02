@@ -69,9 +69,12 @@ export async function askQuestion(
   const messageData: Record<string, unknown> = {
     ...questionData,
     direction: "to_user",
+    messageType: "question",
     content: questionData.question, // Map question -> content (encrypted if enabled)
     archived: false,
     deletedAt: null,
+    threadId: args.threadId || null,
+    inReplyTo: args.inReplyTo || null,
   };
   // Remove duplicate field
   delete messageData.question;

@@ -258,6 +258,24 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
                       ),
                       const SizedBox(height: 24),
 
+                      // Get Status button (prominent)
+                      if (session.isWorking || session.isBlocked)
+                        FilledButton.tonal(
+                          onPressed: _requestStatusUpdate,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 48),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.sync),
+                              SizedBox(width: 8),
+                              Text('Get Status Update'),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+
                       // Info about messaging
                       Card(
                         child: Padding(

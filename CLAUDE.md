@@ -847,7 +847,9 @@ Sends a question to the user's mobile device.
   question: string,
   options?: string[],      // Multiple choice options
   priority: 'low' | 'normal' | 'high',
-  context?: string         // What you're working on
+  context?: string,        // What you're working on
+  threadId?: string,       // Group related messages into a conversation
+  inReplyTo?: string       // ID of message this is replying to
 }
 ```
 
@@ -926,6 +928,33 @@ Mark a task as complete when finished.
 }
 ```
 
+### send_alert
+Send a one-way alert notification (doesn't require a response).
+```typescript
+{
+  message: string,
+  alertType?: 'error' | 'warning' | 'success' | 'info',  // Default: info
+  priority?: 'low' | 'normal' | 'high',
+  context?: string,
+  sessionId?: string
+}
+// Returns: { alertId: string }
+```
+
+Use for status updates, build results, errors encountered, etc.
+
+### send_heartbeat
+Keep a task alive during long-running work. Prevents orphan cleanup.
+```typescript
+{
+  taskId: string,          // Task being worked on
+  status?: string,         // Optional progress update
+  progress?: number        // Optional 0-100 percentage
+}
+```
+
+**Call every 10-15 minutes** during long tasks. The cleanup function reverts tasks with lastHeartbeat > 30 minutes.
+
 ## Firestore Schema
 
 ```
@@ -990,6 +1019,8 @@ Mark a task as complete when finished.
 
 /users/{userId}/messages/{messageId}  # UNIFIED INBOX
   - direction: 'to_user' | 'to_claude'
+  - messageType?: 'question' | 'alert' | 'info'  # NEW: Type of message (default: question)
+  - alertType?: 'error' | 'warning' | 'success' | 'info'  # NEW: For alerts only
   - content: string                    # Question text OR task instructions
   - preview?: string                   # Plaintext preview for notifications (50 chars)
   - title?: string                     # For toClaude messages
@@ -997,14 +1028,17 @@ Mark a task as complete when finished.
   - options?: string[]                 # toUser: multiple choice
   - response?: string                  # toUser: user's answer
   - answeredAt?: timestamp             # toUser: when answered
+  - acknowledgedAt?: timestamp         # NEW: For alerts: when user acknowledged
   - action?: string                    # toClaude: interrupt/parallel/queue/backlog
   - startedAt?: timestamp              # toClaude: when claimed
   - completedAt?: timestamp            # toClaude: when finished
   - sessionId?: string                 # toClaude: session working on it
+  - lastHeartbeat?: timestamp          # NEW: For orphan detection during long tasks
+  - currentStatus?: string             # NEW: Status text from heartbeat
   - threadId?: string                  # Groups related messages into conversation threads
   - inReplyTo?: string                 # ID of message this is replying to
   - priority: 'low' | 'normal' | 'high'
-  - status: 'pending' | 'in_progress' | 'answered' | 'complete' | 'expired' | 'cancelled'
+  - status: 'pending' | 'in_progress' | 'answered' | 'complete' | 'expired' | 'cancelled' | 'acknowledged'
   - createdAt: timestamp
   - projectId?: string
   - archived: boolean

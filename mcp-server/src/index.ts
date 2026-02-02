@@ -21,6 +21,8 @@ import { getInterrupts } from "./tools/getInterrupts.js";
 import { getPendingTasks, claimTask, completeTask } from "./tools/getTasks.js";
 import { createSession } from "./tools/createSession.js";
 import { listSessions } from "./tools/listSessions.js";
+import { sendAlert } from "./tools/sendAlert.js";
+import { sendHeartbeat } from "./tools/sendHeartbeat.js";
 import { checkRateLimit, cleanupRateLimits, getRateLimitResetIn } from "./middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "./logging/auditLogger.js";
 
@@ -55,6 +57,8 @@ const toolHandlers: Record<string, (auth: AuthContext, args: any) => Promise<any
   complete_task: completeTask,
   create_session: createSession,
   list_sessions: listSessions,
+  send_alert: sendAlert,
+  send_heartbeat: sendHeartbeat,
 };
 
 // Helper to extract Bearer token from Authorization header
@@ -184,6 +188,14 @@ async function main() {
               projectId: {
                 type: "string",
                 description: "Optional project ID to group questions",
+              },
+              threadId: {
+                type: "string",
+                description: "Optional thread ID to group related messages into a conversation",
+              },
+              inReplyTo: {
+                type: "string",
+                description: "Optional message ID this is replying to (creates a linked thread)",
               },
             },
             required: ["question"],
@@ -415,6 +427,69 @@ async function main() {
                 default: false,
               },
             },
+          },
+        },
+        {
+          name: "send_alert",
+          description:
+            "Send an alert notification to the user's mobile device. Alerts are one-way notifications (error, warning, success, info) that don't require a response.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              message: {
+                type: "string",
+                description: "The alert message to send",
+                maxLength: 2000,
+              },
+              alertType: {
+                type: "string",
+                enum: ["error", "warning", "success", "info"],
+                description: "Type of alert",
+                default: "info",
+              },
+              priority: {
+                type: "string",
+                enum: ["low", "normal", "high"],
+                description: "Notification priority level",
+                default: "normal",
+              },
+              context: {
+                type: "string",
+                description: "Context about what you're working on",
+                maxLength: 500,
+              },
+              sessionId: {
+                type: "string",
+                description: "Optional session ID to associate with this alert",
+              },
+            },
+            required: ["message"],
+          },
+        },
+        {
+          name: "send_heartbeat",
+          description:
+            "Send a heartbeat for a task you're working on. Prevents task from being marked as orphaned. Call every 10-15 minutes during long-running tasks.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              taskId: {
+                type: "string",
+                description: "ID of the task to send heartbeat for",
+              },
+              status: {
+                type: "string",
+                description: "Optional status update message",
+                maxLength: 200,
+              },
+              progress: {
+                type: "number",
+                minimum: 0,
+                maximum: 100,
+                description: "Optional progress percentage (0-100)",
+              },
+            },
+            required: ["taskId"],
           },
         },
       ],

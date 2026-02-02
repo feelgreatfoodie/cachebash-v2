@@ -87,9 +87,23 @@ export const onMessageCreate = functions.firestore
       // Note: content may be encrypted, so preview is preferred for readability
       const messageContent = message.preview || message.content || message.question || "New message";
 
+      // Determine notification title based on message type
+      let notificationTitle = "Claude needs your input";
+      if (message.messageType === "alert") {
+        const alertTypeDisplay = {
+          error: "Error",
+          warning: "Warning",
+          success: "Success",
+          info: "Info",
+        }[message.alertType] || "Alert";
+        notificationTitle = `Alert: ${alertTypeDisplay}`;
+      } else if (message.messageType === "info") {
+        notificationTitle = "Claude update";
+      }
+
       // Build notification payload
       const notification: admin.messaging.Notification = {
-        title: "Claude needs your input",
+        title: notificationTitle,
         body: truncate(messageContent, 100),
       };
 
@@ -130,6 +144,8 @@ export const onMessageCreate = functions.firestore
         messageId,
         direction: message.direction,
         priority: message.priority || "normal",
+        messageType: message.messageType || "question",
+        ...(message.alertType && { alertType: message.alertType }),
         // Keep questionId for backward compatibility
         questionId: messageId,
       };

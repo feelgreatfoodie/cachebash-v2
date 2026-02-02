@@ -152,11 +152,44 @@ class MessageCard extends StatelessWidget {
 
   Widget _buildDirectionBadge(BuildContext context) {
     final isToUser = message.isToUser;
-    final color = isToUser
-        ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.secondary;
-    final icon = isToUser ? Icons.help_outline : Icons.task_alt;
-    final label = isToUser ? 'Question' : 'Task';
+    Color color;
+    IconData icon;
+    String label;
+
+    if (message.isAlert) {
+      // Alert-specific styling based on alert type
+      switch (message.alertType) {
+        case AlertType.error:
+          color = Theme.of(context).colorScheme.error;
+          icon = Icons.error;
+          label = 'Error';
+          break;
+        case AlertType.warning:
+          color = Colors.orange;
+          icon = Icons.warning;
+          label = 'Warning';
+          break;
+        case AlertType.success:
+          color = Colors.green;
+          icon = Icons.check_circle;
+          label = 'Success';
+          break;
+        case AlertType.info:
+        default:
+          color = Colors.blue;
+          icon = Icons.info;
+          label = 'Info';
+          break;
+      }
+    } else if (isToUser) {
+      color = Theme.of(context).colorScheme.primary;
+      icon = Icons.help_outline;
+      label = 'Question';
+    } else {
+      color = Theme.of(context).colorScheme.secondary;
+      icon = Icons.task_alt;
+      label = 'Task';
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -215,8 +248,22 @@ class MessageCard extends StatelessWidget {
 
     // Handle direction-specific statuses
     if (message.isToUser) {
+      // Alert-specific statuses
+      if (message.isAlert) {
+        if (message.isAcknowledged) {
+          backgroundColor = Theme.of(context).colorScheme.surfaceContainerHighest;
+          textColor = Theme.of(context).colorScheme.onSurfaceVariant;
+          label = 'Acknowledged';
+          icon = Icons.check;
+        } else {
+          backgroundColor = Theme.of(context).colorScheme.tertiaryContainer;
+          textColor = Theme.of(context).colorScheme.onTertiaryContainer;
+          label = 'New';
+          icon = Icons.notifications_active;
+        }
+      }
       // Question statuses
-      if (message.isPending) {
+      else if (message.isPending) {
         backgroundColor = Theme.of(context).colorScheme.tertiaryContainer;
         textColor = Theme.of(context).colorScheme.onTertiaryContainer;
         label = 'Pending';

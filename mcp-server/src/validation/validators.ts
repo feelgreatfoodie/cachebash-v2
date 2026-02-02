@@ -12,6 +12,8 @@ export const AskQuestionSchema = z.object({
   context: z.string().max(500, "Context too long (max 500 chars)").optional(),
   projectId: z.string().max(100).optional(),
   encrypt: z.boolean().default(true),
+  threadId: z.string().max(100).optional(),
+  inReplyTo: z.string().max(100).optional(),
 });
 
 export const GetResponseSchema = z.object({
@@ -55,6 +57,20 @@ export const CompleteTaskSchema = z.object({
   taskId: z.string().min(1, "Task ID required"),
 });
 
+export const SendAlertSchema = z.object({
+  message: z.string().min(1, "Message cannot be empty").max(2000, "Message too long (max 2000 chars)"),
+  alertType: z.enum(["error", "warning", "success", "info"]).default("info"),
+  priority: z.enum(["low", "normal", "high"]).default("normal"),
+  context: z.string().max(500, "Context too long (max 500 chars)").optional(),
+  sessionId: z.string().max(100).optional(),
+});
+
+export const SendHeartbeatSchema = z.object({
+  taskId: z.string().min(1, "Task ID required"),
+  status: z.string().max(200, "Status too long (max 200 chars)").optional(),
+  progress: z.number().min(0).max(100).optional(),
+});
+
 export type AskQuestionArgs = z.infer<typeof AskQuestionSchema>;
 export type GetResponseArgs = z.infer<typeof GetResponseSchema>;
 export type UpdateStatusArgs = z.infer<typeof UpdateStatusSchema>;
@@ -64,3 +80,5 @@ export type GetInterruptsArgs = z.infer<typeof GetInterruptsSchema>;
 export type GetPendingTasksArgs = z.infer<typeof GetPendingTasksSchema>;
 export type ClaimTaskArgs = z.infer<typeof ClaimTaskSchema>;
 export type CompleteTaskArgs = z.infer<typeof CompleteTaskSchema>;
+export type SendAlertArgs = z.infer<typeof SendAlertSchema>;
+export type SendHeartbeatArgs = z.infer<typeof SendHeartbeatSchema>;

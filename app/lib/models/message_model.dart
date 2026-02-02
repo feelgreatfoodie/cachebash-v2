@@ -2,6 +2,104 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../services/encryption_service.dart';
 
+/// Type of message - question (needs response), alert (one-way notification), or info
+enum MessageType {
+  /// A question that requires user response
+  question,
+
+  /// An alert notification (error, warning, success, info) - no response needed
+  alert,
+
+  /// Informational message - no response needed
+  info,
+}
+
+extension MessageTypeExtension on MessageType {
+  String get value {
+    switch (this) {
+      case MessageType.question:
+        return 'question';
+      case MessageType.alert:
+        return 'alert';
+      case MessageType.info:
+        return 'info';
+    }
+  }
+
+  static MessageType fromString(String? value) {
+    switch (value) {
+      case 'alert':
+        return MessageType.alert;
+      case 'info':
+        return MessageType.info;
+      case 'question':
+      default:
+        return MessageType.question;
+    }
+  }
+
+  String get displayName {
+    switch (this) {
+      case MessageType.question:
+        return 'Question';
+      case MessageType.alert:
+        return 'Alert';
+      case MessageType.info:
+        return 'Info';
+    }
+  }
+}
+
+/// Alert type for alert messages
+enum AlertType {
+  error,
+  warning,
+  success,
+  info,
+}
+
+extension AlertTypeExtension on AlertType {
+  String get value {
+    switch (this) {
+      case AlertType.error:
+        return 'error';
+      case AlertType.warning:
+        return 'warning';
+      case AlertType.success:
+        return 'success';
+      case AlertType.info:
+        return 'info';
+    }
+  }
+
+  static AlertType fromString(String? value) {
+    switch (value) {
+      case 'error':
+        return AlertType.error;
+      case 'warning':
+        return AlertType.warning;
+      case 'success':
+        return AlertType.success;
+      case 'info':
+      default:
+        return AlertType.info;
+    }
+  }
+
+  String get displayName {
+    switch (this) {
+      case AlertType.error:
+        return 'Error';
+      case AlertType.warning:
+        return 'Warning';
+      case AlertType.success:
+        return 'Success';
+      case AlertType.info:
+        return 'Info';
+    }
+  }
+}
+
 /// Direction of a message - either from Claude to user (question) or from user to Claude (task)
 enum MessageDirection {
   /// Claude asking the user a question
@@ -117,6 +215,8 @@ extension MessageActionExtension on MessageAction {
 class MessageModel {
   final String id;
   final MessageDirection direction;
+  final MessageType messageType; // question, alert, info
+  final AlertType? alertType; // error, warning, success, info (for alerts only)
 
   // Core content
   final String content; // Question text OR task instructions
@@ -140,7 +240,7 @@ class MessageModel {
 
   // Common metadata
   final String priority; // low, normal, high
-  final String status; // pending, in_progress, answered, complete, expired, cancelled
+  final String status; // pending, in_progress, answered, complete, expired, cancelled, acknowledged
   final DateTime createdAt;
   final String? projectId;
   final bool archived;
@@ -150,6 +250,8 @@ class MessageModel {
   MessageModel({
     required this.id,
     required this.direction,
+    this.messageType = MessageType.question,
+    this.alertType,
     required this.content,
     this.title,
     this.context,
@@ -175,10 +277,16 @@ class MessageModel {
   factory MessageModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>?;
     final direction = MessageDirectionExtension.fromString(data?['direction']);
+    final messageType = MessageTypeExtension.fromString(data?['messageType']);
+    final alertType = data?['alertType'] != null
+        ? AlertTypeExtension.fromString(data?['alertType'])
+        : null;
 
     return MessageModel(
       id: doc.id,
       direction: direction,
+      messageType: messageType,
+      alertType: alertType,
       content: data?['content'] ?? data?['question'] ?? data?['instructions'] ?? '',
       title: data?['title'] as String?,
       context: data?['context'] as String?,
@@ -211,6 +319,10 @@ class MessageModel {
     final data = doc.data() as Map<String, dynamic>?;
     final isEncrypted = data?['encrypted'] as bool? ?? false;
     final direction = MessageDirectionExtension.fromString(data?['direction']);
+    final messageType = MessageTypeExtension.fromString(data?['messageType']);
+    final alertType = data?['alertType'] != null
+        ? AlertTypeExtension.fromString(data?['alertType'])
+        : null;
 
     String content = data?['content'] ?? data?['question'] ?? data?['instructions'] ?? '';
     String? title = data?['title'] as String?;
@@ -234,6 +346,8 @@ class MessageModel {
     return MessageModel(
       id: doc.id,
       direction: direction,
+      messageType: messageType,
+      alertType: alertType,
       content: content,
       title: title,
       context: context,
@@ -267,7 +381,8 @@ class MessageModel {
   // toUser (question) status helpers
   bool get isAnswered => status == 'answered';
   bool get isExpired => status == 'expired';
-  bool get needsResponse => isToUser && isPending;
+  bool get isAcknowledged => status == 'acknowledged';
+  bool get needsResponse => isToUser && isPending && !isAlert;
 
   // toClaude (task) status helpers
   bool get isComplete => status == 'complete';
@@ -281,6 +396,17 @@ class MessageModel {
   // toUser (question) helpers
   bool get hasOptions => options != null && options!.isNotEmpty;
   bool get hasResponse => response != null && response!.isNotEmpty;
+
+  // Message type helpers
+  bool get isQuestion => messageType == MessageType.question;
+  bool get isAlert => messageType == MessageType.alert;
+  bool get isInfo => messageType == MessageType.info;
+
+  // Alert type helpers
+  bool get isErrorAlert => alertType == AlertType.error;
+  bool get isWarningAlert => alertType == AlertType.warning;
+  bool get isSuccessAlert => alertType == AlertType.success;
+  bool get isInfoAlert => alertType == AlertType.info;
 
   // toClaude (task) action helpers
   bool get isInterrupt => action == MessageAction.interrupt;
@@ -326,6 +452,8 @@ class MessageModel {
   MessageModel copyWith({
     String? id,
     MessageDirection? direction,
+    MessageType? messageType,
+    AlertType? alertType,
     String? content,
     String? title,
     String? context,
@@ -349,6 +477,8 @@ class MessageModel {
     return MessageModel(
       id: id ?? this.id,
       direction: direction ?? this.direction,
+      messageType: messageType ?? this.messageType,
+      alertType: alertType ?? this.alertType,
       content: content ?? this.content,
       title: title ?? this.title,
       context: context ?? this.context,
