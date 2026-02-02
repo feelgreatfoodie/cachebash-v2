@@ -719,3 +719,30 @@ await messageRef.set({
 firebase deploy --only functions:migrateInterruptsToMessages
 ```
 
+---
+
+## MCP Session Management
+
+### Session Expiry Auto-Reinitialization Issue (2026-02-02)
+
+**Problem:** When MCP session expires (>60min of inactivity), client receives `{"code":-32001,"message":"Session error: Session not found"}` errors but does not automatically reinitialize the connection.
+
+**Current Behavior:**
+- Session timeout increased from 30min → 60min in `SessionManager.ts`
+- After timeout, all MCP tool calls fail with 32001 error
+- Claude Code MCP client does NOT detect this error and reinitialize
+- User must manually restart Claude Code to create a new session
+
+**Expected Behavior:**
+- Client should detect 32001 error code
+- Automatically send new initialize request
+- Resume normal operation transparently
+
+**Workaround:**
+- Restart Claude Code to reinitialize MCP connection
+- Or ensure MCP tools are called at least once per 60 minutes
+
+**Status:** Known limitation of Claude Code v2.0.x MCP client. May be fixed in future versions.
+
+**Related:** Issue #10 in original improvement plan - "MCP session auto-reinitialization"
+
