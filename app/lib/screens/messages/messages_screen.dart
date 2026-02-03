@@ -9,6 +9,7 @@ import '../../providers/projects_provider.dart';
 import '../../providers/selection_provider.dart';
 import '../../services/haptic_service.dart';
 import '../../widgets/animated_list_item.dart';
+import '../../widgets/selectable_card.dart';
 import '../../widgets/thread_card.dart';
 import '../../widgets/selection_action_bar.dart';
 import '../../widgets/shimmer_card.dart';
@@ -341,14 +342,62 @@ class MessagesScreen extends ConsumerWidget {
                     int animationIndex = 0;
 
                     Widget buildThreadItem(ThreadGroup thread) {
+                      final threadMessageIds = thread.messages.map((m) => m.id).toList();
+                      final isThreadSelected = threadMessageIds.every(
+                        (id) => selectionState.isSelected(id),
+                      );
+
                       return AnimatedListItem(
                         index: animationIndex++,
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: ThreadCard(
-                            thread: thread,
-                            onMessageTap: (message) => _navigateToMessage(context, message),
-                            projectNameMap: projectNameMap,
+                          child: SelectableCard(
+                            isSelecting: selectionState.isSelecting,
+                            isSelected: isThreadSelected,
+                            onTap: () {
+                              // When not selecting, tap the first message
+                              if (thread.messages.isNotEmpty) {
+                                _navigateToMessage(context, thread.messages.first);
+                              }
+                            },
+                            onLongPress: () {
+                              if (!selectionState.isSelecting) {
+                                ref.read(messagesSelectionProvider.notifier).enterSelectionMode();
+                              }
+                              // Toggle all messages in this thread
+                              final notifier = ref.read(messagesSelectionProvider.notifier);
+                              if (isThreadSelected) {
+                                for (final id in threadMessageIds) {
+                                  notifier.toggleSelection(id);
+                                }
+                              } else {
+                                for (final id in threadMessageIds) {
+                                  if (!selectionState.isSelected(id)) {
+                                    notifier.toggleSelection(id);
+                                  }
+                                }
+                              }
+                            },
+                            onToggleSelection: () {
+                              // Toggle all messages in this thread
+                              final notifier = ref.read(messagesSelectionProvider.notifier);
+                              if (isThreadSelected) {
+                                for (final id in threadMessageIds) {
+                                  notifier.toggleSelection(id);
+                                }
+                              } else {
+                                for (final id in threadMessageIds) {
+                                  if (!selectionState.isSelected(id)) {
+                                    notifier.toggleSelection(id);
+                                  }
+                                }
+                              }
+                            },
+                            child: ThreadCard(
+                              thread: thread,
+                              onMessageTap: (message) => _navigateToMessage(context, message),
+                              projectNameMap: projectNameMap,
+                            ),
                           ),
                         ),
                       );
