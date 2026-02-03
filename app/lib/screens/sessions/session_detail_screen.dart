@@ -20,6 +20,8 @@ class SessionDetailScreen extends ConsumerStatefulWidget {
 class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
   final _messageController = TextEditingController();
   bool _isSending = false;
+  bool _isRequestingStatus = false;
+  DateTime? _lastStatusRequest;
 
   @override
   void dispose() {
@@ -69,6 +71,7 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
+    setState(() => _isRequestingStatus = true);
     HapticService.medium();
 
     try {
@@ -79,6 +82,10 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
           );
 
       if (mounted) {
+        setState(() {
+          _lastStatusRequest = DateTime.now();
+          _isRequestingStatus = false;
+        });
         HapticService.success();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Status update requested')),
@@ -86,6 +93,7 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isRequestingStatus = false);
         HapticService.error();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
@@ -262,18 +270,26 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
                       // Get Status button (prominent)
                       if (session.isWorking || session.isBlocked)
                         FilledButton.tonal(
-                          onPressed: _requestStatusUpdate,
+                          onPressed: _isRequestingStatus ? null : _requestStatusUpdate,
                           style: FilledButton.styleFrom(
                             minimumSize: const Size(double.infinity, 48),
                           ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.sync),
-                              SizedBox(width: 8),
-                              Text('Get Status Update'),
-                            ],
-                          ),
+                          child: _isRequestingStatus
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.sync),
+                                    const SizedBox(width: 8),
+                                    Text(_lastStatusRequest != null
+                                        ? 'Requested ${_formatDateTime(_lastStatusRequest!)}'
+                                        : 'Get Status Update'),
+                                  ],
+                                ),
                         ),
                       const SizedBox(height: 16),
 

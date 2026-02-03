@@ -5,6 +5,7 @@ import * as admin from "firebase-admin";
 
 /**
  * Check for interrupt messages sent from the mobile app to this session.
+ * Reads from /messages collection with direction: to_claude.
  * Uses transactions to atomically claim interrupts and prevent double-processing.
  */
 export async function getInterrupts(
@@ -14,12 +15,19 @@ export async function getInterrupts(
   const args = GetInterruptsSchema.parse(rawArgs);
   const db = getFirestore();
 
-  // Get pending interrupts for this session
-  const interruptsSnapshot = await db
-    .collection(`users/${auth.userId}/sessions/${args.sessionId}/interrupts`)
+  // Build query for pending messages directed to Claude
+  let query = db
+    .collection(`users/${auth.userId}/messages`)
+    .where("direction", "==", "to_claude")
     .where("status", "==", "pending")
-    .orderBy("createdAt", "asc")
-    .get();
+    .orderBy("createdAt", "asc");
+
+  // If sessionId provided, filter to that session only
+  if (args.sessionId) {
+    query = query.where("sessionId", "==", args.sessionId);
+  }
+
+  const interruptsSnapshot = await query.get();
 
   if (interruptsSnapshot.empty) {
     return {
@@ -43,8 +51,10 @@ export async function getInterrupts(
       const data = doc.data();
       return {
         id: doc.id,
-        message: data.message,
+        message: data.content, // /messages uses 'content' field
         createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+        action: data.action,
+        priority: data.priority,
       };
     });
 
@@ -67,7 +77,13 @@ export async function getInterrupts(
   // This prevents two Claude instances from processing the same interrupt
   try {
     const result = await db.runTransaction(async (transaction) => {
-      const claimedInterrupts: Array<{ id: string; message: string; createdAt: string | null }> = [];
+      const claimedInterrupts: Array<{
+        id: string;
+        message: string;
+        createdAt: string | null;
+        action?: string;
+        priority?: string;
+      }> = [];
 
       for (const doc of interruptsSnapshot.docs) {
         // Re-read within transaction to get latest state
@@ -83,17 +99,19 @@ export async function getInterrupts(
           continue;
         }
 
-        // Atomically mark as read
+        // Atomically mark as in_progress (matches /messages schema)
         transaction.update(doc.ref, {
-          status: "read",
-          readAt: admin.firestore.FieldValue.serverTimestamp(),
-          claimedBy: args.sessionId,
+          status: "in_progress",
+          startedAt: admin.firestore.FieldValue.serverTimestamp(),
+          sessionId: args.sessionId || doc.data()?.sessionId,
         });
 
         claimedInterrupts.push({
           id: doc.id,
-          message: data.message,
+          message: data.content, // /messages uses 'content' field
           createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+          action: data.action,
+          priority: data.priority,
         });
       }
 

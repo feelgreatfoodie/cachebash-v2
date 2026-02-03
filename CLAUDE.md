@@ -301,8 +301,8 @@ ask_question({
 | What to Poll | MCP Tool | Interval |
 |--------------|----------|----------|
 | Question responses | `get_response` | 30s → 1min → 2min (escalating) |
-| **New tasks from user** | `get_pending_tasks` | Every 2 minutes |
-| Interrupts | `get_interrupts` | Every 1 minute |
+| Interrupts (status requests, messages) | `get_interrupts` | **Every 30 seconds** |
+| New tasks from user | `get_pending_tasks` | **Every 1 minute** |
 
 **Escalating intervals for pending questions:**
 
@@ -312,12 +312,28 @@ ask_question({
 | 2-10 min | Every 1 minute |
 | 10+ min | Every 2 minutes |
 
-**Also check at natural work breakpoints:**
-- After completing a file
-- After running tests (pass or fail)
-- After a commit
-- Before starting work that depends on a pending answer
-- **When idle or between tasks** (check for new tasks)
+### Check at EVERY Natural Breakpoint
+
+**CRITICAL:** At each natural breakpoint, run ALL three checks:
+
+```typescript
+// 1. Check for session messages (like "Get Status Update")
+get_interrupts({ sessionId, markAsRead: true })
+
+// 2. Check for pending questions that were answered
+get_response({ questionId }) // for each pending question
+
+// 3. Check for new tasks from mobile
+get_pending_tasks({ status: "pending" })
+```
+
+**Natural breakpoints include:**
+- After editing a file
+- After running a command (build, test, etc.)
+- Before starting new work
+- When waiting for builds/tests
+- After completing any todo item
+- Between task transitions
 
 ### While Waiting for Approval
 
@@ -332,7 +348,7 @@ When waiting for a command/edit approval:
 
 3. **Do parallel work** if available - any read-only work or previously-approved operations
 
-4. **Check for new tasks** via `get_pending_tasks` every 2 minutes
+4. **Check for new tasks** via `get_pending_tasks` every 1 minute
 
 5. **One reminder max** after 30 min: "Still need: [brief description]"
 
