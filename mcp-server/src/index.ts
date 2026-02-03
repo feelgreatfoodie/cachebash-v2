@@ -23,6 +23,10 @@ import { createSession } from "./tools/createSession.js";
 import { listSessions } from "./tools/listSessions.js";
 import { sendAlert } from "./tools/sendAlert.js";
 import { sendHeartbeat } from "./tools/sendHeartbeat.js";
+import { createSprint } from "./tools/createSprint.js";
+import { updateSprintStory } from "./tools/updateSprintStory.js";
+import { addStoryToSprint } from "./tools/addStoryToSprint.js";
+import { completeSprint } from "./tools/completeSprint.js";
 import { checkRateLimit, cleanupRateLimits, getRateLimitResetIn } from "./middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "./logging/auditLogger.js";
 
@@ -59,6 +63,10 @@ const toolHandlers: Record<string, (auth: AuthContext, args: any) => Promise<any
   list_sessions: listSessions,
   send_alert: sendAlert,
   send_heartbeat: sendHeartbeat,
+  create_sprint: createSprint,
+  update_sprint_story: updateSprintStory,
+  add_story_to_sprint: addStoryToSprint,
+  complete_sprint: completeSprint,
 };
 
 // Helper to extract Bearer token from Authorization header
@@ -490,6 +498,151 @@ async function main() {
               },
             },
             required: ["taskId"],
+          },
+        },
+        {
+          name: "create_sprint",
+          description:
+            "Create a new sprint to track parallel story execution. Called by the orchestrator when starting a new sprint.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              projectName: {
+                type: "string",
+                description: "Project/repo name",
+                maxLength: 100,
+              },
+              branch: {
+                type: "string",
+                description: "Git branch for this sprint",
+                maxLength: 100,
+              },
+              stories: {
+                type: "array",
+                description: "Array of stories to include in the sprint",
+                items: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string", description: "Story ID (e.g., US-001)" },
+                    title: { type: "string", description: "Story title" },
+                    wave: { type: "number", description: "Wave number (1-based)" },
+                    dependencies: { type: "array", items: { type: "string" }, description: "IDs of blocking stories" },
+                    complexity: { type: "string", enum: ["normal", "high"], description: "Story complexity" },
+                  },
+                  required: ["id", "title"],
+                },
+              },
+              config: {
+                type: "object",
+                description: "Sprint configuration",
+                properties: {
+                  orchestratorModel: { type: "string", description: "Model for orchestrator" },
+                  subagentModel: { type: "string", description: "Model for subagents" },
+                  maxConcurrent: { type: "number", description: "Max parallel subagents" },
+                },
+              },
+              sessionId: {
+                type: "string",
+                description: "Optional session ID to associate with sprint",
+              },
+            },
+            required: ["projectName", "branch", "stories"],
+          },
+        },
+        {
+          name: "update_sprint_story",
+          description:
+            "Update a story's progress within a sprint. Called by subagents or orchestrator to report progress.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              sprintId: {
+                type: "string",
+                description: "ID of the sprint",
+              },
+              storyId: {
+                type: "string",
+                description: "ID of the story to update",
+              },
+              status: {
+                type: "string",
+                enum: ["queued", "active", "complete", "failed", "skipped"],
+                description: "New status for the story",
+              },
+              progress: {
+                type: "number",
+                minimum: 0,
+                maximum: 100,
+                description: "Progress percentage (0-100)",
+              },
+              currentAction: {
+                type: "string",
+                description: "Current action being performed (e.g., 'Running tests (2/4)')",
+                maxLength: 200,
+              },
+              model: {
+                type: "string",
+                description: "Model being used for this story",
+              },
+            },
+            required: ["sprintId", "storyId"],
+          },
+        },
+        {
+          name: "add_story_to_sprint",
+          description:
+            "Add a new story to a running sprint. Enables dynamic sprint insertion from mobile app or orchestrator.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              sprintId: {
+                type: "string",
+                description: "ID of the sprint to add story to",
+              },
+              story: {
+                type: "object",
+                description: "Story to add",
+                properties: {
+                  id: { type: "string", description: "Story ID" },
+                  title: { type: "string", description: "Story title" },
+                  dependencies: { type: "array", items: { type: "string" }, description: "IDs of blocking stories" },
+                  complexity: { type: "string", enum: ["normal", "high"], description: "Story complexity" },
+                },
+                required: ["id", "title"],
+              },
+              insertionMode: {
+                type: "string",
+                enum: ["current_wave", "next_wave", "backlog"],
+                description: "Where to insert the story",
+                default: "next_wave",
+              },
+            },
+            required: ["sprintId", "story"],
+          },
+        },
+        {
+          name: "complete_sprint",
+          description:
+            "Mark a sprint as complete. Called by orchestrator when all stories are done or sprint is stopped.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              sprintId: {
+                type: "string",
+                description: "ID of the sprint to complete",
+              },
+              summary: {
+                type: "object",
+                description: "Optional summary of sprint results",
+                properties: {
+                  completed: { type: "number", description: "Number of completed stories" },
+                  failed: { type: "number", description: "Number of failed stories" },
+                  skipped: { type: "number", description: "Number of skipped stories" },
+                  duration: { type: "number", description: "Total duration in seconds" },
+                },
+              },
+            },
+            required: ["sprintId"],
           },
         },
       ],

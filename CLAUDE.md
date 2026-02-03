@@ -21,6 +21,7 @@ Tasks have an `action` field that controls how/when Claude should handle them:
 | Action | Timing | Behavior | Tested |
 |--------|--------|----------|--------|
 | `interrupt` | **Immediate** | Stop current work NOW, handle this task | ✅ Verified |
+| `sprint` | **Current wave** | Add to running sprint if no dependency conflicts | ✅ New in v3 |
 | `parallel` | **Soon** | Spin up a subagent at the next convenient moment | ✅ Verified |
 | `queue` | After current | Handle when current task completes (default) | ⚠️ Expected behavior |
 | `backlog` | Eventually | Low priority, handle when idle | ⚠️ Expected behavior |
@@ -1000,6 +1001,120 @@ Keep a task alive during long-running work. Prevents orphan cleanup.
 
 **Call every 10-15 minutes** during long tasks. The cleanup function reverts tasks with lastHeartbeat > 30 minutes.
 
+### Sprint Management Tools (v3)
+
+These tools enable the Sprint Dashboard and dynamic sprint management:
+
+#### create_sprint
+Create a new sprint to track parallel story execution.
+```typescript
+{
+  projectName: string,
+  branch: string,
+  stories: Array<{
+    id: string,           // e.g., "US-001"
+    title: string,
+    wave?: number,        // 1-based wave number
+    dependencies?: string[],
+    complexity?: 'normal' | 'high'
+  }>,
+  config?: {
+    orchestratorModel?: string,  // Default: opus
+    subagentModel?: string,      // Default: sonnet
+    maxConcurrent?: number       // Default: 3
+  },
+  sessionId?: string
+}
+// Returns: { sprintId, projectName, storyCount, totalWaves }
+```
+
+#### update_sprint_story
+Update a story's progress within a sprint.
+```typescript
+{
+  sprintId: string,
+  storyId: string,
+  status?: 'queued' | 'active' | 'complete' | 'failed' | 'skipped',
+  progress?: number,       // 0-100
+  currentAction?: string,  // e.g., "Running tests (2/4)"
+  model?: string
+}
+```
+
+#### add_story_to_sprint
+Add a new story to a running sprint (dynamic insertion).
+```typescript
+{
+  sprintId: string,
+  story: {
+    id: string,
+    title: string,
+    dependencies?: string[],
+    complexity?: 'normal' | 'high'
+  },
+  insertionMode: 'current_wave' | 'next_wave' | 'backlog'
+}
+// Returns: { wave, position }
+```
+
+#### complete_sprint
+Mark a sprint as complete.
+```typescript
+{
+  sprintId: string,
+  summary?: {
+    completed: number,
+    failed: number,
+    skipped: number,
+    duration: number  // seconds
+  }
+}
+```
+
+---
+
+## Hybrid Model Architecture (v3)
+
+Basher v3 uses a hybrid model approach for optimal cost/quality balance:
+
+| Role | Model | Purpose |
+|------|-------|---------|
+| **Orchestrator** | Opus | Planning, coordination, code review |
+| **Standard subagents** | Sonnet | Most story implementation |
+| **Complex stories** | Opus | High-complexity or retry scenarios |
+| **Code review** | Opus | Quality gate before commits |
+
+**Configuration in basher.config.json:**
+```json
+{
+  "claude": {
+    "orchestratorModel": "opus",
+    "subagentModel": "sonnet",
+    "complexStoryModel": "opus",
+    "reviewWithOrchestrator": true
+  }
+}
+```
+
+**Cost optimization:** Sonnet handles ~80% of implementation work. Opus provides quality assurance through orchestration and code review.
+
+---
+
+## Sprint Dashboard (v3)
+
+The Flutter app now includes a Sprint Dashboard for real-time monitoring of parallel execution:
+
+**Features:**
+- Overall sprint progress with wave indicators
+- Active stories with progress bars and current actions
+- Queued and completed stories
+- Dynamic story insertion from mobile
+- Model and configuration display
+
+**Firestore Path:** `/users/{userId}/sprints/{sprintId}`
+
+**Navigation:** Sessions with active sprints show a "View Sprint" button linking to `/sprints/{sprintId}`
+
 ## Firestore Schema
 
 ```
@@ -1021,6 +1136,34 @@ Keep a task alive during long-running work. Prevents orphan cleanup.
   - lastUpdate: timestamp
   - archived: boolean
   - archivedAt?: timestamp
+
+/users/{userId}/sprints/{sprintId}                              # NEW v3
+  - projectName: string
+  - branch: string
+  - status: 'running' | 'paused' | 'complete' | 'error'
+  - currentWave: number
+  - totalWaves: number
+  - startedAt: timestamp
+  - updatedAt: timestamp
+  - completedAt?: timestamp
+  - sessionId?: string
+  - config: { orchestratorModel, subagentModel, maxConcurrent }
+  - summary?: { completed, failed, skipped, duration }
+
+/users/{userId}/sprints/{sprintId}/stories/{storyId}            # NEW v3
+  - id: string                          # Story ID (US-001)
+  - title: string
+  - status: 'queued' | 'active' | 'complete' | 'failed' | 'skipped'
+  - wave: number
+  - progress: number                    # 0-100
+  - currentAction?: string              # Current work description
+  - startedAt?: timestamp
+  - completedAt?: timestamp
+  - duration?: number                   # Seconds
+  - dependencies?: string[]
+  - complexity: 'normal' | 'high'
+  - model?: string                      # Which model executed
+  - addedDynamically: boolean           # True if added mid-sprint
 
 /users/{userId}/sessions/{sessionId}/interrupts/{interruptId}
   - message: string

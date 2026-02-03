@@ -85,6 +85,16 @@ service cloud.firestore {
         allow delete: if isOwner(userId);
       }
 
+      // Sprints subcollection (parallel story execution tracking)
+      match /sprints/{sprintId} {
+        allow read, write: if isOwner(userId);
+
+        // Stories within a sprint
+        match /stories/{storyId} {
+          allow read, write: if isOwner(userId);
+        }
+      }
+
       // Analytics subcollection
       match /analytics/{period} {
         allow read: if isOwner(userId);

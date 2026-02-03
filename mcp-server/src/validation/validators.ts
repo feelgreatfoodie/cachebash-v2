@@ -71,6 +71,58 @@ export const SendHeartbeatSchema = z.object({
   progress: z.number().min(0).max(100).optional(),
 });
 
+// Sprint story schema (shared between create and add)
+export const SprintStorySchema = z.object({
+  id: z.string().min(1).max(20),
+  title: z.string().min(1).max(200),
+  status: z.enum(["queued", "active", "complete", "failed", "skipped"]).default("queued"),
+  wave: z.number().int().min(1).default(1),
+  progress: z.number().min(0).max(100).default(0),
+  currentAction: z.string().max(200).optional(),
+  dependencies: z.array(z.string().max(20)).max(20).optional(),
+  complexity: z.enum(["normal", "high"]).default("normal"),
+  model: z.string().max(50).optional(),
+});
+
+export const SprintConfigSchema = z.object({
+  orchestratorModel: z.string().max(50).default("opus"),
+  subagentModel: z.string().max(50).default("sonnet"),
+  maxConcurrent: z.number().int().min(1).max(10).default(3),
+});
+
+export const CreateSprintSchema = z.object({
+  projectName: z.string().min(1).max(100),
+  branch: z.string().min(1).max(100),
+  stories: z.array(SprintStorySchema).min(1).max(50),
+  config: SprintConfigSchema.optional(),
+  sessionId: z.string().max(100).optional(),
+});
+
+export const UpdateSprintStorySchema = z.object({
+  sprintId: z.string().min(1, "Sprint ID required"),
+  storyId: z.string().min(1, "Story ID required"),
+  status: z.enum(["queued", "active", "complete", "failed", "skipped"]).optional(),
+  progress: z.number().min(0).max(100).optional(),
+  currentAction: z.string().max(200).optional(),
+  model: z.string().max(50).optional(),
+});
+
+export const AddStoryToSprintSchema = z.object({
+  sprintId: z.string().min(1, "Sprint ID required"),
+  story: SprintStorySchema,
+  insertionMode: z.enum(["current_wave", "next_wave", "backlog"]).default("next_wave"),
+});
+
+export const CompleteSprintSchema = z.object({
+  sprintId: z.string().min(1, "Sprint ID required"),
+  summary: z.object({
+    completed: z.number().int().min(0),
+    failed: z.number().int().min(0),
+    skipped: z.number().int().min(0),
+    duration: z.number().int().min(0),
+  }).optional(),
+});
+
 export type AskQuestionArgs = z.infer<typeof AskQuestionSchema>;
 export type GetResponseArgs = z.infer<typeof GetResponseSchema>;
 export type UpdateStatusArgs = z.infer<typeof UpdateStatusSchema>;
@@ -82,3 +134,9 @@ export type ClaimTaskArgs = z.infer<typeof ClaimTaskSchema>;
 export type CompleteTaskArgs = z.infer<typeof CompleteTaskSchema>;
 export type SendAlertArgs = z.infer<typeof SendAlertSchema>;
 export type SendHeartbeatArgs = z.infer<typeof SendHeartbeatSchema>;
+export type SprintStoryArgs = z.infer<typeof SprintStorySchema>;
+export type SprintConfigArgs = z.infer<typeof SprintConfigSchema>;
+export type CreateSprintArgs = z.infer<typeof CreateSprintSchema>;
+export type UpdateSprintStoryArgs = z.infer<typeof UpdateSprintStorySchema>;
+export type AddStoryToSprintArgs = z.infer<typeof AddStoryToSprintSchema>;
+export type CompleteSprintArgs = z.infer<typeof CompleteSprintSchema>;

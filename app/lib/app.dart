@@ -20,6 +20,8 @@ import 'screens/settings/notifications_screen.dart';
 import 'screens/sessions/session_detail_screen.dart';
 import 'screens/sessions/sessions_screen.dart';
 import 'screens/sessions/archived_sessions_screen.dart';
+import 'screens/sprints/sprint_dashboard_screen.dart';
+import 'screens/sprints/add_to_sprint_screen.dart';
 import 'screens/tasks/tasks_screen.dart';
 import 'screens/tasks/create_task_screen.dart';
 import 'screens/messages/messages_screen.dart';
@@ -109,6 +111,21 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) {
               final sessionId = state.pathParameters['id']!;
               return SessionDetailScreen(sessionId: sessionId);
+            },
+          ),
+          // Sprints
+          GoRoute(
+            path: '/sprints/:id',
+            builder: (context, state) {
+              final sprintId = state.pathParameters['id']!;
+              return SprintDashboardScreen(sprintId: sprintId);
+            },
+          ),
+          GoRoute(
+            path: '/sprints/:id/add-story',
+            builder: (context, state) {
+              final sprintId = state.pathParameters['id']!;
+              return AddToSprintScreen(sprintId: sprintId);
             },
           ),
           // Tasks (legacy routes - redirect to messages)
