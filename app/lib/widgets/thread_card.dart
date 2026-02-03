@@ -64,6 +64,7 @@ class ThreadCard extends StatefulWidget {
   final void Function(MessageModel message)? onMessageTap;
   final void Function(MessageModel message)? onReply;
   final bool initiallyExpanded;
+  final Map<String, String>? projectNameMap;
 
   const ThreadCard({
     super.key,
@@ -71,6 +72,7 @@ class ThreadCard extends StatefulWidget {
     this.onMessageTap,
     this.onReply,
     this.initiallyExpanded = false,
+    this.projectNameMap,
   });
 
   @override
@@ -91,13 +93,20 @@ class _ThreadCardState extends State<ThreadCard> {
     setState(() => _isExpanded = !_isExpanded);
   }
 
+  String? _getProjectName(MessageModel message) {
+    if (message.projectId == null || widget.projectNameMap == null) return null;
+    return widget.projectNameMap![message.projectId!];
+  }
+
   @override
   Widget build(BuildContext context) {
     // Single message - just show the card
     if (!widget.thread.hasMultipleMessages) {
+      final message = widget.thread.messages.first;
       return MessageCard(
-        message: widget.thread.messages.first,
-        onTap: () => widget.onMessageTap?.call(widget.thread.messages.first),
+        message: message,
+        onTap: () => widget.onMessageTap?.call(message),
+        projectName: _getProjectName(message),
       );
     }
 

@@ -21,33 +21,24 @@ class QuestionDetailScreen extends ConsumerStatefulWidget {
 
 class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
   final _responseController = TextEditingController();
-  final _contextController = TextEditingController();
-  String? _selectedOption;
   bool _isSubmitting = false;
 
   @override
   void dispose() {
     _responseController.dispose();
-    _contextController.dispose();
     super.dispose();
   }
 
-  Future<void> _submitResponse() async {
+  Future<void> _submitResponse([String? quickResponse]) async {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
-    String finalResponse = _selectedOption ?? _responseController.text.trim();
-    if (finalResponse.isEmpty) {
+    final response = quickResponse ?? _responseController.text.trim();
+    if (response.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a response')),
       );
       return;
-    }
-
-    // Append additional context if provided
-    final contextText = _contextController.text.trim();
-    if (contextText.isNotEmpty) {
-      finalResponse += '\n\n[Additional Context]\n$contextText';
     }
 
     setState(() => _isSubmitting = true);
@@ -56,7 +47,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
       await ref.read(questionsServiceProvider).answerQuestion(
             userId: user.uid,
             questionId: widget.questionId,
-            response: finalResponse,
+            response: response,
           );
 
       if (mounted) {
@@ -514,32 +505,32 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Quick-tap options (submit immediately on tap)
         if (options != null && options.isNotEmpty) ...[
-          // Multiple choice options
           Text(
-            'Select an option:',
+            'Quick response:',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 12),
-          ...options.map((option) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: ChoiceChip(
-                  label: Text(option),
-                  selected: _selectedOption == option,
-                  onSelected: (selected) {
-                    HapticService.selection();
-                    setState(() {
-                      _selectedOption = selected ? option : null;
-                    });
-                  },
-                ),
-              )),
-          const SizedBox(height: 16),
-          const Divider(),
-          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: options.map((option) => ActionChip(
+              label: Text(option),
+              onPressed: _isSubmitting
+                  ? null
+                  : () {
+                      HapticService.medium();
+                      _submitResponse(option);
+                    },
+            )).toList(),
+          ),
+          const SizedBox(height: 24),
           Text(
-            'Or type a custom response:',
-            style: Theme.of(context).textTheme.titleSmall,
+            'Or write a custom response:',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
           ),
           const SizedBox(height: 8),
         ] else ...[
@@ -550,37 +541,41 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
           const SizedBox(height: 12),
         ],
 
-        // Text input
+        // Single text input with send button
         TextField(
           controller: _responseController,
           maxLines: 4,
-          decoration: const InputDecoration(
-            hintText: 'Type your response here...',
-            border: OutlineInputBorder(),
+          maxLength: 2000,
+          enabled: !_isSubmitting,
+          decoration: InputDecoration(
+            hintText: 'Type your response...',
+            border: const OutlineInputBorder(),
+            suffixIcon: ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _responseController,
+              builder: (context, value, child) {
+                if (value.text.trim().isEmpty) return const SizedBox.shrink();
+                return IconButton(
+                  icon: _isSubmitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send),
+                  onPressed: _isSubmitting
+                      ? null
+                      : () {
+                          HapticService.medium();
+                          _submitResponse();
+                        },
+                );
+              },
+            ),
           ),
-          onChanged: (_) {
-            if (_selectedOption != null) {
-              setState(() => _selectedOption = null);
-            }
-          },
         ),
         const SizedBox(height: 16),
 
-        // Additional context field
-        TextField(
-          controller: _contextController,
-          maxLines: 3,
-          maxLength: 500,
-          decoration: const InputDecoration(
-            labelText: 'Additional Context (optional)',
-            hintText: 'Add any clarifying details or questions...',
-            border: OutlineInputBorder(),
-            helperText: 'Provide extra context to help Claude understand your response',
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // Submit button
+        // Submit button (for accessibility)
         FilledButton(
           onPressed: _isSubmitting
               ? null

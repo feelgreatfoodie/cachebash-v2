@@ -132,6 +132,15 @@ final projectsWithCountsProvider =
   }
 });
 
+/// Provider for efficient project name lookups by ID
+final projectNameMapProvider = Provider<Map<String, String>>((ref) {
+  final projectsAsync = ref.watch(projectsProvider);
+  return projectsAsync.maybeWhen(
+    data: (projects) => {for (final p in projects) p.id: p.name},
+    orElse: () => {},
+  );
+});
+
 /// Service for managing projects
 class ProjectsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;

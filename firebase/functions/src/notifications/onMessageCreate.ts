@@ -90,12 +90,13 @@ export const onMessageCreate = functions.firestore
       // Determine notification title based on message type
       let notificationTitle = "Claude needs your input";
       if (message.messageType === "alert") {
-        const alertTypeDisplay = {
+        const alertTypeMap: Record<string, string> = {
           error: "Error",
           warning: "Warning",
           success: "Success",
           info: "Info",
-        }[message.alertType] || "Alert";
+        };
+        const alertTypeDisplay = alertTypeMap[message.alertType as string] || "Alert";
         notificationTitle = `Alert: ${alertTypeDisplay}`;
       } else if (message.messageType === "info") {
         notificationTitle = "Claude update";

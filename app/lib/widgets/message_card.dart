@@ -7,13 +7,23 @@ import '../services/haptic_service.dart';
 class MessageCard extends StatelessWidget {
   final MessageModel message;
   final VoidCallback? onTap;
+  final VoidCallback? onArchive;
+  final VoidCallback? onDelete;
+  final VoidCallback? onLongPress;
+  final String? projectName;
   final bool handleTap; // If false, parent handles tap (e.g., SelectableCard)
+  final bool enableSwipe; // Whether to enable swipe actions
 
   const MessageCard({
     super.key,
     required this.message,
     this.onTap,
+    this.onArchive,
+    this.onDelete,
+    this.onLongPress,
+    this.projectName,
     this.handleTap = true,
+    this.enableSwipe = false,
   });
 
   @override
@@ -132,11 +142,33 @@ class MessageCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ],
+
+          // Project name at bottom-right
+          if (projectName != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Icon(
+                  Icons.folder_outlined,
+                  size: 12,
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  projectName!,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
 
-    return Card(
+    final card = Card(
       clipBehavior: Clip.antiAlias,
       child: handleTap
           ? InkWell(
@@ -144,9 +176,150 @@ class MessageCard extends StatelessWidget {
                 HapticService.light();
                 onTap?.call();
               },
+              onLongPress: onLongPress != null
+                  ? () {
+                      HapticService.medium();
+                      onLongPress?.call();
+                    }
+                  : null,
               child: content,
             )
           : content,
+    );
+
+    // If swipe is not enabled, return the card as-is
+    if (!enableSwipe) {
+      return card;
+    }
+
+    // Wrap in Dismissible for swipe actions
+    return Dismissible(
+      key: Key('message_${message.id}'),
+      direction: DismissDirection.horizontal,
+      dismissThresholds: const {
+        DismissDirection.endToStart: 0.4, // Archive
+        DismissDirection.startToEnd: 0.4, // Delete
+      },
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.startToEnd) {
+          // Delete requires confirmation
+          return await _showDeleteConfirmation(context);
+        }
+        // Archive proceeds without confirmation
+        return true;
+      },
+      onDismissed: (direction) {
+        if (direction == DismissDirection.endToStart) {
+          // Swipe left = Archive
+          onArchive?.call();
+        } else if (direction == DismissDirection.startToEnd) {
+          // Swipe right = Delete
+          onDelete?.call();
+        }
+      },
+      background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 24),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.error,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      secondaryBackground: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 24),
+        decoration: BoxDecoration(
+          color: Colors.orange,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(Icons.archive, color: Colors.white),
+      ),
+      child: card,
+    );
+  }
+
+  Future<bool> _showDeleteConfirmation(BuildContext context) async {
+    HapticService.heavy();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Message?'),
+        content: const Text(
+          'This will permanently delete this message. This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              HapticService.medium();
+              Navigator.pop(context, true);
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  /// Show a context menu with archive/delete options (accessibility alternative to swipe)
+  static void showContextMenu(
+    BuildContext context, {
+    required VoidCallback onArchive,
+    required VoidCallback onDelete,
+    bool isArchived = false,
+  }) {
+    HapticService.medium();
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!isArchived)
+              ListTile(
+                leading: const Icon(Icons.archive, color: Colors.orange),
+                title: const Text('Archive'),
+                onTap: () {
+                  Navigator.pop(context);
+                  onArchive();
+                },
+              ),
+            if (isArchived)
+              ListTile(
+                leading: const Icon(Icons.unarchive, color: Colors.green),
+                title: const Text('Restore'),
+                onTap: () {
+                  Navigator.pop(context);
+                  onArchive(); // In archived context, this restores
+                },
+              ),
+            ListTile(
+              leading: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
+              title: Text(
+                'Delete',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                onDelete();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.close),
+              title: const Text('Cancel'),
+              onTap: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

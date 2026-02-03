@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/messages_provider.dart';
 import '../../services/haptic_service.dart';
 import '../../widgets/message_card.dart';
+import '../../widgets/task_detail_sheet.dart';
 
 class ArchivedMessagesScreen extends ConsumerWidget {
   const ArchivedMessagesScreen({super.key});
@@ -45,7 +46,14 @@ class ArchivedMessagesScreen extends ConsumerWidget {
     WidgetRef ref,
     String messageId,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await _showDeleteConfirmDialog(context);
+    if (confirmed != true) return;
+    await _deleteMessageDirect(context, ref, messageId);
+  }
+
+  Future<bool> _showDeleteConfirmDialog(BuildContext context) async {
+    HapticService.heavy();
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Message?'),
@@ -70,9 +78,14 @@ class ArchivedMessagesScreen extends ConsumerWidget {
         ],
       ),
     );
+    return result ?? false;
+  }
 
-    if (confirmed != true) return;
-
+  Future<void> _deleteMessageDirect(
+    BuildContext context,
+    WidgetRef ref,
+    String messageId,
+  ) async {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
@@ -100,7 +113,10 @@ class ArchivedMessagesScreen extends ConsumerWidget {
   void _navigateToMessage(BuildContext context, MessageModel message) {
     HapticService.light();
     if (message.isToUser) {
-      context.go('/questions/${message.id}');
+      context.push('/questions/${message.id}');
+    } else {
+      // Show task detail in bottom sheet
+      TaskDetailSheet.show(context, message);
     }
   }
 
@@ -171,62 +187,58 @@ class ArchivedMessagesScreen extends ConsumerWidget {
                 final message = messages[index];
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: Stack(
-                    children: [
-                      MessageCard(
-                        message: message,
-                        onTap: () => _navigateToMessage(context, message),
+                  child: Dismissible(
+                    key: Key('archived_${message.id}'),
+                    direction: DismissDirection.horizontal,
+                    dismissThresholds: const {
+                      DismissDirection.endToStart: 0.4, // Delete
+                      DismissDirection.startToEnd: 0.4, // Restore
+                    },
+                    confirmDismiss: (direction) async {
+                      if (direction == DismissDirection.endToStart) {
+                        // Delete requires confirmation
+                        return await _showDeleteConfirmDialog(context);
+                      }
+                      // Restore proceeds without confirmation
+                      return true;
+                    },
+                    onDismissed: (direction) {
+                      if (direction == DismissDirection.endToStart) {
+                        // Swipe left = Delete (already confirmed)
+                        _deleteMessageDirect(context, ref, message.id);
+                      } else if (direction == DismissDirection.startToEnd) {
+                        // Swipe right = Restore
+                        _unarchiveMessage(context, ref, message.id);
+                      }
+                    },
+                    background: Container(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.only(left: 24),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: PopupMenuButton<String>(
-                          icon: Icon(
-                            Icons.more_vert,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                          onSelected: (value) {
-                            if (value == 'restore') {
-                              _unarchiveMessage(context, ref, message.id);
-                            } else if (value == 'delete') {
-                              _deleteMessage(context, ref, message.id);
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'restore',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.unarchive),
-                                  SizedBox(width: 12),
-                                  Text('Restore'),
-                                ],
-                              ),
-                            ),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.delete,
-                                    color: Theme.of(context).colorScheme.error,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    'Delete',
-                                    style: TextStyle(
-                                      color:
-                                          Theme.of(context).colorScheme.error,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                      child: const Icon(Icons.unarchive, color: Colors.white),
+                    ),
+                    secondaryBackground: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 24),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.error,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
+                      child: const Icon(Icons.delete, color: Colors.white),
+                    ),
+                    child: MessageCard(
+                      message: message,
+                      onTap: () => _navigateToMessage(context, message),
+                      onLongPress: () => MessageCard.showContextMenu(
+                        context,
+                        isArchived: true,
+                        onArchive: () => _unarchiveMessage(context, ref, message.id),
+                        onDelete: () => _deleteMessage(context, ref, message.id),
+                      ),
+                    ),
                   ),
                 );
               },

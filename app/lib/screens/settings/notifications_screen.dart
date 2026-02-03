@@ -3,11 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_settings/app_settings.dart';
 
+import '../../providers/auth_provider.dart';
+import '../../providers/notification_preferences_provider.dart';
+import '../../services/haptic_service.dart';
+
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final preferencesAsync = ref.watch(notificationPreferencesProvider);
+    final user = ref.watch(currentUserProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notifications'),
@@ -74,51 +81,100 @@ class NotificationsScreen extends ConsumerWidget {
             ),
           ),
 
-          SwitchListTile(
-            secondary: const Icon(Icons.help_outline),
-            title: const Text('New Questions'),
-            subtitle: const Text('When Claude asks you a question'),
-            value: true,
-            onChanged: (value) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Notification preferences coming soon'),
+          preferencesAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(32),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (error, stack) => Padding(
+              padding: const EdgeInsets.all(16),
+              child: Card(
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Failed to load preferences: $error',
+                          style: TextStyle(
+                            color:
+                                Theme.of(context).colorScheme.onErrorContainer,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              );
-            },
-          ),
+              ),
+            ),
+            data: (preferences) => Column(
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(Icons.help_outline),
+                  title: const Text('New Questions'),
+                  subtitle: const Text('When Claude asks you a question'),
+                  value: preferences.newQuestions,
+                  onChanged: user == null
+                      ? null
+                      : (value) async {
+                          HapticService.selection();
+                          await ref
+                              .read(notificationPreferencesServiceProvider)
+                              .updatePreferences(
+                                user.uid,
+                                newQuestions: value,
+                              );
+                        },
+                ),
 
-          SwitchListTile(
-            secondary: const Icon(Icons.update),
-            title: const Text('Status Updates'),
-            subtitle: const Text('Progress updates from Claude'),
-            value: true,
-            onChanged: (value) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Notification preferences coming soon'),
+                SwitchListTile(
+                  secondary: const Icon(Icons.update),
+                  title: const Text('Session Updates'),
+                  subtitle: const Text('Progress updates from Claude'),
+                  value: preferences.sessionUpdates,
+                  onChanged: user == null
+                      ? null
+                      : (value) async {
+                          HapticService.selection();
+                          await ref
+                              .read(notificationPreferencesServiceProvider)
+                              .updatePreferences(
+                                user.uid,
+                                sessionUpdates: value,
+                              );
+                        },
                 ),
-              );
-            },
-          ),
 
-          SwitchListTile(
-            secondary: const Icon(Icons.priority_high),
-            title: const Text('High Priority Only'),
-            subtitle: const Text('Only notify for urgent questions'),
-            value: false,
-            onChanged: (value) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Notification preferences coming soon'),
+                SwitchListTile(
+                  secondary: const Icon(Icons.priority_high),
+                  title: const Text('High Priority Only'),
+                  subtitle: const Text('Only notify for urgent questions'),
+                  value: preferences.highPriorityOnly,
+                  onChanged: user == null
+                      ? null
+                      : (value) async {
+                          HapticService.selection();
+                          await ref
+                              .read(notificationPreferencesServiceProvider)
+                              .updatePreferences(
+                                user.uid,
+                                highPriorityOnly: value,
+                              );
+                        },
                 ),
-              );
-            },
+              ],
+            ),
           ),
 
           const Divider(),
 
-          // Sound & Vibration
+          // Sound & Vibration (controlled by iOS/Android system settings)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
@@ -130,32 +186,23 @@ class NotificationsScreen extends ConsumerWidget {
             ),
           ),
 
-          SwitchListTile(
-            secondary: const Icon(Icons.volume_up),
-            title: const Text('Sound'),
-            subtitle: const Text('Play sound for notifications'),
-            value: true,
-            onChanged: (value) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Sound preferences coming soon'),
-                ),
-              );
-            },
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'Sound and vibration settings are managed in your device\'s system settings.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
           ),
 
-          SwitchListTile(
-            secondary: const Icon(Icons.vibration),
-            title: const Text('Vibration'),
-            subtitle: const Text('Vibrate for notifications'),
-            value: true,
-            onChanged: (value) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Vibration preferences coming soon'),
-                ),
-              );
-            },
+          ListTile(
+            leading: const Icon(Icons.volume_up),
+            title: const Text('Configure Sound & Vibration'),
+            trailing: const Icon(Icons.open_in_new),
+            onTap: () => AppSettings.openAppSettings(
+              type: AppSettingsType.notification,
+            ),
           ),
 
           const SizedBox(height: 32),

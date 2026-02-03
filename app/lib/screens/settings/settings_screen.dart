@@ -290,7 +290,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 4),
-              Text('Contact support at support@cachebash.app'),
+              Text('Contact support at cachebashapp@gmail.com'),
             ],
           ),
         ),
