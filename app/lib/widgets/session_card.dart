@@ -51,11 +51,33 @@ class SessionCard extends StatelessWidget {
                 const SizedBox(height: 4),
               ],
 
-              // Header row with state indicator
+              // Header row with state indicator and wave badge
               Row(
                 children: [
                   _buildStateIndicator(context),
                   const SizedBox(width: 8),
+                  // Wave badge for sprint sessions
+                  if (session.isWaveSession) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Wave ${session.formattedWaveNumber}',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                   Expanded(
                     child: Text(
                       session.name,

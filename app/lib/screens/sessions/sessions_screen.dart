@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../models/session_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/sessions_provider.dart';
 import '../../providers/selection_provider.dart';
@@ -282,129 +283,92 @@ class SessionsScreen extends ConsumerWidget {
                       );
                     }
 
-                    // Group sessions by state
-                    final activeSessions =
-                        visibleSessions.where((s) => s.isActive).toList();
-                    final inactiveSessions =
-                        visibleSessions.where((s) => s.isStale && !s.isComplete).toList();
-                    final completedSessions =
-                        visibleSessions.where((s) => s.isComplete).toList();
+                    // Get grouped sessions
+                    final grouped = ref.watch(groupedSessionsProvider);
+                    final sprintIds = ref.watch(sprintIdsWithSessionsProvider);
+                    final standaloneSessions = ref.watch(standaloneSessionsProvider);
+
+                    // Group standalone sessions by state
+                    final activeStandalone =
+                        standaloneSessions.where((s) => s.isActive).toList();
+                    final inactiveStandalone =
+                        standaloneSessions.where((s) => s.isStale && !s.isComplete).toList();
+                    final completedStandalone =
+                        standaloneSessions.where((s) => s.isComplete).toList();
 
                     int animationIndex = 0;
                     return ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
-                        if (activeSessions.isNotEmpty) ...[
+                        // Sprint sections first
+                        ...sprintIds.expand((sprintId) {
+                          final waveSessions = grouped[sprintId] ?? [];
+                          if (waveSessions.isEmpty) return <Widget>[];
+
+                          // Get the first session to extract project name
+                          final projectName = waveSessions.first.projectName ?? 'Sprint';
+
+                          // Separate active and completed waves
+                          final activeWaves = waveSessions.where((s) => !s.isComplete).toList();
+                          final completedWaves = waveSessions.where((s) => s.isComplete).toList();
+
+                          return [
+                            AnimatedListItem(
+                              index: animationIndex++,
+                              child: _buildSprintHeader(context, projectName, waveSessions.length, sprintId),
+                            ),
+                            const SizedBox(height: 12),
+                            // Active waves - expanded
+                            ...activeWaves.map((s) => AnimatedListItem(
+                                  index: animationIndex++,
+                                  child: _buildSessionCard(context, ref, s, selectionState),
+                                )),
+                            // Completed waves - collapsed (smaller cards)
+                            if (completedWaves.isNotEmpty)
+                              AnimatedListItem(
+                                index: animationIndex++,
+                                child: _buildCompletedWavesSection(
+                                  context, ref, completedWaves, selectionState,
+                                ),
+                              ),
+                            const SizedBox(height: 16),
+                          ];
+                        }),
+
+                        // Standalone sessions by state
+                        if (activeStandalone.isNotEmpty) ...[
                           AnimatedListItem(
                             index: animationIndex++,
                             child: _buildSectionHeader(context, 'Active', Icons.play_circle),
                           ),
                           const SizedBox(height: 12),
-                          ...activeSessions.map((s) => AnimatedListItem(
+                          ...activeStandalone.map((s) => AnimatedListItem(
                                 index: animationIndex++,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: SelectableCard(
-                                    isSelecting: selectionState.isSelecting,
-                                    isSelected: selectionState.isSelected(s.id),
-                                    onTap: () {
-                                      HapticService.light();
-                                      context.push('/sessions/${s.id}');
-                                    },
-                                    onLongPress: () {
-                                      if (!selectionState.isSelecting) {
-                                        ref.read(sessionsSelectionProvider.notifier).enterSelectionMode();
-                                      }
-                                      ref.read(sessionsSelectionProvider.notifier).toggleSelection(s.id);
-                                    },
-                                    onToggleSelection: () {
-                                      ref.read(sessionsSelectionProvider.notifier).toggleSelection(s.id);
-                                    },
-                                    child: SessionCard(
-                                      session: s,
-                                      onTap: null,
-                                      onArchive: selectionState.isSelecting
-                                          ? null
-                                          : () => _archiveSession(context, ref, s.id),
-                                    ),
-                                  ),
-                                ),
+                                child: _buildSessionCard(context, ref, s, selectionState),
                               )),
                           const SizedBox(height: 16),
                         ],
-                        if (inactiveSessions.isNotEmpty) ...[
+                        if (inactiveStandalone.isNotEmpty) ...[
                           AnimatedListItem(
                             index: animationIndex++,
                             child: _buildSectionHeader(context, 'Inactive', Icons.access_time),
                           ),
                           const SizedBox(height: 12),
-                          ...inactiveSessions.map((s) => AnimatedListItem(
+                          ...inactiveStandalone.map((s) => AnimatedListItem(
                                 index: animationIndex++,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: SelectableCard(
-                                    isSelecting: selectionState.isSelecting,
-                                    isSelected: selectionState.isSelected(s.id),
-                                    onTap: () {
-                                      HapticService.light();
-                                      context.push('/sessions/${s.id}');
-                                    },
-                                    onLongPress: () {
-                                      if (!selectionState.isSelecting) {
-                                        ref.read(sessionsSelectionProvider.notifier).enterSelectionMode();
-                                      }
-                                      ref.read(sessionsSelectionProvider.notifier).toggleSelection(s.id);
-                                    },
-                                    onToggleSelection: () {
-                                      ref.read(sessionsSelectionProvider.notifier).toggleSelection(s.id);
-                                    },
-                                    child: SessionCard(
-                                      session: s,
-                                      onTap: null,
-                                      onArchive: selectionState.isSelecting
-                                          ? null
-                                          : () => _archiveSession(context, ref, s.id),
-                                    ),
-                                  ),
-                                ),
+                                child: _buildSessionCard(context, ref, s, selectionState),
                               )),
                           const SizedBox(height: 16),
                         ],
-                        if (completedSessions.isNotEmpty) ...[
+                        if (completedStandalone.isNotEmpty) ...[
                           AnimatedListItem(
                             index: animationIndex++,
                             child: _buildSectionHeader(context, 'Completed', Icons.check_circle),
                           ),
                           const SizedBox(height: 12),
-                          ...completedSessions.map((s) => AnimatedListItem(
+                          ...completedStandalone.map((s) => AnimatedListItem(
                                 index: animationIndex++,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: SelectableCard(
-                                    isSelecting: selectionState.isSelecting,
-                                    isSelected: selectionState.isSelected(s.id),
-                                    onTap: () {
-                                      HapticService.light();
-                                      context.push('/sessions/${s.id}');
-                                    },
-                                    onLongPress: () {
-                                      if (!selectionState.isSelecting) {
-                                        ref.read(sessionsSelectionProvider.notifier).enterSelectionMode();
-                                      }
-                                      ref.read(sessionsSelectionProvider.notifier).toggleSelection(s.id);
-                                    },
-                                    onToggleSelection: () {
-                                      ref.read(sessionsSelectionProvider.notifier).toggleSelection(s.id);
-                                    },
-                                    child: SessionCard(
-                                      session: s,
-                                      onTap: null,
-                                      onArchive: selectionState.isSelecting
-                                          ? null
-                                          : () => _archiveSession(context, ref, s.id),
-                                    ),
-                                  ),
-                                ),
+                                child: _buildSessionCard(context, ref, s, selectionState),
                               )),
                         ],
                       ],
@@ -464,6 +428,192 @@ class SessionsScreen extends ConsumerWidget {
               ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSprintHeader(
+    BuildContext context,
+    String projectName,
+    int waveCount,
+    String sprintId,
+  ) {
+    return InkWell(
+      onTap: () {
+        HapticService.light();
+        context.push('/sprints/$sprintId');
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Icon(Icons.rocket_launch, size: 20, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                projectName,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '$waveCount waves',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.chevron_right,
+              size: 20,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSessionCard(
+    BuildContext context,
+    WidgetRef ref,
+    SessionModel session,
+    SelectionState selectionState,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SelectableCard(
+        isSelecting: selectionState.isSelecting,
+        isSelected: selectionState.isSelected(session.id),
+        onTap: () {
+          HapticService.light();
+          context.push('/sessions/${session.id}');
+        },
+        onLongPress: () {
+          if (!selectionState.isSelecting) {
+            ref.read(sessionsSelectionProvider.notifier).enterSelectionMode();
+          }
+          ref.read(sessionsSelectionProvider.notifier).toggleSelection(session.id);
+        },
+        onToggleSelection: () {
+          ref.read(sessionsSelectionProvider.notifier).toggleSelection(session.id);
+        },
+        child: SessionCard(
+          session: session,
+          onTap: null,
+          onArchive: selectionState.isSelecting
+              ? null
+              : () => _archiveSession(context, ref, session.id),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompletedWavesSection(
+    BuildContext context,
+    WidgetRef ref,
+    List<SessionModel> completedWaves,
+    SelectionState selectionState,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            'Completed (${completedWaves.length})',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ),
+        // Show collapsed cards for completed waves
+        ...completedWaves.map((s) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildCollapsedWaveCard(context, ref, s, selectionState),
+            )),
+      ],
+    );
+  }
+
+  Widget _buildCollapsedWaveCard(
+    BuildContext context,
+    WidgetRef ref,
+    SessionModel session,
+    SelectionState selectionState,
+  ) {
+    return SelectableCard(
+      isSelecting: selectionState.isSelecting,
+      isSelected: selectionState.isSelected(session.id),
+      onTap: () {
+        HapticService.light();
+        context.push('/sessions/${session.id}');
+      },
+      onLongPress: () {
+        if (!selectionState.isSelecting) {
+          ref.read(sessionsSelectionProvider.notifier).enterSelectionMode();
+        }
+        ref.read(sessionsSelectionProvider.notifier).toggleSelection(session.id);
+      },
+      onToggleSelection: () {
+        ref.read(sessionsSelectionProvider.notifier).toggleSelection(session.id);
+      },
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              Icon(
+                Icons.check_circle,
+                size: 16,
+                color: Colors.grey,
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Wave ${session.formattedWaveNumber}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  session.status.isNotEmpty ? session.status : 'Complete',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                size: 16,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

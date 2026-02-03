@@ -88,6 +88,62 @@ final allSessionsProvider = StreamProvider<List<SessionModel>>((ref) {
           snapshot.docs.map((doc) => SessionModel.fromFirestore(doc)).toList());
 });
 
+/// Grouped sessions by sprint ID (null key = non-sprint sessions)
+/// Returns a map where:
+/// - null key: List of standalone sessions (not part of any sprint)
+/// - sprint ID key: List of wave sessions for that sprint
+final groupedSessionsProvider =
+    Provider<Map<String?, List<SessionModel>>>((ref) {
+  final sessionsAsync = ref.watch(allSessionsProvider);
+  final sessions = sessionsAsync.valueOrNull ?? [];
+
+  final grouped = <String?, List<SessionModel>>{};
+
+  for (final session in sessions) {
+    // Skip archived sessions
+    if (session.archived) continue;
+
+    final key = session.sprintId; // null for non-sprint sessions
+    grouped.putIfAbsent(key, () => []).add(session);
+  }
+
+  // Sort wave sessions by wave number (descending - active waves first)
+  // Non-sprint sessions stay sorted by lastUpdate (from query)
+  for (final entry in grouped.entries) {
+    if (entry.key != null) {
+      // Sprint sessions - sort by wave number descending (latest wave first)
+      entry.value.sort((a, b) {
+        final aWave = a.waveNumber ?? 0;
+        final bWave = b.waveNumber ?? 0;
+        return bWave.compareTo(aWave); // Descending
+      });
+    }
+  }
+
+  return grouped;
+});
+
+/// Get wave sessions for a specific sprint
+final sprintSessionsProvider =
+    Provider.family<List<SessionModel>, String>((ref, sprintId) {
+  final grouped = ref.watch(groupedSessionsProvider);
+  final sessions = grouped[sprintId] ?? [];
+  // Already sorted by wave number descending in groupedSessionsProvider
+  return sessions;
+});
+
+/// Get all sprint IDs that have wave sessions
+final sprintIdsWithSessionsProvider = Provider<List<String>>((ref) {
+  final grouped = ref.watch(groupedSessionsProvider);
+  return grouped.keys.whereType<String>().toList();
+});
+
+/// Get non-sprint (standalone) sessions
+final standaloneSessionsProvider = Provider<List<SessionModel>>((ref) {
+  final grouped = ref.watch(groupedSessionsProvider);
+  return grouped[null] ?? [];
+});
+
 /// Stream provider for a single session by ID
 final sessionProvider =
     StreamProvider.family<SessionModel?, String>((ref, sessionId) {

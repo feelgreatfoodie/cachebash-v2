@@ -118,7 +118,8 @@ class SprintModel {
   final DateTime startedAt;
   final DateTime updatedAt;
   final DateTime? completedAt;
-  final String? sessionId;
+  final String? sessionId; // Legacy: single session
+  final Map<int, String> waveSessionIds; // New: wave number -> session ID
   final SprintConfig config;
   final SprintSummary? summary;
 
@@ -133,12 +134,21 @@ class SprintModel {
     required this.updatedAt,
     this.completedAt,
     this.sessionId,
+    this.waveSessionIds = const {},
     required this.config,
     this.summary,
   });
 
   factory SprintModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>?;
+
+    // Parse waveSessionIds map (keys are strings in Firestore)
+    final waveSessionIdsRaw =
+        data?['waveSessionIds'] as Map<String, dynamic>? ?? {};
+    final waveSessionIds = waveSessionIdsRaw.map(
+      (key, value) => MapEntry(int.parse(key), value as String),
+    );
+
     return SprintModel(
       id: doc.id,
       projectName: data?['projectName'] ?? 'Unknown Project',
@@ -152,12 +162,19 @@ class SprintModel {
           (data?['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       completedAt: (data?['completedAt'] as Timestamp?)?.toDate(),
       sessionId: data?['sessionId'] as String?,
+      waveSessionIds: waveSessionIds,
       config: SprintConfig.fromMap(data?['config'] as Map<String, dynamic>?),
       summary: data?['summary'] != null
           ? SprintSummary.fromMap(data!['summary'] as Map<String, dynamic>)
           : null,
     );
   }
+
+  /// Get session ID for a specific wave
+  String? getSessionIdForWave(int wave) => waveSessionIds[wave];
+
+  /// Whether this sprint uses wave sessions
+  bool get hasWaveSessions => waveSessionIds.isNotEmpty;
 
   bool get isRunning => status == 'running';
   bool get isPaused => status == 'paused';

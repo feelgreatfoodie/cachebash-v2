@@ -41,6 +41,11 @@ class SessionModel {
   final DateTime? archivedAt;
   final String? projectName;
 
+  /// Sprint-related fields (for wave sessions)
+  final String? sprintId;
+  final int? waveNumber;
+  final List<String>? storyIds;
+
   /// Sessions are considered stale after this duration without updates
   static const staleDuration = Duration(minutes: 30);
 
@@ -54,6 +59,9 @@ class SessionModel {
     this.archived = false,
     this.archivedAt,
     this.projectName,
+    this.sprintId,
+    this.waveNumber,
+    this.storyIds,
   });
 
   factory SessionModel.fromFirestore(DocumentSnapshot doc) {
@@ -69,8 +77,18 @@ class SessionModel {
       archived: data?['archived'] ?? false,
       archivedAt: (data?['archivedAt'] as Timestamp?)?.toDate(),
       projectName: data?['projectName'] as String?,
+      sprintId: data?['sprintId'] as String?,
+      waveNumber: data?['waveNumber'] as int?,
+      storyIds: (data?['storyIds'] as List<dynamic>?)?.cast<String>(),
     );
   }
+
+  /// Whether this is a wave session (part of a sprint)
+  bool get isWaveSession => sprintId != null && waveNumber != null;
+
+  /// Formatted wave number (zero-padded)
+  String get formattedWaveNumber =>
+      waveNumber?.toString().padLeft(3, '0') ?? '';
 
   bool get isWorking => state == 'working';
   bool get isBlocked => state == 'blocked';
