@@ -21,11 +21,14 @@ class QuestionDetailScreen extends ConsumerStatefulWidget {
 
 class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
   final _responseController = TextEditingController();
+  final _alertReplyController = TextEditingController();
   bool _isSubmitting = false;
+  bool _showAlertReplyField = false;
 
   @override
   void dispose() {
     _responseController.dispose();
+    _alertReplyController.dispose();
     super.dispose();
   }
 
@@ -91,6 +94,60 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
         HapticService.success();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Alert acknowledged')),
+        );
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/messages');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        HapticService.error();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Future<void> _replyToAlert(MessageModel alert) async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+
+    final replyText = _alertReplyController.text.trim();
+    if (replyText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a reply')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      // Acknowledge the alert first
+      await ref.read(messagesServiceProvider).acknowledgeAlert(
+            userId: user.uid,
+            messageId: widget.questionId,
+          );
+
+      // Create a reply message linked to this alert
+      await ref.read(messagesServiceProvider).createReplyToAlert(
+            userId: user.uid,
+            alertId: widget.questionId,
+            replyText: replyText,
+            sessionId: alert.sessionId,
+          );
+
+      if (mounted) {
+        HapticService.success();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reply sent!')),
         );
         if (context.canPop()) {
           context.pop();
@@ -302,7 +359,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
           if (message.isAcknowledged)
             _buildAcknowledgedCard()
           else
-            _buildAcknowledgeButton(),
+            _buildAlertActions(message),
 
           // Timestamp
           const SizedBox(height: 24),
@@ -315,6 +372,115 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAlertActions(MessageModel message) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Reply field (shown when user taps "Reply with context")
+        if (_showAlertReplyField) ...[
+          TextField(
+            controller: _alertReplyController,
+            maxLines: 3,
+            maxLength: 2000,
+            enabled: !_isSubmitting,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Add context or instructions for Claude...',
+              border: const OutlineInputBorder(),
+              suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _alertReplyController,
+                builder: (context, value, child) {
+                  if (value.text.trim().isEmpty) return const SizedBox.shrink();
+                  return IconButton(
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send),
+                    onPressed: _isSubmitting
+                        ? null
+                        : () {
+                            HapticService.medium();
+                            _replyToAlert(message);
+                          },
+                  );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isSubmitting
+                      ? null
+                      : () {
+                          HapticService.light();
+                          setState(() => _showAlertReplyField = false);
+                          _alertReplyController.clear();
+                        },
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _isSubmitting
+                      ? null
+                      : () {
+                          HapticService.medium();
+                          _replyToAlert(message);
+                        },
+                  icon: _isSubmitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send),
+                  label: const Text('Send Reply'),
+                ),
+              ),
+            ],
+          ),
+        ] else ...[
+          // Default: show acknowledge and reply buttons
+          FilledButton.icon(
+            onPressed: _isSubmitting ? null : _acknowledgeAlert,
+            icon: _isSubmitting
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.check),
+            label: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(_isSubmitting ? 'Acknowledging...' : 'Acknowledge'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _isSubmitting
+                ? null
+                : () {
+                    HapticService.light();
+                    setState(() => _showAlertReplyField = true);
+                  },
+            icon: const Icon(Icons.reply),
+            label: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text('Reply with Context'),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -366,23 +532,6 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildAcknowledgeButton() {
-    return FilledButton.icon(
-      onPressed: _isSubmitting ? null : _acknowledgeAlert,
-      icon: _isSubmitting
-          ? const SizedBox(
-              height: 20,
-              width: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : const Icon(Icons.check),
-      label: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text(_isSubmitting ? 'Acknowledging...' : 'Acknowledge'),
       ),
     );
   }

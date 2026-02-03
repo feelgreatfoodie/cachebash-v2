@@ -664,6 +664,37 @@ class MessagesService {
 
     _log('Alert $messageId acknowledged');
   }
+
+  /// Create a reply to an alert (creates a toClaude message linked to the alert)
+  /// This allows users to provide additional context when acknowledging alerts
+  Future<String> createReplyToAlert({
+    required String userId,
+    required String alertId,
+    required String replyText,
+    String? sessionId,
+  }) async {
+    _log('Creating reply to alert $alertId');
+
+    final messageRef = _firestore.collection('users/$userId/messages').doc();
+
+    await messageRef.set({
+      'direction': MessageDirection.toClaude.value,
+      'title': 'Reply to alert',
+      'content': replyText,
+      'priority': 'high',
+      'action': 'interrupt',
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+      'sessionId': sessionId,
+      'inReplyTo': alertId,
+      'archived': false,
+      'deletedAt': null,
+      'encrypted': false,
+    });
+
+    _log('Reply to alert created with ID ${messageRef.id}');
+    return messageRef.id;
+  }
 }
 
 /// Provider for messages service
