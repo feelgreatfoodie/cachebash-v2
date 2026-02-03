@@ -10,202 +10,54 @@
 Use get_pending_tasks to check for work from the mobile app.
 ```
 
-This enables the user to create tasks from their phone that Claude will automatically pick up.
-
 ---
 
 ## Task Action Levels
 
-Tasks have an `action` field that controls how/when Claude should handle them:
+| Action | Timing | Behavior |
+|--------|--------|----------|
+| `interrupt` | **Immediate** | Stop current work NOW, handle this task |
+| `sprint` | **Current wave** | Add to running sprint if no dependency conflicts |
+| `parallel` | **Soon** | Spin up a subagent at the next convenient moment |
+| `queue` | After current | Handle when current task completes (default) |
+| `backlog` | Eventually | Low priority, handle when idle |
 
-| Action | Timing | Behavior | Tested |
-|--------|--------|----------|--------|
-| `interrupt` | **Immediate** | Stop current work NOW, handle this task | ✅ Verified |
-| `sprint` | **Current wave** | Add to running sprint if no dependency conflicts | ✅ New in v3 |
-| `parallel` | **Soon** | Spin up a subagent at the next convenient moment | ✅ Verified |
-| `queue` | After current | Handle when current task completes (default) | ⚠️ Expected behavior |
-| `backlog` | Eventually | Low priority, handle when idle | ⚠️ Expected behavior |
-
-**Test Results (2026-02-01):**
-- ✅ `interrupt` - Tested with 3 tasks ("it's a trap!", "Gold wing leader, come in!", "switching to thrusters"). All claimed and handled immediately.
-- ✅ `parallel` - Tested with 1 task ("This is the way"). Acknowledged successfully. In production, would spawn subagent.
-- ⚠️ `queue` - Not yet tested in production. Expected to handle sequentially after current work.
-- ⚠️ `backlog` - Not yet tested in production. Expected to defer until idle.
-
-### Handling Each Action Level
-
-**interrupt** - Requires immediate attention: ✅ **Tested and verified**
-1. Use `pin_task` to save your current work context (if actively working on something else)
-2. Claim and work on the interrupt task immediately
-3. After completion, offer to resume previous work via `resume_task`
-
-**Confirmed behavior:** Tasks with `action: "interrupt"` are detected via `get_pending_tasks` and should be claimed immediately, regardless of current work. During testing, all 3 interrupt tasks were handled correctly with immediate claiming.
-
-**parallel** - At the next natural pause: ✅ **Tested and verified**
-1. Use the Task tool to spawn a subagent for the parallel task
-2. Continue with current work while subagent handles the parallel task
-
-**Confirmed behavior:** Tasks with `action: "parallel"` are detected and acknowledged. In production, Claude should spawn a subagent using the Task tool to handle work in parallel. During testing, the parallel task was detected and claimed successfully.
-
-**queue** - Sequential processing: ⚠️ **Expected behavior (not yet tested)**
-1. Complete your current task first
-2. Then claim and work on the queued task
-
-**Expected behavior:** Tasks with `action: "queue"` should be noted but not interrupt current work. Handle them in order after completing the current task.
-
-**backlog** - Low priority: ⚠️ **Expected behavior (not yet tested)**
-1. Note the task exists but don't prioritize it
-2. Handle when there's no other work pending
-
-**Expected behavior:** Tasks with `action: "backlog"` are lowest priority. Acknowledge their existence but only work on them when there are no interrupt, parallel, or queue tasks pending.
+**Handling:**
+- **interrupt**: `pin_task` current work → claim and work immediately → `resume_task` when done
+- **parallel**: Use Task tool to spawn subagent → continue current work
+- **queue**: Complete current task first → then claim and work
+- **backlog**: Note it exists → handle when no other work pending
 
 ---
 
-## Active AFK Mode with Message Checking
-
-### Trigger Phrases
-When the user says any of these, enter active AFK mode:
-- "go afk"
-- "afk mode"
-- "enter afk mode"
-- "monitor for tasks"
-- "keep working"
-- "I'm going to lunch"
-- Or any variant indicating they're stepping away but want Claude to keep working
-
-### AFK Mode Behavior
-When triggered:
-
-1. **Prevent sleep:** Run `caffeinate -dims &` in background (keeps system awake during sprint)
-2. **Generate session ID:** `session_afk_[timestamp]`
-3. **Set status:** Call `update_status({ status: "AFK: Working on [task]", state: "working", sessionId })`
-4. **Check for existing work:** Call `get_pending_tasks()` immediately
-5. **Continue working:** Execute tasks normally, checking for messages at natural breakpoints
-
-### Check at Natural Breakpoints
-
-**During active work, check for CacheBash messages at these moments:**
-
-1. **After completing work items:**
-   - Finished editing a file
-   - Tests pass or fail
-   - Git commit completed
-   - Task from todo list finished
-
-2. **Before starting new work:**
-   - About to edit next file
-   - About to run next command
-   - Between todo list tasks
-
-3. **When waiting/blocked:**
-   - Waiting for long-running build/test
-   - Waiting for question response from mobile
-
-**What to check:**
-```typescript
-// At each breakpoint:
-1. get_interrupts({ sessionId, markAsRead: true })
-   → User messages like "How's it going?", "Stop", "Change approach"
-
-2. get_pending_tasks({ status: "pending" })
-   → New tasks from mobile (interrupt > parallel > queue > backlog)
-
-3. get_response({ questionId }) for any pending questions
-   → Escalating: 30s → 1min → 2min based on time waiting
-```
-
-**Terminal Output (Brief):**
-- Only log when messages are FOUND (don't spam "no messages")
-- Keep it one line: `✓ Message from user: "How's it going?"`
-- Respond inline, then continue work
-
-### Exit Commands (via interrupt or terminal)
-- "end afk"
-- "stop"
-- "I'm back"
-- "back"
-- "here"
-- User types anything in terminal
-
-### Example Work Log
-```
-[12:30:00] ✓ Updated authentication middleware
-[12:30:01] Running tests...
-[12:30:15] ✓ Tests passed
-
-[12:30:16] ✓ Message from user: "How's it going?"
-           → Responding: "Just finished auth middleware, tests passing..."
-
-[12:30:18] Starting next task: Add validation layer...
-[12:35:42] ✓ Added input validation
-[12:35:43] Running tests...
-[12:36:01] ✓ Tests passed
-[12:36:02] Committing changes...
-
-[12:36:03] ✓ New task from mobile: "Add rate limiting" (action: queue)
-           → Added to queue, will handle after current work
-
-[12:36:05] Starting next task: Add error handling...
-```
-
-### Race Condition Handling
-If interrupt/task arrives while working:
-- **Action: interrupt** → Pause current work, pin it, handle interrupt
-- **Action: parallel** → Spawn subagent, continue current work
-- **Action: queue** → Add to queue, finish current task first
-- **Action: backlog** → Note it, continue current work
-
-### Question Timeout Behavior
-When question expires without answer:
-- Log expiration
-- Update status to show decision made autonomously
-- Continue with reasonable default choice (document in work log)
-- Send summary of decision via new question
-
----
-
-## AFK Mode Protocol
-
-When the user says "I'm going AFK" (or similar: "keep working", "brb", "going to lunch"), enter AFK mode for autonomous operation with mobile communication.
+## AFK Mode
 
 ### Entering AFK Mode
 
-1. **Acknowledge** - Confirm you'll continue working
-2. **Set status** - Keep under 50 chars for mobile display:
-   ```typescript
-   update_status({
-     status: "AFK: Implementing auth",  // Short!
-     state: "working"
-   })
-   ```
-3. **Summarize** - Tell user what you'll work on and what questions might arise
+**Trigger phrases:** "go afk", "afk mode", "keep working", "I'm going to lunch", or any variant indicating they're stepping away but want Claude to keep working.
 
-### CRITICAL: All Requests Through CacheBash - NO EXCEPTIONS
+**On trigger:**
+1. Run `caffeinate -dims &` (prevents system sleep)
+2. Generate session ID: `session_afk_[timestamp]`
+3. Call `update_status({ status: "AFK: [task]", state: "working" })` (keep under 50 chars)
+4. Call `get_pending_tasks()` immediately
+5. Continue working, checking for messages at natural breakpoints
 
-**While in AFK mode, there must be ZERO requests waiting in the terminal.** The user is away from their computer and cannot see or respond to terminal prompts.
+### CRITICAL: All Requests Through CacheBash
 
-**EVERY request for input MUST go through CacheBash `ask_question`:**
-- Questions and clarifications
+**While in AFK mode, there must be ZERO requests waiting in the terminal.** The user is away from their computer.
+
+**EVERY request for input MUST go through `ask_question`:**
 - Bash command approvals (ask BEFORE running)
 - File edit approvals (ask BEFORE editing)
 - Architecture/implementation decisions
-- "What should I do next?" questions
 - ANY decision requiring user input
 
-**NEVER use these during AFK mode:**
-- Terminal prompts
-- AskUserQuestion tool
-- Any tool that waits for terminal input
-
-**The terminal should show only Claude's autonomous work output - never a prompt waiting for response.**
+**NEVER use:** Terminal prompts, AskUserQuestion tool, or any tool that waits for terminal input.
 
 ### Ask-Before-Execute Protocol
 
-In AFK mode, **ask for approval BEFORE executing** any write operation. Do NOT rely on terminal permission prompts - the user won't see them.
-
-#### Bash Commands - Ask First
-
-**BEFORE running any bash command:**
+**Before any write operation:**
 ```typescript
 ask_question({
   question: "Run command?\n\n```\nnpm run build\n```",
@@ -215,428 +67,163 @@ ask_question({
 })
 ```
 
-Then poll `get_response` until answered:
-- **"Yes, run it"** → Execute the command
-- **"No, skip"** → Skip, continue with other work
-- **"Modify command"** → Ask follow-up for the modification
+**Decision Framework:**
 
-#### File Edits - Ask First
-
-**BEFORE editing any file:**
-```typescript
-ask_question({
-  question: "Edit file?\n\nsrc/auth.ts (lines 45-52)\nChange: Add JWT validation to middleware",
-  options: ["Yes, edit", "No, skip", "Show diff first"],
-  priority: "normal",
-  context: "Implementing auth middleware"
-})
-```
-
-Then poll `get_response` until answered:
-- **"Yes, edit"** → Make the edit
-- **"No, skip"** → Skip this edit
-- **"Show diff first"** → Send the full diff in a follow-up question
-
-#### New Files - Ask First
-
-**BEFORE creating any new file:**
-```typescript
-ask_question({
-  question: "Create new file?\n\nsrc/utils/validate.ts\nPurpose: Validation helper functions",
-  options: ["Yes, create", "No, skip"],
-  priority: "normal",
-  context: "Adding input validation for auth forms"
-})
-```
-
-#### Destructive Operations - ALWAYS Ask
-
-**Git operations, deletions, config changes:**
-```typescript
-ask_question({
-  question: "Destructive operation:\n\ngit reset --hard HEAD~1\n\nThis will discard the last commit.",
-  options: ["Yes, proceed", "No, cancel"],
-  priority: "high",
-  context: "Rolling back broken commit"
-})
-```
-
-### Decision Framework
-
-| Decide Autonomously (No Ask Needed) | Ask via Mobile First |
-|-------------------------------------|----------------------|
-| **Read-only:** Read, Glob, Grep, file exploration | **Write ops:** Edit, Write, Bash commands |
-| Following explicit user instructions exactly | Deviating from instructions |
-| Standard patterns already in codebase | New patterns or approaches |
-| Reversible, low-risk changes | Destructive or hard-to-undo changes |
-| Previously approved command patterns | Any new command type |
+| Decide Autonomously | Ask via Mobile First |
+|---------------------|----------------------|
+| Read, Glob, Grep, file exploration | Edit, Write, Bash commands |
+| Following explicit instructions exactly | Deviating from instructions |
+| Standard patterns in codebase | New patterns or approaches |
 | Internal status updates | Changes to user-facing behavior |
 
-**Rule of thumb:** If it modifies files or runs commands, ask first. Read-only operations are always safe.
-
-### Question Priority Guide
-
-| Priority | Use When | Example |
-|----------|----------|---------|
-| `high` | Work is **blocked**, cannot continue | "REST or GraphQL for the API?" |
-| `normal` | Need answer soon, can do other work | "Include rate limiting?" |
-| `low` | Nice-to-have, will use reasonable default | "Prefer tabs or spaces?" |
-
-**Always include context:**
-```typescript
-ask_question({
-  question: "Should auth use JWT or sessions?",
-  options: ["JWT (stateless)", "Sessions (simpler)", "Need more info"],
-  priority: "high",
-  context: "Building auth system. JWT better for mobile, sessions simpler. Blocks API work."
-})
-```
-
-**Multiple questions:** If 2+ questions arise close together, send them separately but mention "I have 2 questions" in the context. Don't batch into awkward multi-option formats.
+**Rule of thumb:** If it modifies files or runs commands, ask first. Read-only is always safe.
 
 ### Polling Schedule
-
-**Poll for BOTH question responses AND new tasks:**
 
 | What to Poll | MCP Tool | Interval |
 |--------------|----------|----------|
 | Question responses | `get_response` | 30s → 1min → 2min (escalating) |
-| Interrupts (status requests, messages) | `get_interrupts` | **Every 30 seconds** |
-| New tasks from user | `get_pending_tasks` | **Every 1 minute** |
+| Interrupts | `get_interrupts` | Every 30 seconds |
+| New tasks | `get_pending_tasks` | Every 1 minute |
 
-**Escalating intervals for pending questions:**
+### Natural Breakpoints
 
-| Time Since Question | Poll Interval |
-|---------------------|---------------|
-| 0-2 min | Every 30 seconds |
-| 2-10 min | Every 1 minute |
-| 10+ min | Every 2 minutes |
-
-### Check at EVERY Natural Breakpoint
-
-**CRITICAL:** At each natural breakpoint, run ALL three checks:
-
-```typescript
-// 1. Check for session messages (like "Get Status Update")
-get_interrupts({ sessionId, markAsRead: true })
-
-// 2. Check for pending questions that were answered
-get_response({ questionId }) // for each pending question
-
-// 3. Check for new tasks from mobile
-get_pending_tasks({ status: "pending" })
-```
-
-**Natural breakpoints include:**
-- After editing a file
-- After running a command (build, test, etc.)
+Check for CacheBash messages at these moments:
+- After editing a file or running a command
 - Before starting new work
 - When waiting for builds/tests
 - After completing any todo item
 - Between task transitions
 
-### While Waiting for Approval
-
-When waiting for a command/edit approval:
-
-1. **Update status to blocked:**
-   ```typescript
-   update_status({ status: "Waiting: build approval", state: "blocked" })
-   ```
-
-2. **Continue polling** at scheduled intervals (30s → 1min → 2min)
-
-3. **Do parallel work** if available - any read-only work or previously-approved operations
-
-4. **Check for new tasks** via `get_pending_tasks` every 1 minute
-
-5. **One reminder max** after 30 min: "Still need: [brief description]"
-
-6. **Never stop polling** unless user returns or explicitly cancels
-
-### Handling Approval Responses
-
-| Response | Action |
-|----------|--------|
-| "Yes" / Approve option | Execute the command/edit immediately |
-| "No" / Skip option | Don't execute, continue with other work |
-| "Modify" / "Show diff" | Send follow-up with details, re-ask |
-| Custom text response | Interpret the modification, adjust and re-ask if unclear |
-
-### Command/Edit Failure After Approval
-
-If an approved command fails:
+**At each breakpoint, run ALL three checks:**
 ```typescript
-ask_question({
-  question: "Command failed:\n\n```\n[first 200 chars of error]\n```\n\nRetry or skip?",
-  options: ["Retry", "Skip", "Show full error"],
-  priority: "high",
-  context: "npm run build failed after approval"
-})
+get_interrupts({ sessionId, markAsRead: true })
+get_response({ questionId }) // for each pending question
+get_pending_tasks({ status: "pending" })
 ```
 
-- **Max 3 retry attempts** for the same command
-- After 3 failures, **pin task** with full error log in context
+### While Waiting for Approval
 
-### Error Handling in AFK Mode
+1. `update_status({ status: "Waiting: build approval", state: "blocked" })`
+2. Continue polling at scheduled intervals
+3. Do parallel read-only work if available
+4. One reminder max after 30 min
+5. **Never stop polling** unless user returns or cancels
 
-If build fails, tests fail, or critical error occurs:
+### Error Handling
 
-1. **Immediately notify** with high priority:
-   ```typescript
-   ask_question({
-     question: "Build failed: [brief error]. Debug or wait?",
-     options: ["Keep debugging", "Wait for me", "Show full error"],
-     priority: "high",
-     context: "[First 200 chars of error message]"
-   })
-   ```
-2. If "Keep debugging" → attempt fix, **max 3 attempts**
-3. If still failing → pin task with full error log in context
+If build/tests fail or critical error occurs:
+```typescript
+ask_question({
+  question: "Build failed: [brief error]. Debug or wait?",
+  options: ["Keep debugging", "Wait for me", "Show full error"],
+  priority: "high",
+  context: "[First 200 chars of error]"
+})
+```
+- Max 3 retry attempts
+- If still failing → pin task with full error log
+
+### Tasks vs Interrupts
+
+| Tasks (`get_pending_tasks`) | Interrupts (`get_interrupts`) |
+|-----------------------------|-------------------------------|
+| Structured work requests | Quick messages, status checks |
+| Has action levels, lifecycle | Simple messages, read status |
+| Created via "Create Task" flow | Created via session detail screen |
+
+### Task Heartbeat Protocol
+
+For long-running tasks, call `send_heartbeat` every 10-15 minutes:
+```typescript
+send_heartbeat({ taskId, status: "Still working...", progress: 50 })
+```
+Tasks with `lastHeartbeat` > 30 min are reverted to pending by cleanup function.
+
+### Exiting AFK Mode
+
+**Exit when:**
+- User types anything in terminal
+- User sends "I'm back" / "back" / "here" via interrupt
+
+**Do NOT exit for:** Simple yes/no answers (user may still be AFK, just checking phone)
+
+**On exit:**
+1. Complete Work Completion Checklist if work is done
+2. `update_status({ status: "...", state: "working" })`
+3. Provide Work Session Summary
+
+### Sprint/Task Completion Pause
+
+**When all tasks are complete in AFK mode:**
+```typescript
+ask_question({
+  question: "Sprint complete! Here's what I finished:\n\n- [x] Task 1\n...\n\nAnything else to add?",
+  options: ["Looks good, finalize", "Add more scope", "Let's discuss when I'm back"],
+  priority: "normal",
+  context: "Sprint completion - all planned work done"
+})
+```
+Wait for response before finalizing. If no response after 30 min, send one reminder and keep polling.
 
 ### When to Pin Task
 
 Only pin when:
-- User explicitly says to pause/stop ("stop working", "I'll get back to you tomorrow")
-- Session is ending (user closing terminal)
+- User explicitly says to pause/stop
+- Session is ending
 - Switching to a different major task
 
 **Never pin just because a question is unanswered.** Keep polling indefinitely.
 
-When pinning, use this template:
+**Pin context template:**
+```
+## Current State
+- Branch: feature/xxx
+- Working on: [current task]
 
-```typescript
-pin_task({
-  taskId: "session_id",
-  questionId: "q123",
-  context: `## Current State
-- Branch: feature/auth
-- Last commit: abc123 - "Add user model"
-- Working on: Authentication system
-
-## Completed This Session
-- [x] User model
-- [x] Routes setup
-- [ ] Auth middleware (blocked)
+## Completed
+- [x] Item 1
+- [ ] Item 2 (blocked)
 
 ## Blocked On
-JWT vs sessions decision - question q123
+[what's blocking, question ID if applicable]
 
 ## To Resume
-1. Get response to question
-2. Implement chosen auth approach
-3. Add middleware to protected routes
+1. Step 1
+2. Step 2
 
 ## Files Modified (uncommitted)
-- src/models/user.ts
-- src/routes/auth.ts`
-})
-
-update_status({ status: "Pinned: waiting for auth", state: "pinned" })
+- path/to/file.ts
 ```
-
-### Tasks vs Session Interrupts: When to Use Each
-
-CacheBash provides two ways for users to send messages from the mobile app to Claude:
-
-**1. Tasks (via `get_pending_tasks`)**
-- **Use for:** Structured work requests that Claude should execute
-- **Created via:** Mobile app's "Create Task" flow
-- **Properties:** title, instructions, action level, priority, status
-- **Action levels:**
-  - `interrupt` - Handle immediately, pause current work
-  - `parallel` - Spawn subagent at next convenient moment
-  - `queue` - Handle after current work completes
-  - `backlog` - Low priority, handle when idle
-- **Lifecycle:** pending → in_progress (when claimed) → complete
-- **Heartbeat:** Tasks have `lastHeartbeat` field for crash recovery (see below)
-- **Examples:**
-  - "Add authentication to the API" (queue, normal)
-  - "Fix critical bug in checkout flow" (interrupt, high)
-  - "Update documentation" (backlog, low)
-
-### Task Heartbeat Protocol (Crash Recovery)
-
-When working on a claimed task during AFK mode, **update the task's heartbeat every 10-15 minutes** to signal you're still working:
-
-```typescript
-// Heartbeat is set automatically when claiming via claim_task
-// But for long-running tasks, periodically update it:
-await db.doc(`users/${userId}/messages/${taskId}`).update({
-  lastHeartbeat: FieldValue.serverTimestamp(),
-});
-```
-
-**Why this matters:**
-- If Claude crashes mid-task, the task stays `in_progress` forever (orphaned)
-- A Cloud Function runs every 5 minutes and reverts tasks with `lastHeartbeat` > 30 minutes ago
-- Reverted tasks become `pending` again so another Claude session can claim them
-
-**Heartbeat checklist:**
-1. ✅ `claim_task` automatically sets `lastHeartbeat` on claim
-2. ✅ Update heartbeat every 10-15 minutes during long work
-3. ✅ `complete_task` clears heartbeat on completion
-4. ✅ Orphaned tasks auto-revert to pending after 30 min no heartbeat
-
-**2. Session Interrupts (via `get_interrupts`)**
-- **Use for:** Quick messages, status checks, or course corrections
-- **Created via:** Mobile app's session detail screen (send message to active session)
-- **Properties:** message text, timestamp, read status
-- **No action levels** - just simple messages
-- **Lifecycle:** pending → read
-- **Examples:**
-  - "How's it going?"
-  - "I'm back"
-  - "Stop working on that"
-  - "Change approach to use Redis instead"
-
-**When to check each:**
-
-During AFK mode, check BOTH at natural breakpoints:
-```typescript
-// Check for structured work
-get_pending_tasks({ status: "pending" })
-
-// Check for quick messages
-get_interrupts({ sessionId, markAsRead: true })
-```
-
-**Recommendation:**
-- Users creating formal work items → Tasks
-- Users sending quick messages to running sessions → Interrupts
-- Claude should monitor both channels during AFK mode
-
-### Handling Interrupts
-
-Check `get_interrupts` for messages from the mobile app:
-- **"I'm back" / "back" / "here"** → Exit AFK mode, provide summary
-- **"Stop" / "Wait" / "Hold on"** → Pause current action, acknowledge
-- **Course correction** → Adjust approach, acknowledge
-- **Additional info** → Integrate and continue
-
-### Detecting User Return
-
-**Exit AFK mode when:**
-- User types anything in Claude Code terminal
-- User sends "I'm back" / "back" / "here" via interrupt
-- User answers with "Let's discuss" or asks follow-up questions
-
-**Do NOT exit AFK mode for:**
-- Simple yes/no answers to questions (user may still be AFK, just checking phone)
-- Selecting an option without additional commentary
-
-### Exiting AFK Mode
-
-When user returns:
-
-1. **Complete the Work Completion Checklist** (see below) if work is done
-2. Update status to `working`
-3. Provide summary using the **Work Session Summary Template**:
-   - Work completed
-   - Files modified
-   - Deployments done
-   - Decisions made autonomously (and why)
-   - Questions asked/answered
-   - Next steps
-
-### Before Completing ANY Task (AFK or Interactive)
-
-**ALWAYS run through the Work Completion Checklist before announcing done:**
-1. `check_work` - builds pass, no errors
-2. `minimize-code` - run /code-simplifier on modified files
-3. Update docs - LEARNINGS.md, CLAUDE.md if needed
-4. Commit & push
-5. Deploy if needed
-
-### Sprint/Task Completion Pause (AFK/Basher)
-
-**When all known tasks are complete in AFK or Basher mode**, pause before finalizing to give the user a chance to add scope:
-
-1. **Send completion summary via `ask_question`:**
-   ```typescript
-   ask_question({
-     question: "Sprint complete! Here's what I finished:\n\n" +
-       "- [x] Task 1\n" +
-       "- [x] Task 2\n" +
-       "- [x] Task 3\n\n" +
-       "Anything else to add before I wrap up?",
-     options: [
-       "Looks good, finalize",
-       "Add more scope",
-       "Let's discuss when I'm back"
-     ],
-     priority: "normal",
-     context: "Sprint completion - all planned work done"
-   })
-   ```
-
-2. **Wait for response before finalizing:**
-   - **"Looks good, finalize"** → Run Work Completion Checklist, mark complete, exit AFK
-   - **"Add more scope"** → Ask follow-up for new tasks, continue working
-   - **"Let's discuss when I'm back"** → Pin current state, update status to pinned
-
-3. **If no response after 30 minutes:**
-   - Send one reminder: "Still waiting to finalize. Approve or add tasks?"
-   - Continue polling indefinitely (don't auto-finalize)
-
-**Why this matters:** Users often think of "one more thing" after seeing work complete. This pause catches scope additions before Claude exits, avoiding the need to restart a new session.
 
 ---
 
 ## Asking Questions via Mobile
 
-When you need clarification from the user and they may not be at their computer, use the `ask_question` MCP tool to send the question to their mobile device. This is especially useful for:
-
-- Ambiguous requirements that need user input
-- Design decisions with multiple valid approaches
-- Confirmation before destructive or irreversible actions
-- Any blocking question when the user might be away
-
-### How to Ask a Question
-
 ```typescript
 ask_question({
-  question: "Should I use Redux or Context API for state management?",
-  options: ["Redux", "Context API", "Other"],  // Optional: multiple choice
-  priority: "normal",                           // low | normal | high
-  context: "Working on the authentication refactor"
+  question: "Should I use Redux or Context API?",
+  options: ["Redux", "Context API", "Other"],
+  priority: "normal",  // low | normal | high
+  context: "Working on auth refactor"
 })
 // Returns: { questionId: "abc123" }
 ```
 
-### Priority Levels
+| Priority | When to Use |
+|----------|-------------|
+| `high` | Blocking, cannot continue |
+| `normal` | Important but not urgent |
+| `low` | Nice to have |
 
-| Priority | When to Use | User Experience |
-|----------|-------------|-----------------|
-| `high` | Blocking question, work cannot continue | Immediate push notification |
-| `normal` | Important but not urgent | Standard notification |
-| `low` | Nice to have, can work around it | Silent/batched notification |
-
-### Waiting for Response
-
-After sending a question, periodically check for the response:
-
-```typescript
-get_response({ questionId: "abc123" })
-// Returns: { response: "Redux", answeredAt: timestamp } or null if pending
-```
-
-### For Long Waits
-
-If you need to wait for a response and want to preserve context:
-
-1. Use `pin_task` to save your current work state
-2. The user can respond at their convenience
-3. Later, use `resume_task` to pick up where you left off
+Check for response: `get_response({ questionId: "abc123" })`
 
 ---
 
 ## MCP Server Setup
 
-To enable CacheBash MCP tools in Claude Code:
-
 ### 1. Get API Key from Flutter App
-- Open CacheBash app → Settings → Copy API Key
+Open CacheBash app → Settings → Copy API Key
 
 ### 2. Add MCP Server to Claude Code
 ```bash
@@ -646,7 +233,7 @@ claude mcp add --transport http cachebash \
 ```
 
 ### 3. Restart Claude Code
-MCP servers are loaded at startup. Restart to pick up new configuration.
+MCP servers are loaded at startup.
 
 ### 4. Verify Connection
 ```bash
@@ -654,13 +241,11 @@ claude mcp list
 # Should show: cachebash: ... (HTTP) - ✓ Connected
 ```
 
-**Note:** Config is stored in `~/.claude.json` under `projects.{path}.mcpServers`, NOT in `~/.claude/mcp.json`.
+**Note:** Config stored in `~/.claude.json` under `projects.{path}.mcpServers`.
 
 ---
 
 ## MCP Connection Troubleshooting
-
-If MCP tools aren't working, use these steps to diagnose:
 
 ### Quick Health Check
 ```bash
@@ -673,131 +258,14 @@ curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/debug/auth \
   -H "Authorization: Bearer YOUR_API_KEY" | jq
 ```
 
-This returns:
-- `apiKeysDocExists` - Is the key registered in Firestore?
-- `usersDocExists` - Does the user account exist?
-- `usersDocHashMatch` - Do the hashes match?
-- `failureReason` - Specific error: `key_not_registered`, `user_not_found`, `key_regenerated`
-- `hint` - How to fix it
-
-### Common Fixes
-
 | Error | Fix |
 |-------|-----|
 | `key_not_registered` | Regenerate key in app, re-run `claude mcp add` |
 | `user_not_found` | Create new account in Flutter app |
 | `key_regenerated` | Copy new key from app, re-run `claude mcp add` |
 
-### Compute Key Hash Locally
-```bash
-echo -n "YOUR_API_KEY" | shasum -a 256
-```
-
----
-
-## MCP Transport Architecture
-
-### Custom HTTP Transport
-
-The MCP server uses a **custom HTTP transport layer** (`CustomHTTPTransport`) instead of the SDK's default `StreamableHTTPServerTransport`. This was implemented to work around a bug in Claude Code v2.0.71+ where the required `Accept: application/json, text/event-stream` header is not sent.
-
-**Key Features:**
-
-1. **Relaxed Accept Header Validation** (Lenient Mode - Default)
-   - Accept header is OPTIONAL (allows Claude Code without the header)
-   - If present, must include `application/json` OR `text/event-stream`
-   - Logs when clients send proper headers (for monitoring compliance)
-   - Can be switched to strict mode via config: `strictAcceptHeader: true`
-
-2. **Firestore-Backed Session Storage**
-   - Sessions stored at: `users/{userId}/mcp_sessions/{sessionId}`
-   - Survives Cloud Run scaling to zero and instance restarts
-   - Works across multiple Cloud Run instances
-   - Automatic cleanup via Cloud Function (every 5 min, deletes sessions older than 30 min)
-
-3. **Security Features**
-   - DNS rebinding protection (opt-in, disabled by default)
-   - Content-Type validation for POST requests
-   - Standard security headers (X-Content-Type-Options, X-Frame-Options, etc.)
-   - API key authentication before session creation
-
-4. **Protocol Support**
-   - POST: JSON-RPC message processing (JSON responses only)
-   - GET: SKIPPED in v1 (SSE streaming deferred to future)
-   - DELETE: Session cleanup
-
-### Transport Files
-
-```
-mcp-server/src/transport/
-├── CustomHTTPTransport.ts    # Core transport implementing Transport interface
-├── SessionManager.ts          # Firestore session lifecycle management
-├── MessageParser.ts           # JSON-RPC parsing and validation
-├── ResponseBuilder.ts         # HTTP response construction
-└── types.ts                   # TypeScript interfaces
-
-mcp-server/src/security/
-└── dns-rebinding.ts           # Host/Origin validation (opt-in)
-
-firebase/functions/src/sessions/
-└── cleanupExpiredSessions.ts  # Cloud Function for session cleanup
-```
-
-### Session Lifecycle
-
-1. **Initialize Request** (no session)
-   - Client sends initialize request WITHOUT `Mcp-Session-Id` header
-   - Transport creates new session in Firestore
-   - Returns session ID in `Mcp-Session-Id` response header
-
-2. **Subsequent Requests** (with session)
-   - Client includes `Mcp-Session-Id` header from initialize response
-   - Transport validates session exists and hasn't expired (30 min)
-   - Updates `lastActivity` timestamp on each request
-
-3. **Session Expiry**
-   - Cloud Function runs every 5 minutes
-   - Deletes sessions where `lastActivity < now - 30 minutes`
-   - Client must re-initialize if session expired
-
-4. **Manual Cleanup**
-   - DELETE request with `Mcp-Session-Id` header deletes the session immediately
-
-### Configuration
-
-Transport config in `mcp-server/src/index.ts`:
-
-```typescript
-const transport = new CustomHTTPTransport({
-  sessionTimeout: 30 * 60 * 1000,        // 30 minutes
-  enableDnsRebindingProtection: false,   // Disabled by default
-  strictAcceptHeader: false,              // Lenient mode (allows Claude Code)
-});
-```
-
-### Troubleshooting Transport Issues
-
-**Logs to Check:**
-
-```bash
-# Cloud Run logs
-gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=cachebash-mcp" \
-  --limit 20 --project cachebash-app
-
-# Look for:
-# - "[CustomHTTPTransport] Client missing Accept header - lenient mode allows this"
-# - "[CustomHTTPTransport] Client sent proper Accept header - spec compliant"
-# - "[SessionManager] Created session {sessionId} for user {userId}"
-# - "[SessionManager] Cleaned up {count} expired sessions"
-```
-
-**Common Issues:**
-
-| Issue | Symptom | Fix |
-|-------|---------|-----|
-| Session expired | 32001 error "Session expired" | Client must re-initialize (send new initialize request) |
-| Missing session ID | 32600 error "Mcp-Session-Id header is required" | Include session ID from initialize response |
-| Initialize with session | 32600 error "Initialize request must not include Mcp-Session-Id" | Remove session ID header for initialize |
+### MCP Transport
+Uses custom HTTP transport with Firestore-backed sessions. See LEARNINGS.md for architecture details.
 
 ---
 
@@ -824,281 +292,61 @@ CacheBash enables asynchronous communication between Claude Code sessions and us
 
 ```
 cachebash/
-├── mcp-server/              # MCP server for Claude Code (deployed to Cloud Run)
-│   ├── src/
-│   │   ├── index.ts        # HTTP server entry point
-│   │   ├── transport/      # Custom HTTP transport layer
-│   │   │   ├── CustomHTTPTransport.ts  # Relaxed header validation
-│   │   │   ├── SessionManager.ts       # Firestore session storage
-│   │   │   ├── MessageParser.ts        # JSON-RPC parsing
-│   │   │   ├── ResponseBuilder.ts      # HTTP response helpers
-│   │   │   └── types.ts                # Transport interfaces
-│   │   ├── security/       # Security features
-│   │   │   └── dns-rebinding.ts        # DNS rebinding protection
-│   │   ├── tools/          # MCP tool implementations
-│   │   │   ├── askQuestion.ts
-│   │   │   ├── getResponse.ts
-│   │   │   ├── updateStatus.ts
-│   │   │   ├── pinTask.ts
-│   │   │   ├── getInterrupts.ts
-│   │   │   └── getTasks.ts
-│   │   ├── auth/           # API key validation
-│   │   ├── encryption/     # E2E encryption
-│   │   │   └── crypto.ts
-│   │   └── firebase/       # Firebase client
-│   ├── Dockerfile          # Cloud Run deployment
-│   ├── package.json
-│   └── tsconfig.json
-│
-├── firebase/                # Firebase backend
-│   ├── functions/          # Cloud Functions
-│   │   ├── src/
-│   │   │   ├── index.ts
-│   │   │   ├── onQuestion.ts    # Trigger push on new question
-│   │   │   └── analytics.ts     # Aggregation functions
-│   │   └── package.json
-│   ├── firestore.rules     # Security rules
-│   └── firestore.indexes.json
-│
-├── app/                     # Flutter mobile app
-│   ├── lib/
-│   │   ├── main.dart
-│   │   ├── app.dart
-│   │   ├── providers/      # Riverpod providers
-│   │   ├── models/         # Data models
-│   │   ├── screens/        # UI screens
-│   │   │   ├── auth/
-│   │   │   ├── home/
-│   │   │   ├── sessions/   # Session management
-│   │   │   ├── messages/   # Unified inbox (questions + tasks)
-│   │   │   ├── questions/  # Legacy question detail
-│   │   │   ├── projects/
-│   │   │   ├── tasks/      # Legacy task creation
-│   │   │   └── settings/
-│   │   ├── widgets/        # Reusable widgets
-│   │   └── services/       # Firebase, notifications, encryption
-│   ├── pubspec.yaml
-│   ├── ios/
-│   └── android/
-│
-└── basher/                  # Basher autonomous execution
-    ├── basher.config.json  # Configuration
-    ├── progress.txt        # Iteration log
-    └── transcript.txt      # Feature notes for PRD generation
+├── mcp-server/          # MCP server (Cloud Run)
+│   └── src/
+│       ├── index.ts     # HTTP server entry
+│       ├── transport/   # Custom HTTP transport
+│       ├── tools/       # MCP tool implementations
+│       └── auth/        # API key validation
+├── firebase/            # Firebase backend
+│   ├── functions/       # Cloud Functions
+│   └── firestore.rules
+├── app/                 # Flutter mobile app
+│   └── lib/
+│       ├── providers/   # Riverpod providers
+│       ├── models/      # Data models
+│       ├── screens/     # UI screens
+│       └── services/    # Firebase, notifications
+└── basher/              # Basher autonomous execution
 ```
 
 ## Tech Stack
 
 | Component | Technology |
 |-----------|------------|
-| Mobile App | Flutter 3.x |
-| State Management | Riverpod |
-| Navigation | go_router |
-| Backend | Firebase |
-| Database | Cloud Firestore |
-| Push Notifications | FCM + APNs |
+| Mobile App | Flutter 3.x + Riverpod + go_router |
+| Backend | Firebase (Firestore, FCM, Functions) |
 | MCP Server | TypeScript + @modelcontextprotocol/sdk |
-| Cloud Functions | TypeScript |
 
 ## MCP Tools
 
-### ask_question
-Sends a question to the user's mobile device.
-```typescript
-{
-  question: string,
-  options?: string[],      // Multiple choice options
-  priority: 'low' | 'normal' | 'high',
-  context?: string,        // What you're working on
-  threadId?: string,       // Group related messages into a conversation
-  inReplyTo?: string       // ID of message this is replying to
-}
-```
+| Tool | Purpose |
+|------|---------|
+| `ask_question` | Send question to mobile with options |
+| `get_response` | Check if user responded |
+| `update_status` | Update working status in app |
+| `pin_task` / `resume_task` | Save/restore work context |
+| `get_interrupts` | Check for session messages |
+| `get_pending_tasks` | Get tasks from mobile app |
+| `claim_task` / `complete_task` | Task lifecycle |
+| `send_alert` | One-way notification (no response needed) |
+| `send_heartbeat` | Keep task alive during long work |
+| `create_sprint` | Track parallel story execution |
+| `update_sprint_story` | Update story progress |
+| `add_story_to_sprint` | Dynamic story insertion |
+| `complete_sprint` | Mark sprint complete |
 
-### get_response
-Checks if the user has responded.
-```typescript
-{
-  questionId: string
-}
-// Returns: { response: string, answeredAt: timestamp } | null
-```
-
-### update_status
-Updates the current working status visible in the app.
-```typescript
-{
-  status: string,
-  progress?: number,       // 0-100
-  state: 'working' | 'blocked' | 'complete' | 'pinned'
-}
-```
-
-### pin_task / resume_task
-Pin current work to continue later when response arrives.
-```typescript
-// pin_task
-{
-  taskId: string,
-  questionId: string,
-  context: string          // Summary to resume from
-}
-
-// resume_task
-{
-  taskId: string
-}
-// Returns: { context: string, response: string }
-```
-
-### get_interrupts
-Check for messages sent from the mobile app to the current session.
-```typescript
-{
-  sessionId: string,
-  markAsRead?: boolean     // Default: true
-}
-// Returns: { hasInterrupts: boolean, interrupts: Array<{id, message, createdAt}> }
-```
-
-### get_pending_tasks
-Get tasks created by the user in the mobile app for Claude to work on.
-```typescript
-{
-  status?: 'pending' | 'in_progress' | 'all',  // Default: pending
-  limit?: number                                // Default: 10
-}
-// Returns: { hasTasks: boolean, tasks: Array<{id, title, instructions, action, priority, status}> }
-// action: 'interrupt' | 'parallel' | 'queue' | 'backlog'
-```
-
-### claim_task
-Claim a pending task to start working on it.
-```typescript
-{
-  taskId: string,
-  sessionId?: string       // Optional session to associate
-}
-// Returns: { taskId, title, instructions, action, priority }
-```
-
-### complete_task
-Mark a task as complete when finished.
-```typescript
-{
-  taskId: string
-}
-```
-
-### send_alert
-Send a one-way alert notification (doesn't require a response).
-```typescript
-{
-  message: string,
-  alertType?: 'error' | 'warning' | 'success' | 'info',  // Default: info
-  priority?: 'low' | 'normal' | 'high',
-  context?: string,
-  sessionId?: string
-}
-// Returns: { alertId: string }
-```
-
-Use for status updates, build results, errors encountered, etc.
-
-### send_heartbeat
-Keep a task alive during long-running work. Prevents orphan cleanup.
-```typescript
-{
-  taskId: string,          // Task being worked on
-  status?: string,         // Optional progress update
-  progress?: number        // Optional 0-100 percentage
-}
-```
-
-**Call every 10-15 minutes** during long tasks. The cleanup function reverts tasks with lastHeartbeat > 30 minutes.
-
-### Sprint Management Tools (v3)
-
-These tools enable the Sprint Dashboard and dynamic sprint management:
-
-#### create_sprint
-Create a new sprint to track parallel story execution.
-```typescript
-{
-  projectName: string,
-  branch: string,
-  stories: Array<{
-    id: string,           // e.g., "US-001"
-    title: string,
-    wave?: number,        // 1-based wave number
-    dependencies?: string[],
-    complexity?: 'normal' | 'high'
-  }>,
-  config?: {
-    orchestratorModel?: string,  // Default: opus
-    subagentModel?: string,      // Default: sonnet
-    maxConcurrent?: number       // Default: 3
-  },
-  sessionId?: string
-}
-// Returns: { sprintId, projectName, storyCount, totalWaves }
-```
-
-#### update_sprint_story
-Update a story's progress within a sprint.
-```typescript
-{
-  sprintId: string,
-  storyId: string,
-  status?: 'queued' | 'active' | 'complete' | 'failed' | 'skipped',
-  progress?: number,       // 0-100
-  currentAction?: string,  // e.g., "Running tests (2/4)"
-  model?: string
-}
-```
-
-#### add_story_to_sprint
-Add a new story to a running sprint (dynamic insertion).
-```typescript
-{
-  sprintId: string,
-  story: {
-    id: string,
-    title: string,
-    dependencies?: string[],
-    complexity?: 'normal' | 'high'
-  },
-  insertionMode: 'current_wave' | 'next_wave' | 'backlog'
-}
-// Returns: { wave, position }
-```
-
-#### complete_sprint
-Mark a sprint as complete.
-```typescript
-{
-  sprintId: string,
-  summary?: {
-    completed: number,
-    failed: number,
-    skipped: number,
-    duration: number  // seconds
-  }
-}
-```
+For full API signatures, see `mcp-server/src/tools/`.
 
 ---
 
 ## Hybrid Model Architecture (v3)
 
-Basher v3 uses a hybrid model approach for optimal cost/quality balance:
-
 | Role | Model | Purpose |
 |------|-------|---------|
-| **Orchestrator** | Opus | Planning, coordination, code review |
-| **Standard subagents** | Sonnet | Most story implementation |
-| **Complex stories** | Opus | High-complexity or retry scenarios |
-| **Code review** | Opus | Quality gate before commits |
+| Orchestrator | Opus | Planning, coordination, code review |
+| Standard subagents | Sonnet | Most story implementation |
+| Complex stories | Opus | High-complexity or retry scenarios |
 
 **Configuration in basher.config.json:**
 ```json
@@ -1112,31 +360,25 @@ Basher v3 uses a hybrid model approach for optimal cost/quality balance:
 }
 ```
 
-**Cost optimization:** Sonnet handles ~80% of implementation work. Opus provides quality assurance through orchestration and code review.
-
 ---
 
 ## Sprint Dashboard (v3)
 
-The Flutter app now includes a Sprint Dashboard for real-time monitoring of parallel execution:
-
-**Features:**
+Real-time monitoring of parallel execution:
 - Overall sprint progress with wave indicators
-- Active stories with progress bars and current actions
-- Queued and completed stories
+- Active stories with progress bars
 - Dynamic story insertion from mobile
-- Model and configuration display
 
 **Firestore Path:** `/users/{userId}/sprints/{sprintId}`
 
-**Navigation:** Sessions with active sprints show a "View Sprint" button linking to `/sprints/{sprintId}`
+---
 
 ## Firestore Schema
 
 ```
 /users/{userId}
   - apiKeyHash: string
-  - avatarGradientId?: string         # User's chosen gradient (e.g., "brand_cyan_purple")
+  - avatarGradientId?: string
   - createdAt: timestamp
 
 /users/{userId}/devices/{deviceId}
@@ -1151,97 +393,43 @@ The Flutter app now includes a Sprint Dashboard for real-time monitoring of para
   - progress: number
   - lastUpdate: timestamp
   - archived: boolean
-  - archivedAt?: timestamp
 
-/users/{userId}/sprints/{sprintId}                              # NEW v3
+/users/{userId}/sprints/{sprintId}
   - projectName: string
   - branch: string
   - status: 'running' | 'paused' | 'complete' | 'error'
   - currentWave: number
   - totalWaves: number
-  - startedAt: timestamp
-  - updatedAt: timestamp
-  - completedAt?: timestamp
-  - sessionId?: string
+  - startedAt, updatedAt, completedAt: timestamp
   - config: { orchestratorModel, subagentModel, maxConcurrent }
-  - summary?: { completed, failed, skipped, duration }
 
-/users/{userId}/sprints/{sprintId}/stories/{storyId}            # NEW v3
-  - id: string                          # Story ID (US-001)
-  - title: string
+/users/{userId}/sprints/{sprintId}/stories/{storyId}
+  - id, title: string
   - status: 'queued' | 'active' | 'complete' | 'failed' | 'skipped'
-  - wave: number
-  - progress: number                    # 0-100
-  - currentAction?: string              # Current work description
-  - startedAt?: timestamp
-  - completedAt?: timestamp
-  - duration?: number                   # Seconds
+  - wave, progress: number
+  - currentAction?: string
   - dependencies?: string[]
   - complexity: 'normal' | 'high'
-  - model?: string                      # Which model executed
-  - addedDynamically: boolean           # True if added mid-sprint
-
-/users/{userId}/sessions/{sessionId}/interrupts/{interruptId}
-  - message: string
-  - createdAt: timestamp
-  - status: 'pending' | 'read'
-  - readAt?: timestamp
-
-/users/{userId}/questions/{questionId}
-  - sessionId: string
-  - question: string (or encrypted ciphertext)
-  - options?: string[] (or encrypted)
-  - priority: 'low' | 'normal' | 'high'
-  - status: 'pending' | 'answered' | 'expired'
-  - context?: string (or encrypted)
-  - preview?: string                   # Plaintext preview for notifications (50 chars)
-  - encrypted: boolean
-  - createdAt: timestamp
-  - response?: string (or encrypted)
-  - responseEncrypted?: boolean
-  - answeredAt?: timestamp
-  - projectId?: string
-  - archived: boolean
-  - deletedAt?: timestamp
-
-/users/{userId}/projects/{projectId}
-  - name: string
-  - createdAt: timestamp
-  - isDefault: boolean
-  - deletedAt?: timestamp
-
-/users/{userId}/tasks/{taskId}
-  - title: string
-  - instructions: string
-  - action: 'interrupt' | 'parallel' | 'queue' | 'backlog'
-  - priority: 'low' | 'normal' | 'high'
-  - status: 'pending' | 'in_progress' | 'complete' | 'cancelled'
-  - projectId?: string
-  - createdAt: timestamp
-  - startedAt?: timestamp
-  - completedAt?: timestamp
-  - sessionId?: string
 
 /users/{userId}/messages/{messageId}  # UNIFIED INBOX
   - direction: 'to_user' | 'to_claude'
-  - messageType?: 'question' | 'alert' | 'info'  # NEW: Type of message (default: question)
-  - alertType?: 'error' | 'warning' | 'success' | 'info'  # NEW: For alerts only
-  - content: string                    # Question text OR task instructions
-  - preview?: string                   # Plaintext preview for notifications (50 chars)
-  - title?: string                     # For toClaude messages
-  - context?: string                   # What Claude is working on
-  - options?: string[]                 # toUser: multiple choice
-  - response?: string                  # toUser: user's answer
-  - answeredAt?: timestamp             # toUser: when answered
-  - acknowledgedAt?: timestamp         # NEW: For alerts: when user acknowledged
-  - action?: string                    # toClaude: interrupt/parallel/queue/backlog
-  - startedAt?: timestamp              # toClaude: when claimed
-  - completedAt?: timestamp            # toClaude: when finished
-  - sessionId?: string                 # toClaude: session working on it
-  - lastHeartbeat?: timestamp          # NEW: For orphan detection during long tasks
-  - currentStatus?: string             # NEW: Status text from heartbeat
-  - threadId?: string                  # Groups related messages into conversation threads
-  - inReplyTo?: string                 # ID of message this is replying to
+  - messageType?: 'question' | 'alert' | 'info'
+  - alertType?: 'error' | 'warning' | 'success' | 'info'
+  - content: string
+  - preview?: string
+  - title?: string
+  - context?: string
+  - options?: string[]
+  - response?: string
+  - answeredAt?: timestamp
+  - acknowledgedAt?: timestamp
+  - action?: 'interrupt' | 'parallel' | 'queue' | 'backlog'
+  - startedAt?, completedAt?: timestamp
+  - sessionId?: string
+  - lastHeartbeat?: timestamp
+  - currentStatus?: string
+  - threadId?: string
+  - inReplyTo?: string
   - priority: 'low' | 'normal' | 'high'
   - status: 'pending' | 'in_progress' | 'answered' | 'complete' | 'expired' | 'cancelled' | 'acknowledged'
   - createdAt: timestamp
@@ -1250,170 +438,64 @@ The Flutter app now includes a Sprint Dashboard for real-time monitoring of para
   - deletedAt?: timestamp
   - encrypted: boolean
 
+/users/{userId}/questions/{questionId}  # LEGACY
+  - (same fields as messages, for backwards compatibility)
+
+/users/{userId}/projects/{projectId}
+  - name: string
+  - isDefault: boolean
+
 /users/{userId}/analytics/{period}
-  - questionsAsked: number
-  - avgResponseTime: number
-  - ...
+  - questionsAsked, avgResponseTime: number
 ```
+
+---
 
 ## Gotchas
 
 ### Firestore Query Behavior
-- `isNotEqualTo` queries do NOT match documents where the field is missing
-- Always explicitly set boolean fields (e.g., `archived: false`) rather than relying on defaults
+- `isNotEqualTo` does NOT match documents where the field is missing
+- Always explicitly set boolean fields (e.g., `archived: false`)
 
 ### go_router Navigation
-- Use `push()` for detail/drill-down screens (back button works)
-- Use `go()` for top-level navigation changes (replaces route)
-- Use `pop()` to return to previous screen
-- Modal/overlay screens (like compose) must use `push()` for X/close to work
+- `push()` for detail screens (back button works)
+- `go()` for top-level navigation (replaces route)
+- Modal screens must use `push()` for X/close to work
 
 ### Dual Collection Pattern
-The app reads from both `/messages` (unified) and `/questions` (legacy) collections:
-- All CRUD operations (archive, delete, etc.) must check BOTH collections
-- Use `.get()` to check document existence before `.update()`
-- MCP server writes to both collections for backwards compatibility
-
-## Critical Rules
-
-1. **Security First**
-   - API keys are hashed before storage (bcrypt)
-   - Firestore rules enforce user isolation
-   - No sensitive data in push notification payloads
-
-2. **Offline-First**
-   - Firestore offline persistence enabled
-   - Responses queued locally when offline
-   - Sync on connectivity restore
-
-3. **Real-Time Updates**
-   - Use Firestore listeners, not polling
-   - Status updates should be immediate
-   - Handle connection state changes
-
-4. **Push Notification UX**
-   - High priority = immediate notification
-   - Include enough context to respond without opening app
-   - Deep link to specific question
-
-## Development Commands
-
-### MCP Server
-```bash
-cd mcp-server
-npm install
-npm run dev        # Development with hot reload
-npm run build      # Production build
-npm test           # Run tests
-```
-
-### Firebase Functions
-```bash
-cd firebase/functions
-npm install
-npm run serve      # Local emulator
-npm run deploy     # Deploy to Firebase
-```
-
-### Flutter App
-```bash
-cd app
-flutter pub get
-flutter run        # Run on connected device/simulator
-flutter build ios  # Build for iOS
-flutter build appbundle  # Build for Android
-```
-
-## Testing
-
-- **MCP Server**: Jest unit tests for each tool
-- **Cloud Functions**: Firebase emulator tests
-- **Flutter App**: Widget tests + integration tests
-- **E2E**: Manual testing with real Claude Code session
-
-## Deployment
-
-### TestFlight (iOS)
-1. `flutter build ipa`
-2. Upload via Transporter or Xcode
-3. Enable internal testing in App Store Connect
-
-### Play Store Internal (Android)
-1. `flutter build appbundle`
-2. Upload to Play Console
-3. Enable internal testing track
+The app reads from both `/messages` (unified) and `/questions` (legacy):
+- All CRUD operations must check BOTH collections
+- MCP server writes to both for backwards compatibility
 
 ---
 
-## Work Completion Checklist (MANDATORY)
+## Critical Rules
 
-**CRITICAL:** This checklist applies to ALL work modes:
-- **Terminal sessions** - Before saying "done" or asking what's next
-- **AFK mode** - Before pinning task or sending completion status
-- **Basher/autonomous** - Before each iteration checkpoint
+1. **Security First** - API keys hashed (bcrypt), Firestore rules enforce user isolation
+2. **Offline-First** - Firestore persistence enabled, responses queued locally
+3. **Real-Time Updates** - Use Firestore listeners, not polling
+4. **Push Notification UX** - High priority = immediate notification, deep link to question
 
-Complete ALL steps. Do not announce completion until done.
+---
 
-### 0. Pause for Scope Check (AFK/Basher only)
-Before running the checklist, send a completion summary via `ask_question` and wait for user confirmation (see "Sprint/Task Completion Pause" section above). Skip this step in interactive terminal sessions.
+## Development Commands
 
-### 1. Check Work (`check_work`)
 ```bash
-# Flutter
-cd app && flutter analyze
-
 # MCP Server
-cd mcp-server && npm run build
+cd mcp-server && npm run dev    # Dev with hot reload
+cd mcp-server && npm run build  # Production build
 
 # Firebase Functions
-cd firebase/functions && npm run build
-```
-- Verify builds pass with no errors
-- Review `git diff` - no debug code, console.logs, or TODOs
-- Test the feature works (device/simulator if UI changed)
+cd firebase/functions && npm run serve  # Local emulator
 
-### 2. Simplify Code (`minimize-code`)
-- Run `/code-simplifier` skill on all modified files
-- Remove dead code and unused imports
-- Use Dart 3 pattern matching where applicable
-- Replace verbose patterns with concise alternatives
-- No over-engineering or premature abstractions
-
-### 3. Update Documentation
-Update ALL relevant docs before committing:
-
-| Document | When to Update |
-|----------|----------------|
-| **CLAUDE.md** | Schema changes, new MCP tools, architecture changes, workflow changes, URL changes |
-| **LEARNINGS.md** | Gotchas, bugs fixed, technical findings, patterns discovered |
-| **Plan file** | Mark completed items, update status, note blockers |
-| **Code comments** | Only where logic isn't self-evident (rare) |
-
-**Handoff documentation** (for context continuity):
-- What was completed
-- What's remaining / next steps
-- Any blockers or decisions needed
-- Files modified in this session
-
-### 4. Commit & Deploy
-```bash
-# Stage specific files (never git add -A)
-git add <specific files>
-
-# Commit with proper authorship
-git commit --author="feelgreatfoodie <feelgreatfoodie@users.noreply.github.com>" -m "Clear message"
-
-# Push
-git push origin main
+# Flutter App
+cd app && flutter run           # Run on device/simulator
 ```
 
-**Commit rules:**
-- All commits authored by `feelgreatfoodie`
-- **NEVER** use `Co-Authored-By:` in commit messages
-- Stage specific files, not `-A` or `.`
-- Clear commit messages describing what changed
+---
 
-**Deploy commands:**
+## Deployment
+
 ```bash
 # Firestore indexes/rules
 cd firebase && firebase deploy --only firestore:rules,firestore:indexes --project cachebash-app
@@ -1428,20 +510,54 @@ cd firebase && firebase deploy --only functions --project cachebash-app
 open app/ios/Runner.xcworkspace
 ```
 
+---
+
+## Work Completion Checklist (MANDATORY)
+
+**CRITICAL:** Complete ALL steps before announcing done.
+
+### 0. Pause for Scope Check (AFK/Basher only)
+Send completion summary via `ask_question` and wait for user confirmation.
+
+### 1. Check Work
+```bash
+cd app && flutter analyze
+cd mcp-server && npm run build
+cd firebase/functions && npm run build
+```
+- Verify builds pass, no debug code in `git diff`
+
+### 2. Simplify Code
+- Run `/code-simplifier` on modified files
+- Remove dead code and unused imports
+
+### 3. Update Documentation
+
+| Document | When to Update |
+|----------|----------------|
+| **CLAUDE.md** | Schema changes, new MCP tools, architecture changes |
+| **LEARNINGS.md** | Gotchas, bugs fixed, technical findings |
+
+### 4. Commit & Deploy
+```bash
+git add <specific files>  # Never git add -A
+git commit --author="feelgreatfoodie <feelgreatfoodie@users.noreply.github.com>" -m "Clear message"
+git push origin main
+```
+
+**Commit rules:**
+- All commits authored by `feelgreatfoodie`
+- **NEVER** use `Co-Authored-By:`
+- Stage specific files, not `-A` or `.`
+
 ### 5. Status Update (AFK/Basher only)
 ```typescript
-update_status({
-  status: "Complete: [brief description]",
-  state: "complete",
-  progress: 100
-})
+update_status({ status: "Complete: [brief]", state: "complete", progress: 100 })
 ```
 
 ---
 
 ## Work Session Summary Template
-
-When completing ANY work session, provide this summary:
 
 ```markdown
 ## Completed
@@ -1470,38 +586,7 @@ When completing ANY work session, provide this summary:
 
 ## Default Execution Workflow (Auto-AFK)
 
-After plan approval, Claude **automatically enters AFK mode** unless the user explicitly opts out. This is the default behavior for ALL planning and implementation cycles.
-
-### Standard Flow
-
-1. **Plan is approved** (user says "LGTM", "go ahead", "approved", etc.)
-2. **Context clears** - Claude processes the approval
-3. **AFK mode activates automatically:**
-   - Run `caffeinate -dims` to prevent system sleep
-   - Call `update_status` to set working state
-   - All approvals route through CacheBash `ask_question`
-   - Follow the full AFK Mode Protocol (see above)
-
-### Opting Out
-
-The user can prevent auto-AFK by saying any of these **with their approval**:
-- "Don't go AFK"
-- "Stay here"
-- "No Basher mode"
-- "I'll be at my computer"
-- "Stay interactive"
-
-Example: "LGTM but stay here" or "Approved, don't go AFK"
-
-### Why This is Default
-
-- User has already reviewed and approved the plan
-- Implementation is mechanical execution of the approved plan
-- Reduces friction - no need to say "go AFK" every time
-- User can monitor progress from phone and course-correct as needed
-- Questions still come through CacheBash for async approval
-
-### Behavior Summary
+After plan approval, Claude **automatically enters AFK mode** unless the user opts out with: "Don't go AFK", "Stay here", "No Basher mode", "I'll be at my computer".
 
 | Scenario | AFK Mode |
 |----------|----------|
@@ -1509,7 +594,6 @@ Example: "LGTM but stay here" or "Approved, don't go AFK"
 | Plan approved + "stay here" | Stays interactive |
 | User says "I'm going AFK" | Enters AFK (explicit) |
 | User says "keep working" | Enters AFK (explicit) |
-| Mid-task, user leaves | User should say "going AFK" |
 
 ---
 
