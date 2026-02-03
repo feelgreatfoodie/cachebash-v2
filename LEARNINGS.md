@@ -368,7 +368,7 @@ Using `toUser`/`toClaude` instead of `question`/`task` because:
 
 ---
 
-*Last updated: 2026-02-01*
+*Last updated: 2026-02-02*
 
 ---
 
@@ -990,3 +990,75 @@ inReplyTo: string | null  // Points to parent message ID
 - First message in thread: `threadId = null`, `inReplyTo = null`
 - Reply to message: `threadId = parentMessage.threadId ?? parentMessage.id`, `inReplyTo = parentMessage.id`
 - This allows both flat queries (all messages) and threaded queries (by threadId)
+
+---
+
+## getInterrupts Collection Mismatch Bug (2026-02-02)
+
+### The Bug
+
+**Problem:** "Get Status Update" button in mobile app never reached Claude during AFK mode. Users would tap the button, see "Status update requested" success message, but Claude would never respond.
+
+**Root Cause:** Collection path mismatch between Flutter and MCP server.
+
+| Component | Collection Path | Result |
+|-----------|-----------------|--------|
+| Flutter `sendInterrupt()` | `/users/{userId}/messages` | ✅ Writes correctly |
+| MCP `getInterrupts()` | `/users/{userId}/sessions/{sessionId}/interrupts` | ❌ **WRONG PATH** |
+| MCP `getPendingTasks()` | `/users/{userId}/messages` | ✅ Reads correctly |
+
+**Why it went unnoticed:**
+- `getPendingTasks()` would eventually find interrupt messages (every 2 min)
+- But `getInterrupts()` was polled more frequently (every 1 min) and returned empty
+- Status update requests are time-sensitive; 2-minute delay made them feel broken
+
+### The Fix
+
+Updated `mcp-server/src/tools/getInterrupts.ts`:
+
+```typescript
+// Before (broken):
+const interruptsSnapshot = await db
+  .collection(`users/${auth.userId}/sessions/${args.sessionId}/interrupts`)
+  .where("status", "==", "pending")
+  .get();
+
+// After (fixed):
+let query = db
+  .collection(`users/${auth.userId}/messages`)
+  .where("direction", "==", "to_claude")
+  .where("status", "==", "pending")
+  .orderBy("createdAt", "asc");
+
+// If sessionId provided, filter to that session only
+if (args.sessionId) {
+  query = query.where("sessionId", "==", args.sessionId);
+}
+```
+
+**Also updated:**
+- Field mapping: `data.message` → `data.content` (matches `/messages` schema)
+- Added `action` and `priority` fields to response
+- Changed status update: `read` → `in_progress` (consistent with task workflow)
+- Added Firestore composite indexes for new query patterns
+
+### Polling Frequency Update
+
+Increased polling frequencies in CLAUDE.md:
+- Interrupts: 1 minute → **30 seconds**
+- Tasks: 2 minutes → **1 minute**
+
+### Prevention
+
+**Lesson:** When migrating to unified collections, audit ALL tools that read from the old paths. Use grep to find all collection references:
+
+```bash
+grep -r "sessions.*interrupts" mcp-server/src/
+grep -r "collection\(" mcp-server/src/tools/
+```
+
+**Files Modified:**
+- `mcp-server/src/tools/getInterrupts.ts` - Collection path fix
+- `firebase/firestore.indexes.json` - New composite indexes
+- `CLAUDE.md` - Updated polling frequencies
+- `app/lib/screens/sessions/session_detail_screen.dart` - Loading state for button

@@ -6,40 +6,28 @@ The CacheBash MCP (Model Context Protocol) server enables Claude Code to communi
 
 ## Installation & Configuration
 
-### Installation
+### Add MCP Server to Claude Code
 
 ```bash
-# Install globally
-npm install -g @cachebash/mcp-server
+# Get API key from Flutter app: Settings → Copy API Key
 
-# Or add to Claude Code config
+claude mcp add --transport http cachebash \
+  "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp" \
+  --header "Authorization: Bearer YOUR_API_KEY"
 ```
 
-### Claude Code Configuration
+### Verify Connection
 
-Add to `~/.config/claude/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "cachebash": {
-      "command": "cachebash-mcp",
-      "env": {
-        "CACHEBASH_API_KEY": "your-api-key",
-        "CACHEBASH_SESSION_ID": "optional-session-id"
-      }
-    }
-  }
-}
+```bash
+claude mcp list
+# Should show: cachebash: ... (HTTP) - ✓ Connected
 ```
 
-### Environment Variables
+### Configuration Location
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `CACHEBASH_API_KEY` | Yes | User's API key from the mobile app |
-| `CACHEBASH_SESSION_ID` | No | Override session ID (auto-generated if not set) |
-| `CACHEBASH_API_URL` | No | Custom API endpoint (default: production) |
+Config is stored in `~/.claude.json` under `projects.{path}.mcpServers`.
+
+**Note:** MCP servers are loaded at startup. Restart Claude Code after configuration changes.
 
 ---
 
@@ -319,6 +307,152 @@ Get information about the current session.
   lastUpdate: string;
 }
 ```
+
+---
+
+### 8. get_interrupts
+
+Check for messages sent from the mobile app (status requests, course corrections).
+
+**Parameters:**
+
+```typescript
+{
+  sessionId?: string;      // Filter to specific session (optional)
+  markAsRead?: boolean;    // Mark as read after retrieval (default: true)
+}
+```
+
+**Returns:**
+
+```typescript
+{
+  hasInterrupts: boolean;
+  interrupts: Array<{
+    id: string;
+    message: string;
+    createdAt: string;
+    action?: string;       // interrupt, parallel, queue, backlog
+    priority?: string;     // low, normal, high
+  }>;
+}
+```
+
+---
+
+### 9. get_pending_tasks
+
+Get tasks created by the user in the mobile app for Claude to work on.
+
+**Parameters:**
+
+```typescript
+{
+  status?: 'pending' | 'in_progress' | 'all';  // Default: pending
+  limit?: number;                               // Default: 10
+}
+```
+
+**Returns:**
+
+```typescript
+{
+  hasTasks: boolean;
+  tasks: Array<{
+    id: string;
+    title: string;
+    instructions: string;
+    action: 'interrupt' | 'parallel' | 'queue' | 'backlog';
+    priority: 'low' | 'normal' | 'high';
+    status: string;
+  }>;
+}
+```
+
+---
+
+### 10. claim_task
+
+Claim a pending task to start working on it.
+
+**Parameters:**
+
+```typescript
+{
+  taskId: string;          // ID of the task to claim
+  sessionId?: string;      // Session to associate with this task
+}
+```
+
+**Returns:**
+
+```typescript
+{
+  taskId: string;
+  title: string;
+  instructions: string;
+  action: string;
+  priority: string;
+}
+```
+
+---
+
+### 11. complete_task
+
+Mark a task as complete when finished.
+
+**Parameters:**
+
+```typescript
+{
+  taskId: string;          // ID of the task to complete
+}
+```
+
+---
+
+### 12. send_alert
+
+Send a one-way alert notification (doesn't require a response).
+
+**Parameters:**
+
+```typescript
+{
+  message: string;
+  alertType?: 'error' | 'warning' | 'success' | 'info';  // Default: info
+  priority?: 'low' | 'normal' | 'high';
+  context?: string;
+  sessionId?: string;
+}
+```
+
+**Returns:**
+
+```typescript
+{
+  alertId: string;
+}
+```
+
+---
+
+### 13. send_heartbeat
+
+Keep a task alive during long-running work. Prevents orphan cleanup.
+
+**Parameters:**
+
+```typescript
+{
+  taskId: string;          // Task being worked on
+  status?: string;         // Optional progress update
+  progress?: number;       // Optional 0-100 percentage
+}
+```
+
+**Note:** Call every 10-15 minutes during long tasks. Tasks with lastHeartbeat > 30 minutes are reverted to pending.
 
 ---
 

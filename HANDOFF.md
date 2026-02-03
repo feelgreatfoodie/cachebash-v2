@@ -1,14 +1,14 @@
 # CacheBash Session Handoff
 
-**Last Updated:** 2026-01-31
-**Status:** All PRD items complete ✅ | Build 14 deployed to TestFlight
+**Last Updated:** 2026-02-02
+**Status:** All PRD items complete ✅ | AFK polling fix deployed
 **Branch:** `main`
 
 ---
 
 ## PRD Status: COMPLETE
 
-All 14 user stories from `ralph/prd.md` are complete:
+All 14 user stories from `basher/prd.md` are complete:
 
 | Priority | Stories | Status |
 |----------|---------|--------|
@@ -19,18 +19,29 @@ All 14 user stories from `ralph/prd.md` are complete:
 
 ---
 
-## CURRENT SESSION - Push Notification Hardening
+## CURRENT SESSION - AFK Polling Architecture Fix (2026-02-02)
 
-### What Was Done
-- Fixed FCM token registration race condition
-- Added app lifecycle observer to sync token on resume
-- Added token validation (min 100 chars)
-- Expanded Cloud Function token cleanup (4 error codes)
-- Deployed Firebase Functions
-- Built and uploaded iOS build 14 to TestFlight
+### Root Cause
+`getInterrupts()` MCP tool was reading from wrong Firestore collection:
+- Flutter wrote to: `/users/{userId}/messages`
+- MCP read from: `/users/{userId}/sessions/{sessionId}/interrupts` ❌
+
+This caused "Get Status Update" requests from mobile to never reach Claude.
+
+### What Was Fixed
+1. **MCP Server** - `getInterrupts.ts` now reads from `/messages` collection
+2. **Field mapping** - `message` → `content` to match schema
+3. **Firestore indexes** - Added composite indexes for new query patterns
+4. **Polling frequency** - Interrupts: 30s (was 1m), Tasks: 1m (was 2m)
+5. **Flutter UI** - Added loading state and timestamp to status update button
+
+### Deployments
+- ✅ MCP Server deployed to Cloud Run (revision `cachebash-mcp-00029-qnb`)
+- ✅ Firestore indexes deployed
+- ⏳ TestFlight build in progress
 
 ### Commits
-- `5a1205e` - Fix push notification reliability issues
+- `398c766` - Fix getInterrupts to read from /messages collection
 
 ---
 
@@ -289,11 +300,11 @@ Users can now create tasks from the app for Claude to work on:
 4. Claude works on it
 5. Claude calls `complete_task` → status: complete
 
-### Session Interrupts
+### Session Interrupts (Unified with Messages)
 Users can send messages to active Claude sessions:
 - Message input on session detail screen
-- Messages stored in `/sessions/{id}/interrupts`
-- Claude checks with `get_interrupts` MCP tool
+- Messages stored in `/messages` with `direction: to_claude`
+- Claude checks with `get_interrupts` MCP tool (reads from `/messages`)
 
 ---
 
@@ -334,18 +345,18 @@ cd app && flutter run -d "iPhone"
 ```
 ┌─────────────────┐                    ┌─────────────────┐
 │   Claude Code   │◄───── MCP ────────►│  MCP Server     │
-│   (Desktop)     │    (stdio/SSE)     │  (Local/Cloud)  │
+│   (Desktop)     │      (HTTP)        │   (Cloud Run)   │
 └─────────────────┘                    └────────┬────────┘
                                                 │
                                                 ▼
                                        ┌─────────────────┐
                                        │    Firestore    │
                                        │                 │
-                                       │  - questions    │
+                                       │  - messages     │ (unified inbox)
                                        │  - sessions     │
-                                       │  - tasks        │◄── NEW
-                                       │  - interrupts   │◄── NEW
+                                       │  - sprints      │
                                        │  - projects     │
+                                       │  - mcp_sessions │
                                        └────────┬────────┘
                                                 │
                                                 ▼
@@ -354,6 +365,10 @@ cd app && flutter run -d "iPhone"
                                        │    (Flutter)    │
                                        └─────────────────┘
 ```
+
+**Note:** The `/messages` collection is the unified inbox for both directions:
+- `direction: to_user` - Questions from Claude to user
+- `direction: to_claude` - Tasks/interrupts from user to Claude
 
 ---
 
