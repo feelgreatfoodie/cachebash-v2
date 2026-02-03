@@ -531,9 +531,9 @@ When user returns:
 4. Commit & push
 5. Deploy if needed
 
-### Sprint/Task Completion Pause (AFK/Ralph)
+### Sprint/Task Completion Pause (AFK/Basher)
 
-**When all known tasks are complete in AFK or Ralph mode**, pause before finalizing to give the user a chance to add scope:
+**When all known tasks are complete in AFK or Basher mode**, pause before finalizing to give the user a chance to add scope:
 
 1. **Send completion summary via `ask_question`:**
    ```typescript
@@ -864,8 +864,8 @@ cachebash/
 │   ├── ios/
 │   └── android/
 │
-└── ralph/                   # Ralph autonomous execution
-    ├── ralph.config.json   # Configuration
+└── basher/                  # Basher autonomous execution
+    ├── basher.config.json  # Configuration
     ├── progress.txt        # Iteration log
     └── transcript.txt      # Feature notes for PRD generation
 ```
@@ -1097,6 +1097,24 @@ Keep a task alive during long-running work. Prevents orphan cleanup.
   - ...
 ```
 
+## Gotchas
+
+### Firestore Query Behavior
+- `isNotEqualTo` queries do NOT match documents where the field is missing
+- Always explicitly set boolean fields (e.g., `archived: false`) rather than relying on defaults
+
+### go_router Navigation
+- Use `push()` for detail/drill-down screens (back button works)
+- Use `go()` for top-level navigation changes (replaces route)
+- Use `pop()` to return to previous screen
+- Modal/overlay screens (like compose) must use `push()` for X/close to work
+
+### Dual Collection Pattern
+The app reads from both `/messages` (unified) and `/questions` (legacy) collections:
+- All CRUD operations (archive, delete, etc.) must check BOTH collections
+- Use `.get()` to check document existence before `.update()`
+- MCP server writes to both collections for backwards compatibility
+
 ## Critical Rules
 
 1. **Security First**
@@ -1173,11 +1191,11 @@ flutter build appbundle  # Build for Android
 **CRITICAL:** This checklist applies to ALL work modes:
 - **Terminal sessions** - Before saying "done" or asking what's next
 - **AFK mode** - Before pinning task or sending completion status
-- **Ralph/autonomous** - Before each iteration checkpoint
+- **Basher/autonomous** - Before each iteration checkpoint
 
 Complete ALL steps. Do not announce completion until done.
 
-### 0. Pause for Scope Check (AFK/Ralph only)
+### 0. Pause for Scope Check (AFK/Basher only)
 Before running the checklist, send a completion summary via `ask_question` and wait for user confirmation (see "Sprint/Task Completion Pause" section above). Skip this step in interactive terminal sessions.
 
 ### 1. Check Work (`check_work`)
@@ -1251,7 +1269,7 @@ cd firebase && firebase deploy --only functions --project cachebash-app
 open app/ios/Runner.xcworkspace
 ```
 
-### 5. Status Update (AFK/Ralph only)
+### 5. Status Update (AFK/Basher only)
 ```typescript
 update_status({
   status: "Complete: [brief description]",
@@ -1310,7 +1328,7 @@ After plan approval, Claude **automatically enters AFK mode** unless the user ex
 The user can prevent auto-AFK by saying any of these **with their approval**:
 - "Don't go AFK"
 - "Stay here"
-- "No Ralph mode"
+- "No Basher mode"
 - "I'll be at my computer"
 - "Stay interactive"
 

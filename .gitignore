@@ -56,6 +56,6 @@ coverage/
 .claude/
 firebase/users.json
 
-# Ralph archives
-ralph/archive/
-ralph/.last-branch
+# Basher archives
+basher/archive/
+basher/.last-branch

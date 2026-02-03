@@ -3,7 +3,7 @@
   "git": {
     "strategy": "single-branch",
     "baseBranch": "main",
-    "branchPrefix": "ralph/"
+    "branchPrefix": "basher/"
   },
   "quality": {
     "autoDetect": true,

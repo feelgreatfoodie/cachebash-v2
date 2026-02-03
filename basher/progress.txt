@@ -1,0 +1,9 @@
+# Progress Log
+
+This file accumulates learnings across Basher iterations.
+Each iteration should append discoveries, patterns, and gotchas here.
+
+## Codebase Patterns
+<!-- Patterns discovered during implementation will be added here -->
+
+## Iteration Log
