@@ -65,6 +65,30 @@ config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = ''
 config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
 ```
 
+### App Store "Unsupported Architectures" Error (2026-02-03)
+
+**Problem:** App Store Connect validation fails with "unsupported architectures" - simulator slices (x86_64, i386, arm64-simulator) included in release build.
+
+**Fix:** Exclude simulator architectures for Release/Profile builds only:
+```ruby
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      if config.name == 'Debug'
+        config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = ''
+        config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
+      end
+      if config.name == 'Release' || config.name == 'Profile'
+        config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64 x86_64 i386'
+        config.build_settings['ONLY_ACTIVE_ARCH'] = 'NO'
+      end
+    end
+  end
+end
+```
+
+**Verify:** `lipo -info Runner.app/Runner` should show only `arm64`.
+
 ---
 
 ## Firestore
@@ -292,4 +316,4 @@ When session expires (>60min), client gets 32001 error but doesn't auto-reinitia
 
 ---
 
-*Last updated: 2026-02-02*
+*Last updated: 2026-02-03*
