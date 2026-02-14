@@ -549,6 +549,8 @@ Mobile interrupts are pushed into Claude's reasoning loop via PostToolUse hooks:
 - Hooks configured globally in `~/.claude/settings.json`
 - Peek endpoint is non-destructive — Claude still calls `get_interrupts` MCP tool to claim
 
+**Action-level filtering:** Hooks only trigger for `interrupt`, `sprint`, or `parallel` actions. `queue` and `backlog` tasks are ignored by hooks — they don't inject context or block stop. This prevents low-priority work from hijacking Claude's reasoning loop. If hooks are missing or corrupted, recreate from the scripts at `~/.claude/hooks/cachebash-check-interrupts*.sh`.
+
 ### MCP Server Deployment
 - GCP project: `cachebash-app` (NOT `cache-bash-app`)
 - Deploy with `--clear-base-image` flag required

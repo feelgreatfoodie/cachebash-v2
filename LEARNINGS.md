@@ -377,9 +377,62 @@ ISO endpoints return `Access-Control-Allow-Origin: *` for browser-based connecto
 
 **Client-side config change only** — no server-side commit.
 
+### BUG-004: MCP Session Death Mid-Cycle (WORKAROUND)
+
+**Problem:** MCP session died twice during Feb 14 cycle. Tools return errors, no automatic re-initialization.
+
+**Workaround — Raw curl MCP session bootstrap:**
+```bash
+# 1. Get session ID
+SESSION_ID=$(curl -s -X POST "$MCP_URL" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"curl","version":"1.0"}},"id":1}' \
+  -D - 2>/dev/null | grep -i 'mcp-session-id' | awk '{print $2}' | tr -d '\r')
+
+# 2. Send initialized notification
+curl -s -X POST "$MCP_URL" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Mcp-Session-Id: $SESSION_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+
+# 3. Call tools
+curl -s -X POST "$MCP_URL" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Mcp-Session-Id: $SESSION_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"send_alert","arguments":{"message":"test"}},"id":2}'
+```
+
+**Status:** Workaround proven. Root cause is Claude Code not auto-reinitializing expired sessions.
+
 ### No Open Bugs
 
-All tracked bugs resolved as of 2026-02-14.
+All tracked bugs resolved as of 2026-02-14. BUG-004 has a proven workaround.
+
+---
+
+---
+
+## Grid Relay
+
+### Relay v0.2 Tool Asymmetry
+
+`send_message` requires `source`, `target`, `message_type` (Relay v0.2 schema). `create_task` does NOT — it uses the simpler `title`/`instructions`/`action` schema. Programs must know which tool requires which fields.
+
+| Tool | Required Fields | Schema |
+|------|----------------|--------|
+| `send_message` | `message`, `source`, `target`, `message_type` | Relay v0.2 |
+| `create_task` | `title`, `instructions` | Legacy |
+
+### Stale Message Pattern
+
+**Problem:** ~20+ PING/PONG test messages polluted the production `/messages` queue during relay testing. No TTL, no namespace separation — control plane mixed with test data.
+
+**Root Cause:** Testing inter-program messaging on the control plane collection (`/users/{uid}/messages/`) instead of a separate test namespace.
+
+**Fix:** Decision #9 — Separate `/users/{uid}/relay/` collection with 24h TTL auto-expiry. Control plane persists, data plane self-cleans. Never test on the control plane collection.
 
 ---
 
