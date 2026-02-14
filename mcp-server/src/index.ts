@@ -27,7 +27,7 @@ import { createSprint } from "./tools/createSprint.js";
 import { updateSprintStory } from "./tools/updateSprintStory.js";
 import { addStoryToSprint } from "./tools/addStoryToSprint.js";
 import { completeSprint } from "./tools/completeSprint.js";
-import { checkRateLimit, cleanupRateLimits, getRateLimitResetIn } from "./middleware/rateLimiter.js";
+import { checkRateLimit, checkAuthRateLimit, cleanupRateLimits, getRateLimitResetIn } from "./middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "./logging/auditLogger.js";
 
 // Session timeout (60 minutes of inactivity) - aligned with SessionManager
@@ -780,6 +780,11 @@ async function main() {
 
     // Interrupt peek endpoint — lightweight REST for hooks (no MCP session needed)
     if (req.url === "/v1/interrupts/peek" && req.method === "GET") {
+      const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+      if (!checkAuthRateLimit(clientIp)) {
+        return sendJson(res, 429, { error: "Too many requests" });
+      }
+
       const apiKey = extractBearerToken(req.headers.authorization);
       if (!apiKey) {
         return sendJson(res, 401, { error: "Missing API key" });
@@ -881,6 +886,11 @@ async function main() {
 
     // MCP endpoints - require authentication (no env fallback for security)
     if (req.url?.startsWith("/v1/mcp") || req.url?.startsWith("/mcp")) {
+      const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+      if (!checkAuthRateLimit(clientIp)) {
+        return sendJson(res, 429, { error: "Too many requests" });
+      }
+
       const apiKey = extractBearerToken(req.headers.authorization);
       if (!apiKey) {
         return sendJson(res, 401, { error: "Missing API key", hint: "Set Authorization: Bearer YOUR_API_KEY header" });
