@@ -82,6 +82,18 @@ export async function getInterrupts(
   // This prevents two Claude instances from processing the same interrupt
   try {
     const result = await db.runTransaction(async (transaction) => {
+      // Firestore requires all reads before any writes.
+      // Phase 1: Read all docs within transaction
+      const freshDocs = await Promise.all(
+        filteredDocs.map(async (doc) => ({
+          ref: doc.ref,
+          id: doc.id,
+          originalData: doc.data(),
+          fresh: await transaction.get(doc.ref),
+        }))
+      );
+
+      // Phase 2: Determine which are still pending, then write
       const claimedInterrupts: Array<{
         id: string;
         message: string;
@@ -90,30 +102,25 @@ export async function getInterrupts(
         priority?: string;
       }> = [];
 
-      for (const doc of filteredDocs) {
-        // Re-read within transaction to get latest state
-        const freshDoc = await transaction.get(doc.ref);
+      for (const { ref, id, originalData, fresh } of freshDocs) {
+        if (!fresh.exists) continue;
 
-        if (!freshDoc.exists) continue;
+        const data = fresh.data()!;
 
-        const data = freshDoc.data()!;
-
-        // Only process if still pending (another Claude may have claimed it)
         if (data.status !== "pending") {
-          console.log(`[getInterrupts] Skipping interrupt ${doc.id} - already ${data.status}`);
+          console.log(`[getInterrupts] Skipping interrupt ${id} - already ${data.status}`);
           continue;
         }
 
-        // Atomically mark as in_progress (matches /messages schema)
-        transaction.update(doc.ref, {
+        transaction.update(ref, {
           status: "in_progress",
           startedAt: admin.firestore.FieldValue.serverTimestamp(),
-          sessionId: args.sessionId || doc.data()?.sessionId,
+          sessionId: args.sessionId || originalData?.sessionId,
         });
 
         claimedInterrupts.push({
-          id: doc.id,
-          message: data.content, // /messages uses 'content' field
+          id,
+          message: data.content,
           createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
           action: data.action,
           priority: data.priority,
