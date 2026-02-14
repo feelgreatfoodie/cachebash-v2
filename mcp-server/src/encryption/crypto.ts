@@ -7,8 +7,14 @@ const IV_LENGTH = 16;
 const ALGORITHM = "aes-256-cbc";
 
 /**
- * Derive encryption key from API key using PBKDF2
+ * Derive encryption key from API key using PBKDF2.
+ * Exported so callers can pre-derive and store the key without keeping
+ * the raw API key in memory.
  */
+export function deriveEncryptionKey(apiKey: string): Buffer {
+  return deriveKey(apiKey);
+}
+
 function deriveKey(apiKey: string): Buffer {
   // Create deterministic salt from API key hash
   const apiKeyHash = crypto.createHash("sha256").update(apiKey).digest("hex");
@@ -27,8 +33,8 @@ function deriveKey(apiKey: string): Buffer {
  * Encrypt plaintext using AES-256-CBC
  * Returns base64 encoded string with IV prepended
  */
-export function encrypt(plaintext: string, apiKey: string): string {
-  const key = deriveKey(apiKey);
+export function encrypt(plaintext: string, keyOrApiKey: string | Buffer): string {
+  const key = Buffer.isBuffer(keyOrApiKey) ? keyOrApiKey : deriveKey(keyOrApiKey);
   const iv = crypto.randomBytes(IV_LENGTH);
 
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
@@ -44,8 +50,8 @@ export function encrypt(plaintext: string, apiKey: string): string {
  * Decrypt ciphertext
  * Expects base64 encoded string with IV prepended
  */
-export function decrypt(ciphertext: string, apiKey: string): string {
-  const key = deriveKey(apiKey);
+export function decrypt(ciphertext: string, keyOrApiKey: string | Buffer): string {
+  const key = Buffer.isBuffer(keyOrApiKey) ? keyOrApiKey : deriveKey(keyOrApiKey);
   const combined = Buffer.from(ciphertext, "base64");
 
   if (combined.length < IV_LENGTH + 1) {
@@ -87,7 +93,7 @@ export function encryptQuestionData(
     options?: string[] | null;
     context?: string | null;
   },
-  apiKey: string
+  apiKey: string | Buffer
 ): {
   question: string;
   options: string[] | null;
@@ -114,7 +120,7 @@ export function decryptQuestionData(
     context?: string | null;
     encrypted?: boolean;
   },
-  apiKey: string
+  apiKey: string | Buffer
 ): {
   question: string;
   options: string[] | null;

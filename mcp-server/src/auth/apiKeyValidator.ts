@@ -1,10 +1,11 @@
 import * as crypto from "crypto";
 import { getFirestore } from "../firebase/client.js";
+import { deriveEncryptionKey } from "../encryption/crypto.js";
 
 export interface AuthContext {
   userId: string;
   apiKeyHash: string;
-  apiKey: string; // Stored in memory only for E2E encryption
+  encryptionKey: Buffer; // Pre-derived key for E2E encryption (raw API key never stored)
 }
 
 /**
@@ -58,7 +59,7 @@ export async function validateApiKey(
     return {
       userId: data.userId,
       apiKeyHash: keyHash,
-      apiKey: apiKey, // Keep in memory for E2E encryption
+      encryptionKey: deriveEncryptionKey(apiKey), // Derive once, discard raw key
     };
   } catch (error) {
     console.error("API key validation error:", error);

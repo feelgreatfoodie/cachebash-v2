@@ -100,7 +100,7 @@ export class CustomHTTPTransport implements Transport {
    */
   async handleRequest(
     request: Request,
-    authContext?: { apiKey: string; userId: string }
+    authContext?: { userId: string; encryptionKey?: Buffer }
   ): Promise<Response> {
     try {
       // Parse request
@@ -231,7 +231,7 @@ export class CustomHTTPTransport implements Transport {
    */
   private async handlePost(
     parsed: ParsedRequest,
-    authContext?: { apiKey: string; userId: string }
+    authContext?: { userId: string; encryptionKey?: Buffer }
   ): Promise<Response> {
     if (!authContext) {
       return this.createResponse(unauthorizedResponse('Missing authentication'));
@@ -349,7 +349,7 @@ export class CustomHTTPTransport implements Transport {
    */
   private async handleDelete(
     parsed: ParsedRequest,
-    authContext?: { apiKey: string; userId: string }
+    authContext?: { userId: string; encryptionKey?: Buffer }
   ): Promise<Response> {
     if (!authContext) {
       return this.createResponse(unauthorizedResponse('Missing authentication'));

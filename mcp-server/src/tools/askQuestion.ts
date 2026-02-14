@@ -41,7 +41,7 @@ export async function askQuestion(
         options: args.options,
         context: args.context,
       },
-      auth.apiKey
+      auth.encryptionKey
     );
     questionData = {
       ...questionData,

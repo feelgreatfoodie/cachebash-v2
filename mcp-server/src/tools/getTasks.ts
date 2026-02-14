@@ -13,7 +13,7 @@ import {
  */
 function decryptTaskData(
   data: { title: string; instructions: string; action?: string; encrypted?: boolean },
-  apiKey: string
+  key: string | Buffer
 ): { title: string; instructions: string; action: string } {
   if (!data.encrypted) {
     return {
@@ -25,12 +25,12 @@ function decryptTaskData(
 
   try {
     return {
-      title: isEncrypted(data.title) ? decrypt(data.title, apiKey) : data.title,
+      title: isEncrypted(data.title) ? decrypt(data.title, key) : data.title,
       instructions: isEncrypted(data.instructions)
-        ? decrypt(data.instructions, apiKey)
+        ? decrypt(data.instructions, key)
         : data.instructions,
       action: data.action && isEncrypted(data.action)
-        ? decrypt(data.action, apiKey)
+        ? decrypt(data.action, key)
         : data.action || "queue",
     };
   } catch (error) {
@@ -136,7 +136,7 @@ export async function getPendingTasks(
         action: data.action,
         encrypted: data.encrypted,
       },
-      auth.apiKey
+      auth.encryptionKey
     );
     seenIds.add(doc.id);
     allTasks.push({
@@ -162,7 +162,7 @@ export async function getPendingTasks(
         action: data.action,
         encrypted: data.encrypted,
       },
-      auth.apiKey
+      auth.encryptionKey
     );
     allTasks.push({
       id: doc.id,
@@ -316,7 +316,7 @@ export async function claimTask(
         action: taskData.action,
         encrypted: taskData.encrypted,
       },
-      auth.apiKey
+      auth.encryptionKey
     );
 
     return {

@@ -50,7 +50,7 @@ export async function getResponse(
     // Decrypt response if it's encrypted
     if (data?.responseEncrypted || (data?.encrypted && isEncrypted(response))) {
       try {
-        response = decrypt(response, auth.apiKey);
+        response = decrypt(response, auth.encryptionKey);
       } catch (error) {
         console.error("Failed to decrypt response:", error);
         // Return encrypted response with warning
