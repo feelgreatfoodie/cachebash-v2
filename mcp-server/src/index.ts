@@ -27,6 +27,8 @@ import { createSprint } from "./tools/createSprint.js";
 import { updateSprintStory } from "./tools/updateSprintStory.js";
 import { addStoryToSprint } from "./tools/addStoryToSprint.js";
 import { completeSprint } from "./tools/completeSprint.js";
+import { sendMessage } from "./tools/sendMessage.js";
+import { createTask } from "./tools/createTask.js";
 import { checkRateLimit, checkAuthRateLimit, checkIsoRateLimit, cleanupRateLimits, getRateLimitResetIn } from "./middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "./logging/auditLogger.js";
 import { createIsoServer, setIsoSessionAuth, cleanupIsoSessions } from "./iso/isoServer.js";
@@ -68,6 +70,8 @@ const toolHandlers: Record<string, (auth: AuthContext, args: any) => Promise<any
   update_sprint_story: updateSprintStory,
   add_story_to_sprint: addStoryToSprint,
   complete_sprint: completeSprint,
+  send_message: sendMessage,
+  create_task: createTask,
 };
 
 // Helper to extract Bearer token from Authorization header
@@ -644,6 +648,80 @@ async function main() {
               },
             },
             required: ["sprintId"],
+          },
+        },
+        {
+          name: "send_message",
+          description:
+            "Send a message or instruction to another program or session. Enables inter-program mesh communication.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              message: {
+                type: "string",
+                description: "The message to send",
+                maxLength: 2000,
+              },
+              priority: {
+                type: "string",
+                enum: ["low", "normal", "high"],
+                description: "Notification priority level",
+                default: "normal",
+              },
+              action: {
+                type: "string",
+                enum: ["interrupt", "sprint", "parallel", "queue", "backlog"],
+                description: "Action level for the recipient",
+                default: "queue",
+              },
+              context: {
+                type: "string",
+                description: "Context about the message",
+                maxLength: 500,
+              },
+              sessionId: {
+                type: "string",
+                description: "Target session ID (routes to get_interrupts for that session)",
+              },
+            },
+            required: ["message"],
+          },
+        },
+        {
+          name: "create_task",
+          description:
+            "Create a new task for another program to work on. Appears in get_pending_tasks for the target.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              title: {
+                type: "string",
+                description: "Task title",
+                maxLength: 200,
+              },
+              instructions: {
+                type: "string",
+                description: "Detailed instructions for the task",
+                maxLength: 4000,
+              },
+              priority: {
+                type: "string",
+                enum: ["low", "normal", "high"],
+                description: "Task priority",
+                default: "normal",
+              },
+              action: {
+                type: "string",
+                enum: ["interrupt", "sprint", "parallel", "queue", "backlog"],
+                description: "Action level - how urgently the target should handle this",
+                default: "queue",
+              },
+              projectId: {
+                type: "string",
+                description: "Optional project ID to associate with",
+              },
+            },
+            required: ["title"],
           },
         },
       ],
