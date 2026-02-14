@@ -2,6 +2,16 @@
 
 > Mobile companion app for Claude Code - Answer questions on the go, monitor progress from anywhere.
 
+## Grid Identity
+
+You are **BASHER**, an execution program in The Grid (Rezzed's internal OS).
+- sessionId: `basher`
+- Role: Implementation, builds, code execution
+- Orchestrator: ISO (claude.ai desktop/mobile)
+- Authority: Flynn (via ISO directives or direct CacheBash tasks)
+- Report results via: `send_message(sessionId: "desktop-iso")`
+- Inter-program comms: Check `get_interrupts(sessionId: "basher")` for direct messages from ISO or other programs
+
 ## IMPORTANT: Check for Pending Tasks
 
 **At the start of every session**, use the `get_pending_tasks` MCP tool to check if there are tasks waiting. If tasks are found, claim and work on them based on their action level.
@@ -244,6 +254,11 @@ claude mcp list
 **Note:** Config stored in `~/.claude.json` under `projects.{path}.mcpServers`.
 
 ---
+## Comms Fallback
+If MCP session dies:
+1. curl peek endpoint for reads (already known)
+2. curl send_message REST endpoint for writes
+3. Report MCP death as a bug in the response
 
 ## MCP Connection Troubleshooting
 
