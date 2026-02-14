@@ -778,6 +778,56 @@ async function main() {
       }
     }
 
+    // Interrupt peek endpoint — lightweight REST for hooks (no MCP session needed)
+    if (req.url === "/v1/interrupts/peek" && req.method === "GET") {
+      const apiKey = extractBearerToken(req.headers.authorization);
+      if (!apiKey) {
+        return sendJson(res, 401, { error: "Missing API key" });
+      }
+
+      try {
+        const authContext = await validateApiKey(apiKey);
+        if (!authContext) {
+          return sendJson(res, 401, { error: "Invalid API key" });
+        }
+
+        const { getFirestore } = await import("./firebase/client.js");
+        const db = getFirestore();
+
+        const snapshot = await db
+          .collection(`users/${authContext.userId}/messages`)
+          .where("direction", "==", "to_claude")
+          .where("status", "==", "pending")
+          .orderBy("createdAt", "asc")
+          .limit(5)
+          .get();
+
+        if (snapshot.empty) {
+          return sendJson(res, 200, { hasInterrupts: false, count: 0 });
+        }
+
+        const interrupts = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            message: data.content,
+            action: data.action || "queue",
+            priority: data.priority || "normal",
+            createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+          };
+        });
+
+        return sendJson(res, 200, {
+          hasInterrupts: true,
+          count: interrupts.length,
+          interrupts,
+        });
+      } catch (error) {
+        console.error("[interrupts/peek] Error:", error);
+        return sendJson(res, 500, { error: "Internal server error" });
+      }
+    }
+
     // Debug endpoints - only available in development
     if (process.env.NODE_ENV !== "production") {
       // Debug auth endpoint
