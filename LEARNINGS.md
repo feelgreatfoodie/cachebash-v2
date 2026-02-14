@@ -316,4 +316,37 @@ When session expires (>60min), client gets 32001 error but doesn't auto-reinitia
 
 ---
 
-*Last updated: 2026-02-03*
+## ISO MCP Connector (claude.ai Desktop)
+
+### Architecture
+
+Separate MCP Server instance (`cachebash-iso`) with its own `CustomHTTPTransport`, running alongside the main server on the same Cloud Run service. Only 5 whitelisted tools are exposed.
+
+**Endpoint:** `GET/POST /v1/iso/mcp?token=API_KEY`
+
+### Auth Approach: Token in Query Param
+
+claude.ai custom connectors only support authless or OAuth. CacheBash uses Bearer token auth. Workaround: pass API key as `?token=` query param in the connector URL. claude.ai passes the full URL including query params to the server.
+
+- Same user identity as CLI programs (same Firestore user context)
+- Messages tagged with `source: "iso"` to distinguish from CLI programs
+- Token validated with same `validateApiKey()` as Bearer auth
+
+### New Tools
+
+- `send_message` — Writes to `/messages` with `direction: "to_claude"`, `source: "iso"`. Equivalent to mobile app's interrupt feature.
+- `create_task` — Writes to both `/messages` and `/tasks` (dual collection pattern). Equivalent to mobile app's "Create Task" flow.
+
+### Rate Limiting
+
+Separate IP-based rate limiter for `/v1/iso/*`: 30 req/min. Does not share quota with the main MCP endpoint's per-user-tool limiter (ISO tools still go through per-user-tool limits too).
+
+### CORS
+
+ISO endpoints return `Access-Control-Allow-Origin: *` for browser-based connectors.
+
+**Files:** `mcp-server/src/iso/isoServer.ts`, `mcp-server/src/tools/sendMessage.ts`, `mcp-server/src/tools/createTask.ts`
+
+---
+
+*Last updated: 2026-02-13*

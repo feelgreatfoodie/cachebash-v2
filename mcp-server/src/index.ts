@@ -27,8 +27,9 @@ import { createSprint } from "./tools/createSprint.js";
 import { updateSprintStory } from "./tools/updateSprintStory.js";
 import { addStoryToSprint } from "./tools/addStoryToSprint.js";
 import { completeSprint } from "./tools/completeSprint.js";
-import { checkRateLimit, checkAuthRateLimit, cleanupRateLimits, getRateLimitResetIn } from "./middleware/rateLimiter.js";
+import { checkRateLimit, checkAuthRateLimit, checkIsoRateLimit, cleanupRateLimits, getRateLimitResetIn } from "./middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "./logging/auditLogger.js";
+import { createIsoServer, setIsoSessionAuth, cleanupIsoSessions } from "./iso/isoServer.js";
 
 // Session timeout (60 minutes of inactivity) - aligned with SessionManager
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
@@ -719,6 +720,11 @@ async function main() {
   // Connect server to transport
   await server.connect(transport);
 
+  // Initialize ISO MCP server (separate instance with whitelisted tools only)
+  const { transport: isoTransportInstance } = await createIsoServer();
+  let isoTransport: typeof isoTransportInstance | null = isoTransportInstance;
+  console.log("[ISO] ISO MCP server initialized with whitelisted tools");
+
   // Create HTTP server
   const httpServer = http.createServer(async (req, res) => {
     // Log request details
@@ -736,16 +742,21 @@ async function main() {
       return originalEnd(...args);
     } as any;
 
-    // Minimal CORS - MCP clients don't need browser CORS
-    // Only allow specific headers needed for MCP protocol
+    // CORS headers
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
     res.setHeader(
       "Access-Control-Allow-Headers",
       "Content-Type, Authorization, Mcp-Session-Id"
     );
+    // ISO endpoints get permissive CORS (set per-route below)
+    // Main MCP endpoints use minimal CORS
 
-    // Handle preflight (no origin = no CORS response)
+    // Handle preflight
     if (req.method === "OPTIONS") {
+      // Allow CORS preflight for ISO endpoints
+      if (req.url?.startsWith("/v1/iso/")) {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+      }
       res.writeHead(204);
       res.end();
       return;
@@ -884,6 +895,79 @@ async function main() {
       }
     }
 
+    // --- ISO MCP Connector (authless via ?token= query param) ---
+    if (req.url?.startsWith("/v1/iso/")) {
+      const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+
+      // Rate limit: 30 req/min per IP
+      if (!checkIsoRateLimit(clientIp)) {
+        console.log(`[ISO] Rate limited: ${clientIp}`);
+        return sendJson(res, 429, { error: "Too many requests" });
+      }
+
+      // CORS for browser-based connectors (claude.ai)
+      res.setHeader("Access-Control-Allow-Origin", "*");
+
+      // Parse URL and extract token
+      const parsedUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      const pathname = parsedUrl.pathname;
+
+      // ISO health check
+      if (pathname === "/v1/iso/health") {
+        console.log(`[ISO] Health check from ${clientIp}`);
+        return sendJson(res, 200, {
+          status: "ok",
+          endpoint: "iso",
+          version: "1.0.0",
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // ISO MCP endpoint
+      if (pathname === "/v1/iso/mcp") {
+        const token = parsedUrl.searchParams.get("token");
+        if (!token) {
+          console.log(`[ISO] Missing token from ${clientIp}`);
+          return sendJson(res, 401, {
+            error: "Missing token",
+            hint: "Add ?token=YOUR_API_KEY to the connector URL",
+          });
+        }
+
+        // Validate API key from query param
+        const authContext = await validateApiKey(token);
+        if (!authContext) {
+          console.log(`[ISO] Invalid token from ${clientIp}`);
+          return sendJson(res, 401, {
+            error: "Invalid token",
+            hint: "Regenerate API key in the CacheBash app",
+          });
+        }
+
+        console.log(`[ISO] Authenticated: user=${authContext.userId} ip=${clientIp}`);
+
+        // Store auth context for MCP session
+        const sessionId = req.headers["mcp-session-id"] as string | undefined;
+        if (sessionId) {
+          setIsoSessionAuth(sessionId, authContext);
+        }
+
+        try {
+          const webRequest = await nodeRequestToWebRequest(req);
+          const webResponse = await isoTransport!.handleRequest(webRequest, authContext);
+          await webResponseToNodeResponse(webResponse, res);
+        } catch (error) {
+          console.error("[ISO] Transport error:", error);
+          if (!res.headersSent) {
+            sendJson(res, 500, { error: "Internal server error" });
+          }
+        }
+        return;
+      }
+
+      return sendJson(res, 404, { error: "Not found", hint: "ISO MCP endpoint is at /v1/iso/mcp" });
+    }
+
     // MCP endpoints - require authentication (no env fallback for security)
     if (req.url?.startsWith("/v1/mcp") || req.url?.startsWith("/mcp")) {
       const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
@@ -957,8 +1041,10 @@ async function main() {
       }
     }
 
-    if (cleanedSessions > 0) {
-      console.log(`[Sessions] Cleaned up ${cleanedSessions} inactive sessions`);
+    const cleanedIsoSessions = cleanupIsoSessions(SESSION_TIMEOUT_MS);
+
+    if (cleanedSessions > 0 || cleanedIsoSessions > 0) {
+      console.log(`[Sessions] Cleaned up ${cleanedSessions} main + ${cleanedIsoSessions} ISO inactive sessions`);
     }
 
     cleanupRateLimits();
