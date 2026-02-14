@@ -20,3 +20,6 @@ export { cleanupExpiredSessions } from "./sessions/cleanupExpiredSessions";
 
 // Export orphaned task cleanup
 export { cleanupOrphanedTasks, cleanupOrphanedLegacyTasks } from "./tasks/cleanupOrphanedTasks";
+
+// Export sprint triggers
+export { onStoryUpdate } from "./sprints/onStoryUpdate";

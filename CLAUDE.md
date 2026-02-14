@@ -340,6 +340,29 @@ For full API signatures, see `mcp-server/src/tools/`.
 
 ---
 
+## Sprint Orchestration Protocol
+
+Wave session sync is **automatic** via the `onStoryUpdate` Cloud Function — whenever a story document changes, the function recalculates wave state and updates the wave session. Push notifications follow via `onSessionUpdate`.
+
+**Orchestrator responsibilities when spawning subagents:**
+
+1. Call `update_sprint_story({ sprintId, storyId, status: "active" })` **before** spawning subagent
+2. Call `update_sprint_story({ sprintId, storyId, status: "complete" })` **after** subagent returns (or `"failed"`)
+3. Include `sprintId` and `storyId` in the subagent Task prompt for intermediate progress updates
+
+**Subagent prompt template (include in Task tool prompt):**
+```
+You have access to CacheBash MCP tools. Periodically report progress:
+  update_sprint_story({ sprintId: "X", storyId: "Y", progress: N, currentAction: "doing Z" })
+```
+
+**Data flow:**
+```
+story update → onStoryUpdate trigger → wave session update → onSessionUpdate → FCM push
+```
+
+---
+
 ## Hybrid Model Architecture (v3)
 
 | Role | Model | Purpose |

@@ -107,7 +107,7 @@ export async function updateSprintStory(
       };
     }
 
-    // Sync wave session if waveSessionIds exists
+    // Sync wave session (fast path — onStoryUpdate Cloud Function is the safety net)
     const waveSessionId = result.waveSessionIds?.[String(result.storyWave)];
     if (waveSessionId) {
       await syncWaveSession(
