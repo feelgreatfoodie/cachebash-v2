@@ -902,7 +902,8 @@ async function main() {
     }
 
     // Interrupt peek endpoint — lightweight REST for hooks (no MCP session needed)
-    if (req.url === "/v1/interrupts/peek" && req.method === "GET") {
+    // Optional ?sessionId=X filters by target field (only returns messages for that program)
+    if (req.url?.startsWith("/v1/interrupts/peek") && req.method === "GET") {
       const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
       if (!checkAuthRateLimit(clientIp)) {
         return sendJson(res, 429, { error: "Too many requests" });
@@ -919,6 +920,10 @@ async function main() {
           return sendJson(res, 401, { error: "Invalid API key" });
         }
 
+        // Parse optional sessionId query param for target filtering
+        const peekUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+        const filterSessionId = peekUrl.searchParams.get("sessionId");
+
         const { getFirestore } = await import("./firebase/client.js");
         const db = getFirestore();
 
@@ -927,23 +932,36 @@ async function main() {
           .where("direction", "==", "to_claude")
           .where("status", "==", "pending")
           .orderBy("createdAt", "asc")
-          .limit(5)
+          .limit(20) // fetch more, filter in memory by target
           .get();
 
         if (snapshot.empty) {
           return sendJson(res, 200, { hasInterrupts: false, count: 0 });
         }
 
-        const interrupts = snapshot.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            message: data.content,
-            action: data.action || "queue",
-            priority: data.priority || "normal",
-            createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
-          };
-        });
+        // Filter by target: only return messages targeted at this session or with no target
+        const interrupts = snapshot.docs
+          .filter((doc) => {
+            if (!filterSessionId) return true; // no filter, return all
+            const target = doc.data().target;
+            return !target || target === filterSessionId;
+          })
+          .slice(0, 5)
+          .map((doc) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              message: data.content,
+              action: data.action || "queue",
+              priority: data.priority || "normal",
+              target: data.target || null,
+              createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+            };
+          });
+
+        if (interrupts.length === 0) {
+          return sendJson(res, 200, { hasInterrupts: false, count: 0 });
+        }
 
         return sendJson(res, 200, {
           hasInterrupts: true,

@@ -2,22 +2,28 @@
 
 const WINDOW_MS = 60000; // 1 minute
 const AUTH_WINDOW_MS = 60000; // 1 minute
-const AUTH_MAX_ATTEMPTS = 10; // max failed auth attempts per IP per window
+const AUTH_MAX_ATTEMPTS = 100; // raised for multi-program sessions (4-5 programs share IP)
 
 const RATE_LIMITS: Record<string, number> = {
-  ask_question: 10,
-  get_response: 60,
-  update_status: 30,
-  pin_task: 10,
-  resume_task: 10,
-  get_interrupts: 30,
-  get_pending_tasks: 30,
-  claim_task: 20,
-  complete_task: 20,
-  send_message: 20,
-  create_task: 10,
+  ask_question: 30,
+  get_response: 120,
+  update_status: 90,
+  pin_task: 30,
+  resume_task: 30,
+  get_interrupts: 90,
+  get_pending_tasks: 90,
+  claim_task: 60,
+  complete_task: 60,
+  send_message: 60,
+  create_task: 30,
+  send_heartbeat: 60,
+  send_alert: 30,
+  update_sprint_story: 60,
+  create_sprint: 10,
+  complete_sprint: 10,
+  add_story_to_sprint: 30,
 };
-const DEFAULT_LIMIT = 100;
+const DEFAULT_LIMIT = 200;
 
 const store = new Map<string, { count: number; resetAt: number }>();
 
@@ -75,7 +81,7 @@ export function checkAuthRateLimit(ip: string): boolean {
 // --- ISO endpoint rate limiting (by IP, 30 req/min) ---
 
 const ISO_WINDOW_MS = 60000;
-const ISO_MAX_REQUESTS = 30;
+const ISO_MAX_REQUESTS = 120; // raised for multi-program sessions
 
 const isoStore = new Map<string, { count: number; resetAt: number }>();
 

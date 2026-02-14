@@ -16,20 +16,25 @@ export async function getInterrupts(
   const db = getFirestore();
 
   // Build query for pending messages directed to Claude
-  let query = db
+  const query = db
     .collection(`users/${auth.userId}/messages`)
     .where("direction", "==", "to_claude")
     .where("status", "==", "pending")
     .orderBy("createdAt", "asc");
 
-  // If sessionId provided, filter to that session only
-  if (args.sessionId) {
-    query = query.where("sessionId", "==", args.sessionId);
-  }
-
+  // Note: we filter by `target` (routing) in memory, not by `sessionId` (claiming).
+  // Firestore can't do OR queries on missing fields, so fetch all and filter.
   const interruptsSnapshot = await query.get();
 
-  if (interruptsSnapshot.empty) {
+  // Filter by target: only return messages routed to this session or with no target
+  const filteredDocs = args.sessionId
+    ? interruptsSnapshot.docs.filter((doc) => {
+        const target = doc.data().target;
+        return !target || target === args.sessionId;
+      })
+    : interruptsSnapshot.docs;
+
+  if (filteredDocs.length === 0) {
     return {
       content: [
         {
@@ -47,7 +52,7 @@ export async function getInterrupts(
 
   // If not marking as read, just return the data
   if (args.markAsRead === false) {
-    const interrupts = interruptsSnapshot.docs.map((doc) => {
+    const interrupts = filteredDocs.map((doc) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -85,7 +90,7 @@ export async function getInterrupts(
         priority?: string;
       }> = [];
 
-      for (const doc of interruptsSnapshot.docs) {
+      for (const doc of filteredDocs) {
         // Re-read within transaction to get latest state
         const freshDoc = await transaction.get(doc.ref);
 
