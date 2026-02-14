@@ -26,10 +26,10 @@ However, four **critical** findings require immediate attention:
 
 | # | Severity | Location | Description | Remediation |
 |---|----------|----------|-------------|-------------|
-| 1 | **CRITICAL** | `mcp-server/src/index.ts` | No rate limiting on `/v1/interrupts/peek` or `/v1/mcp/*` auth endpoints. Existing rate limiter only covers MCP tool calls. | Apply `rateLimiter` middleware to all authenticated routes. Add a stricter limit (e.g., 10 req/min) on auth failures specifically. |
-| 2 | **CRITICAL** | `mcp-server/src/auth/apiKeyValidator.ts:47` | API key hash comparison uses `!==` (string inequality). Timing differences leak information about correct hash prefix, enabling offline brute-force. | Replace with `crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))`. Ensure both buffers are equal length (pad/hash to fixed size). |
-| 3 | **CRITICAL** | `mcp-server/package.json` | `@modelcontextprotocol/sdk` 1.10.0–1.25.3 has HIGH vulnerability (GHSA-345p-7cg4-v4c7): cross-client data leak in shared server instances. | Upgrade to `@modelcontextprotocol/sdk` >=1.26.0. Run `npm audit fix` or pin to patched version. |
-| 4 | **CRITICAL** | `mcp-server/src/auth/apiKeyValidator.ts:7,55` | Full plaintext API key stored in `AuthContext` object in memory (used for E2E encryption key derivation). If process memory is dumped, all active keys are exposed. | Derive encryption key immediately during auth, store only the derived key, then discard the raw API key. Use `crypto.createSecretKey()` for safe in-memory key handling. |
+| 1 | ~~CRITICAL~~ **FIXED** | `mcp-server/src/index.ts` | No rate limiting on auth endpoints — brute-force wide open. | **Fixed:** Added IP-based `checkAuthRateLimit` (10 req/min) to `/v1/interrupts/peek` and `/v1/mcp/*`. |
+| 2 | ~~CRITICAL~~ **FIXED** | `mcp-server/src/auth/apiKeyValidator.ts` | Hash comparison used `!==` — timing side-channel. | **Fixed:** Replaced with `crypto.timingSafeEqual()`. |
+| 3 | ~~CRITICAL~~ **FIXED** | `mcp-server/package.json` | `@modelcontextprotocol/sdk` 1.25.3 — cross-client data leak (GHSA-345p-7cg4-v4c7). | **Fixed:** Upgraded to 1.26.0. |
+| 4 | ~~CRITICAL~~ **FIXED** | `mcp-server/src/auth/apiKeyValidator.ts` | Plaintext API key stored in `AuthContext` memory. | **Fixed:** Derive encryption key via PBKDF2 at auth time; raw key never stored. |
 | 5 | ~~HIGH~~ **FIXED** | `mcp-server/src/index.ts:832` | Debug endpoints guarded by `NODE_ENV !== "production"` — misconfiguration exposed them. | **Fixed:** Changed to allowlist `=== "development"`. Unset env var now defaults to disabled. |
 | 6 | ~~HIGH~~ **FIXED** | `firebase/firestore.rules` | Message `direction` field was mutable on update, enabling message spoofing. | **Fixed:** Added `directionUnchanged()` guard to update rule. |
 | 7 | ~~HIGH~~ **FIXED** | `firebase/firestore.rules` | No explicit rules for `rateLimits` and `mcp_sessions` subcollections. | **Fixed:** Added explicit `allow read, write: if false` blocks for both. |
@@ -88,8 +88,8 @@ User isolation is enforced via `isOwner()`. However, field-level validation is m
 
 | Priority | Findings | Effort |
 |----------|----------|--------|
-| **Immediate** (before next deploy) | #1, #2, #3 | ~2 hours |
-| **This sprint** | #4, ~~#5, #6, #7~~, #11 | ~4 hours (3 fixed) |
+| ~~Immediate~~ | ~~#1, #2, #3~~ | **ALL FIXED** |
+| ~~This sprint~~ | ~~#4, #5, #6, #7~~, #11 | **6/7 FIXED** |
 | **Next sprint** | #8, #9, #10, #12 | ~3 hours |
 | **Backlog** | #13, #14, #15 | ~1 hour |
 
