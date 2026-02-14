@@ -44,8 +44,14 @@ export async function validateApiKey(
     }
 
     const userData = userDoc.data();
-    if (userData?.apiKeyHash !== keyHash) {
-      // Key has been regenerated
+    // Constant-time comparison to prevent timing side-channel attacks
+    const storedHash = userData?.apiKeyHash;
+    if (
+      !storedHash ||
+      storedHash.length !== keyHash.length ||
+      !crypto.timingSafeEqual(Buffer.from(storedHash), Buffer.from(keyHash))
+    ) {
+      // Key has been regenerated or mismatch
       return null;
     }
 
