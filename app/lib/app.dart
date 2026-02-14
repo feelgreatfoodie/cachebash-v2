@@ -28,6 +28,8 @@ import 'screens/messages/messages_screen.dart';
 import 'screens/messages/create_message_screen.dart';
 import 'screens/messages/archived_messages_screen.dart';
 import 'screens/search/search_screen.dart';
+import 'screens/dreams/activate_dream_screen.dart';
+import 'screens/dreams/dream_detail_screen.dart';
 import 'screens/feedback/feedback_screen.dart';
 import 'theme/app_theme.dart';
 import 'widgets/main_shell.dart';
@@ -187,6 +189,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/settings/notifications',
             builder: (context, state) => const NotificationsScreen(),
+          ),
+          // Dreams
+          GoRoute(
+            path: '/dreams/new',
+            builder: (context, state) => const ActivateDreamScreen(),
+          ),
+          GoRoute(
+            path: '/dreams/:id',
+            builder: (context, state) {
+              final dreamId = state.pathParameters['id']!;
+              return DreamDetailScreen(dreamId: dreamId);
+            },
           ),
           // Feedback
           GoRoute(

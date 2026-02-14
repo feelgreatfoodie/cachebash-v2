@@ -974,6 +974,97 @@ async function main() {
       }
     }
 
+    // Dream Mode peek endpoint — lightweight REST for watcher daemon (no MCP session needed)
+    if (req.url?.startsWith("/v1/dreams/peek") && req.method === "GET") {
+      const apiKey = extractBearerToken(req.headers.authorization);
+      if (!apiKey) {
+        return sendJson(res, 401, { error: "Missing API key" });
+      }
+
+      try {
+        const authContext = await validateApiKey(apiKey);
+        if (!authContext) {
+          return sendJson(res, 401, { error: "Invalid API key" });
+        }
+
+        const { getFirestore } = await import("./firebase/client.js");
+        const db = getFirestore();
+
+        const snapshot = await db
+          .collection(`users/${authContext.userId}/dream_sessions`)
+          .where("status", "==", "pending")
+          .orderBy("started_at", "asc")
+          .limit(5)
+          .get();
+
+        if (snapshot.empty) {
+          return sendJson(res, 200, { hasDreams: false, count: 0, dreams: [] });
+        }
+
+        const dreams = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            agent: data.agent,
+            task_id: data.task_id || null,
+            budget_cap_usd: data.budget_cap_usd,
+            timeout_hours: data.timeout_hours,
+            branch: data.branch,
+          };
+        });
+
+        return sendJson(res, 200, { hasDreams: true, count: dreams.length, dreams });
+      } catch (error) {
+        console.error("[dreams/peek] Error:", error);
+        return sendJson(res, 500, { error: "Internal server error" });
+      }
+    }
+
+    // Dream Mode activate endpoint — atomic pending → active transition
+    if (req.url?.startsWith("/v1/dreams/activate") && req.method === "POST") {
+      const apiKey = extractBearerToken(req.headers.authorization);
+      if (!apiKey) {
+        return sendJson(res, 401, { error: "Missing API key" });
+      }
+
+      try {
+        const authContext = await validateApiKey(apiKey);
+        if (!authContext) {
+          return sendJson(res, 401, { error: "Invalid API key" });
+        }
+
+        let body = "";
+        for await (const chunk of req) {
+          body += chunk;
+        }
+        const { dreamId } = JSON.parse(body);
+        if (!dreamId) {
+          return sendJson(res, 400, { error: "Missing dreamId" });
+        }
+
+        const { getFirestore } = await import("./firebase/client.js");
+        const db = getFirestore();
+        const dreamRef = db.doc(`users/${authContext.userId}/dream_sessions/${dreamId}`);
+
+        const activated = await db.runTransaction(async (tx) => {
+          const doc = await tx.get(dreamRef);
+          if (!doc.exists) return false;
+          if (doc.data()?.status !== "pending") return false;
+          tx.update(dreamRef, { status: "active", started_at: new Date() });
+          return true;
+        });
+
+        if (!activated) {
+          return sendJson(res, 409, { error: "Dream session not pending or not found" });
+        }
+
+        return sendJson(res, 200, { success: true, dreamId });
+      } catch (error) {
+        console.error("[dreams/activate] Error:", error);
+        return sendJson(res, 500, { error: "Internal server error" });
+      }
+    }
+
     // Debug endpoints - only available when explicitly opted in
     if (process.env.NODE_ENV === "development") {
       // Debug auth endpoint

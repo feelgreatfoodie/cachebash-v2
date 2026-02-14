@@ -490,6 +490,26 @@ Real-time monitoring of parallel execution:
 
 ---
 
+## Dream Mode (Phase 1)
+
+Autonomous overnight task execution. Flynn queues a task from the mobile app, a local watcher daemon detects it and wakes the target agent in a tmux session.
+
+**Status lifecycle:** `pending` → `active` → `completed` | `failed` | `killed`
+
+**REST endpoints (zero-token, no MCP session):**
+- `GET /v1/dreams/peek` — returns pending dream sessions
+- `POST /v1/dreams/activate` — atomic `pending → active` transition (body: `{ dreamId }`)
+
+**Firestore Path:** `/users/{userId}/dream_sessions/{dreamId}`
+
+**Watcher daemon:** `basher/dream-watcher.sh` — polls peek every 30s, activates + wakes agent via tmux. Runs as `com.cachebash.dream-watcher` launchd service.
+
+**Mobile screens:** `/dreams/new` (activate), `/dreams/:id` (detail + kill button)
+
+**Branch naming:** `dream/{date}/{task-slug}`
+
+---
+
 ## Firestore Schema
 
 ```
@@ -563,6 +583,23 @@ Real-time monitoring of parallel execution:
 /users/{userId}/projects/{projectId}
   - name: string
   - isDefault: boolean
+
+/users/{userId}/dream_sessions/{dreamId}
+  - type: 'dream_session'
+  - version: number
+  - status: 'pending' | 'active' | 'completed' | 'failed' | 'killed'
+  - agent: string
+  - task_id?: string
+  - budget_cap_usd: number
+  - budget_consumed_usd: number
+  - timeout_hours: number
+  - created_by: string
+  - started_at: timestamp
+  - ended_at?: timestamp
+  - branch: string
+  - pr_url?: string
+  - outcome?: string
+  - morning_report?: string
 
 /users/{userId}/analytics/{period}
   - questionsAsked, avgResponseTime: number

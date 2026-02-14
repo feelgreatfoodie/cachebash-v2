@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/messages_provider.dart';
 import '../../providers/questions_provider.dart';
+import '../../providers/dream_sessions_provider.dart';
 import '../../providers/sessions_provider.dart';
+import '../../models/dream_session_model.dart';
 import '../../services/haptic_service.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/question_card.dart';
@@ -99,6 +101,7 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pendingQuestions = ref.watch(pendingQuestionsProvider);
+    final activeDreams = ref.watch(activeDreamSessionsProvider);
     final activeSessions = ref.watch(activeSessionsProvider);
     final inactiveSessions = ref.watch(inactiveSessionsProvider);
 
@@ -127,6 +130,7 @@ class HomeScreen extends ConsumerWidget {
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(pendingQuestionsProvider);
+          ref.invalidate(activeDreamSessionsProvider);
           ref.invalidate(activeSessionsProvider);
           ref.invalidate(inactiveSessionsProvider);
         },
@@ -179,6 +183,11 @@ class HomeScreen extends ConsumerWidget {
                 );
               },
             ),
+
+            const SizedBox(height: 24),
+
+            // Dream Mode Section
+            _buildDreamSection(context, ref, activeDreams),
 
             const SizedBox(height: 24),
 
@@ -281,6 +290,117 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDreamSection(
+    BuildContext context,
+    WidgetRef ref,
+    AsyncValue<List<DreamSessionModel>> activeDreams,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(
+          context,
+          'Dream Mode',
+          Icons.nightlight_round,
+        ),
+        const SizedBox(height: 12),
+        activeDreams.when(
+          loading: () => const SizedBox.shrink(),
+          error: (error, stack) => const SizedBox.shrink(),
+          data: (dreams) {
+            if (dreams.isEmpty) {
+              return SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    HapticService.light();
+                    context.push('/dreams/new');
+                  },
+                  icon: const Icon(Icons.nightlight_round),
+                  label: const Text('Start Dream'),
+                ),
+              );
+            }
+            return Column(
+              children: dreams.map((dream) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Card(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        HapticService.light();
+                        context.push('/dreams/${dream.id}');
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  dream.isActive
+                                      ? Icons.nightlight_round
+                                      : Icons.hourglass_top,
+                                  size: 20,
+                                  color: dream.isActive
+                                      ? Colors.green
+                                      : Colors.orange,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  dream.agent,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(
+                                          fontWeight: FontWeight.bold),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  dream.statusDisplay,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            LinearProgressIndicator(
+                              value: dream.budgetCapUsd > 0
+                                  ? (dream.budgetConsumedUsd /
+                                          dream.budgetCapUsd)
+                                      .clamp(0.0, 1.0)
+                                  : 0,
+                              backgroundColor: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '\$${dream.budgetConsumedUsd.toStringAsFixed(2)} / \$${dream.budgetCapUsd.toStringAsFixed(2)} · ${dream.elapsedFormatted}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
     );
   }
 

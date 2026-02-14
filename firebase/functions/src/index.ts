@@ -24,5 +24,8 @@ export { cleanupOrphanedTasks, cleanupOrphanedLegacyTasks } from "./tasks/cleanu
 // Export sprint triggers
 export { onStoryUpdate } from "./sprints/onStoryUpdate";
 
+// Export dream session triggers
+export { onDreamSessionUpdate } from "./notifications/onDreamSessionUpdate";
+
 // Export relay cleanup
 export { cleanupExpiredRelay } from "./relay/cleanupExpiredRelay";
