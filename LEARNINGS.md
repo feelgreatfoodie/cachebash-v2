@@ -349,4 +349,38 @@ ISO endpoints return `Access-Control-Allow-Origin: *` for browser-based connecto
 
 ---
 
-*Last updated: 2026-02-13*
+## Known Bugs
+
+### BUG-001: Interrupts Don't Interrupt (RESOLVED)
+
+**Problem:** Mobile interrupts (to_claude messages) sat in Firestore unread. Claude had no mechanism to notice mid-session.
+
+**Fix:** PostToolUse hook system — `~/.claude/hooks/cachebash-check-interrupts.sh` polls `GET /v1/interrupts/peek` every 30s, injects `additionalContext` when interrupts found. Stop hook prevents Claude from exiting with unhandled interrupts.
+
+**Commit:** `ab608df` feat(mcp): add interrupt peek endpoint and hook system
+**Client-side:** Hooks at `~/.claude/hooks/`, configured in `~/.claude/settings.json`
+
+### BUG-002: Subagent Sessions Unreliable (RESOLVED)
+
+**Problem:** Wave session sync depended on the orchestrator's fast-path update in `updateSprintStory`. If the orchestrator crashed or timed out, wave sessions went stale.
+
+**Fix:** `onStoryUpdate` Firestore trigger in Cloud Functions — automatically recalculates wave state whenever a story document changes. Push notifications follow via `onSessionUpdate`.
+
+**Commit:** `ded17a4` fix(sprints): auto-sync wave sessions via Firestore trigger
+**Deploy:** `564c435` merge to main, Firebase Functions deploy
+
+### BUG-003: Cross-Repo Silent (RESOLVED)
+
+**Problem:** MCP server config was project-scoped in `~/.claude.json` under `projects.{path}.mcpServers`. Starting Claude in a different repo had no CacheBash access.
+
+**Fix:** Moved MCP config to user scope (top-level `mcpServers` in `~/.claude.json`). Now available globally regardless of working directory.
+
+**Client-side config change only** — no server-side commit.
+
+### No Open Bugs
+
+All tracked bugs resolved as of 2026-02-14.
+
+---
+
+*Last updated: 2026-02-14*
