@@ -57,12 +57,21 @@ export const CompleteTaskSchema = z.object({
   taskId: z.string().min(1, "Task ID required"),
 });
 
+// Grid Relay v0.2 message type enum
+export const MessageTypeEnum = z.enum([
+  "PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT",
+]);
+
 export const SendMessageSchema = z.object({
   message: z.string().min(1, "Message cannot be empty").max(2000, "Message too long (max 2000 chars)"),
+  source: z.string().min(1, "Source program ID required").max(100),
+  target: z.string().min(1, "Target program ID required").max(100),
+  message_type: MessageTypeEnum,
   priority: z.enum(["low", "normal", "high"]).default("normal"),
   action: z.enum(["interrupt", "sprint", "parallel", "queue", "backlog"]).default("queue"),
   context: z.string().max(500, "Context too long (max 500 chars)").optional(),
   sessionId: z.string().max(100).optional(),
+  reply_to: z.string().max(100).optional(),
 });
 
 export const CreateTaskSchema = z.object({

@@ -110,7 +110,7 @@ const ISO_TOOL_DEFINITIONS = [
   },
   {
     name: "send_message",
-    description: "Send a message or instruction to a running program",
+    description: "Send a message or instruction to a running program. Grid Relay v0.2 — requires source, target, and message_type.",
     inputSchema: {
       type: "object",
       properties: {
@@ -118,6 +118,21 @@ const ISO_TOOL_DEFINITIONS = [
           type: "string",
           description: "The message to send",
           maxLength: 2000,
+        },
+        source: {
+          type: "string",
+          description: "Identifier of sending program (e.g., desktop-iso, mobile-iso, basher, flynn)",
+          maxLength: 100,
+        },
+        target: {
+          type: "string",
+          description: "Identifier of intended recipient, or 'all' for broadcast",
+          maxLength: 100,
+        },
+        message_type: {
+          type: "string",
+          enum: ["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"],
+          description: "Grid Relay v0.2 message type",
         },
         priority: {
           type: "string",
@@ -140,8 +155,12 @@ const ISO_TOOL_DEFINITIONS = [
           type: "string",
           description: "Target session ID",
         },
+        reply_to: {
+          type: "string",
+          description: "Message ID this is responding to (for threading)",
+        },
       },
-      required: ["message"],
+      required: ["message", "source", "target", "message_type"],
     },
   },
   {

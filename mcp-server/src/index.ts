@@ -653,7 +653,7 @@ async function main() {
         {
           name: "send_message",
           description:
-            "Send a message or instruction to another program or session. Enables inter-program mesh communication.",
+            "Send a message or instruction to another program or session. Grid Relay v0.2 — requires source, target, and message_type.",
           inputSchema: {
             type: "object",
             properties: {
@@ -661,6 +661,21 @@ async function main() {
                 type: "string",
                 description: "The message to send",
                 maxLength: 2000,
+              },
+              source: {
+                type: "string",
+                description: "Identifier of sending program (e.g., basher, desktop-iso, mobile-iso, flynn)",
+                maxLength: 100,
+              },
+              target: {
+                type: "string",
+                description: "Identifier of intended recipient, or 'all' for broadcast",
+                maxLength: 100,
+              },
+              message_type: {
+                type: "string",
+                enum: ["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"],
+                description: "Grid Relay v0.2 message type",
               },
               priority: {
                 type: "string",
@@ -683,8 +698,12 @@ async function main() {
                 type: "string",
                 description: "Target session ID (routes to get_interrupts for that session)",
               },
+              reply_to: {
+                type: "string",
+                description: "Message ID this is responding to (for threading)",
+              },
             },
-            required: ["message"],
+            required: ["message", "source", "target", "message_type"],
           },
         },
         {
