@@ -428,7 +428,7 @@ https://cachebash-mcp-922749444863.us-central1.run.app/v1/iso/mcp?token=YOUR_API
 
 ### Security
 - Auth via `?token=` query param (API key from CacheBash app)
-- Rate limit: 30 req/min per IP
+- Rate limiting: disabled for internal use (Decision #10 re-evaluates at productization)
 - Messages tagged with `source: "iso"` in Firestore
 - Health check: `GET /v1/iso/health`
 

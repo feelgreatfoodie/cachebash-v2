@@ -339,7 +339,7 @@ claude.ai custom connectors only support authless or OAuth. CacheBash uses Beare
 
 ### Rate Limiting
 
-Separate IP-based rate limiter for `/v1/iso/*`: 30 req/min. Does not share quota with the main MCP endpoint's per-user-tool limiter (ISO tools still go through per-user-tool limits too).
+**Disabled** (Flynn directive, 2026-02-14). All `checkRateLimit`, `checkAuthRateLimit`, and `checkIsoRateLimit` functions return `true` unconditionally. Call sites in `index.ts` and `isoServer.ts` are preserved but no-op. Re-evaluate at productization (Decision #10).
 
 ### CORS
 
