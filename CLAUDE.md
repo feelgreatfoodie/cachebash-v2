@@ -208,6 +208,18 @@ Only pin when:
 
 ---
 
+## Derez on Idle
+
+When the task queue is empty and no interrupts are pending:
+1. Poll 3 times over 5 minutes (escalating: 30s, 1m, 2m)
+2. If all 3 polls return empty, derez cleanly
+3. Before derez: run the Work Completion Checklist, call update_status with state "complete", and verify all artifacts are pushed (git log --oneline origin/main..HEAD must be empty)
+4. The Firestore watcher daemon will wake you via tmux send-keys when new work arrives. Do NOT stay alive polling.
+
+**Never idle-poll in a loop.** Burning tokens on empty queues is waste. Trust the daemon.
+
+---
+
 ## Asking Questions via Mobile
 
 ```typescript
