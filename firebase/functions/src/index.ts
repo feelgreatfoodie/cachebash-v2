@@ -23,3 +23,6 @@ export { cleanupOrphanedTasks, cleanupOrphanedLegacyTasks } from "./tasks/cleanu
 
 // Export sprint triggers
 export { onStoryUpdate } from "./sprints/onStoryUpdate";
+
+// Export relay cleanup
+export { cleanupExpiredRelay } from "./relay/cleanupExpiredRelay";

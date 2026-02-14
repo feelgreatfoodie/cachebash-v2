@@ -102,6 +102,13 @@ service cloud.firestore {
         }
       }
 
+      // Relay subcollection (inter-program mesh comms, Grid Relay v0.2)
+      // Admin SDK only — programs communicate via MCP server, not direct client access
+      // 24h TTL auto-expiry via scheduled cleanup function
+      match /relay/{messageId} {
+        allow read, write: if false;
+      }
+
       // Rate limits subcollection (server-only via Admin SDK)
       match /rateLimits/{doc} {
         allow read, write: if false;

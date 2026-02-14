@@ -4,10 +4,11 @@ import { SendMessageSchema } from "../validation/validators.js";
 
 /**
  * Send a message/instruction to a running program (Claude Code session).
- * Writes to /messages with direction: "to_claude".
+ * Grid Relay v0.2 — requires source, target, message_type.
  *
- * This is the MCP equivalent of sending an interrupt from the mobile app.
- * Used by ISO (claude.ai) to communicate with CLI programs.
+ * Writes to:
+ *   /users/{uid}/messages — control plane (Flutter app visibility, push notifications)
+ *   /users/{uid}/relay    — data plane (inter-program mesh, 24h TTL auto-expiry)
  */
 export async function sendMessage(
   auth: AuthContext,
@@ -20,6 +21,9 @@ export async function sendMessage(
     ? args.message.substring(0, 47) + "..."
     : args.message;
 
+  const now = serverTimestamp();
+
+  // Control plane message (for Flutter app, push notifications)
   const messageData: Record<string, unknown> = {
     direction: "to_claude",
     content: args.message,
@@ -33,15 +37,31 @@ export async function sendMessage(
     context: args.context || null,
     sessionId: args.sessionId || null,
     reply_to: args.reply_to || null,
-    createdAt: serverTimestamp(),
+    createdAt: now,
     archived: false,
     deletedAt: null,
     encrypted: false,
   };
 
-  const ref = await db
-    .collection(`users/${auth.userId}/messages`)
-    .add(messageData);
+  // Data plane message (inter-program relay, 24h TTL)
+  const relayData: Record<string, unknown> = {
+    source: args.source,
+    target: args.target,
+    message_type: args.message_type,
+    payload: args.message,
+    priority: args.priority || "normal",
+    action: args.action || "queue",
+    reply_to: args.reply_to || null,
+    sessionId: args.sessionId || null,
+    status: "pending",
+    createdAt: now,
+  };
+
+  // Write to both collections
+  const [messageRef] = await Promise.all([
+    db.collection(`users/${auth.userId}/messages`).add(messageData),
+    db.collection(`users/${auth.userId}/relay`).add(relayData),
+  ]);
 
   return {
     content: [
@@ -49,9 +69,10 @@ export async function sendMessage(
         type: "text",
         text: JSON.stringify({
           success: true,
-          messageId: ref.id,
+          messageId: messageRef.id,
           action: args.action || "queue",
-          message: `Message sent. ID: "${ref.id}"`,
+          relay: true,
+          message: `Message sent. ID: "${messageRef.id}"`,
         }),
       },
     ],
