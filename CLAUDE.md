@@ -467,6 +467,18 @@ The app reads from both `/messages` (unified) and `/questions` (legacy):
 - All CRUD operations must check BOTH collections
 - MCP server writes to both for backwards compatibility
 
+### Interrupt Hook System
+Mobile interrupts are pushed into Claude's reasoning loop via PostToolUse hooks:
+- `~/.claude/hooks/cachebash-check-interrupts.sh` — polls `GET /v1/interrupts/peek` every 30s, injects `additionalContext` when interrupts found
+- `~/.claude/hooks/cachebash-check-interrupts-stop.sh` — blocks Claude from stopping with unhandled interrupts
+- Hooks configured globally in `~/.claude/settings.json`
+- Peek endpoint is non-destructive — Claude still calls `get_interrupts` MCP tool to claim
+
+### MCP Server Deployment
+- GCP project: `cachebash-app` (NOT `cache-bash-app`)
+- Deploy with `--clear-base-image` flag required
+- `GET /v1/interrupts/peek` — lightweight REST for hooks (no MCP session needed)
+
 ---
 
 ## Critical Rules

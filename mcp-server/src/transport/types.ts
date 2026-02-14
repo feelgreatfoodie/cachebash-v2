@@ -11,8 +11,8 @@ export interface SessionInfo {
   sessionId: string;
   userId: string;
   authContext?: {
-    apiKey: string;
     userId: string;
+    encryptionKey?: Buffer;
   };
   lastActivity: number; // timestamp
   protocolVersion?: string;

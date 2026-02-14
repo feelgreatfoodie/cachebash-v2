@@ -33,7 +33,7 @@ export class SessionManager {
    */
   async createSession(
     userId: string,
-    authContext?: { apiKey: string; userId: string }
+    authContext?: { userId: string; encryptionKey?: Buffer }
   ): Promise<SessionInfo> {
     const sessionId = generateSessionId();
     const now = Date.now();

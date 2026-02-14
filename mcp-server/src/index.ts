@@ -27,7 +27,7 @@ import { createSprint } from "./tools/createSprint.js";
 import { updateSprintStory } from "./tools/updateSprintStory.js";
 import { addStoryToSprint } from "./tools/addStoryToSprint.js";
 import { completeSprint } from "./tools/completeSprint.js";
-import { checkRateLimit, cleanupRateLimits, getRateLimitResetIn } from "./middleware/rateLimiter.js";
+import { checkRateLimit, checkAuthRateLimit, cleanupRateLimits, getRateLimitResetIn } from "./middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "./logging/auditLogger.js";
 
 // Session timeout (60 minutes of inactivity) - aligned with SessionManager
@@ -778,8 +778,63 @@ async function main() {
       }
     }
 
-    // Debug endpoints - only available in development
-    if (process.env.NODE_ENV !== "production") {
+    // Interrupt peek endpoint — lightweight REST for hooks (no MCP session needed)
+    if (req.url === "/v1/interrupts/peek" && req.method === "GET") {
+      const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+      if (!checkAuthRateLimit(clientIp)) {
+        return sendJson(res, 429, { error: "Too many requests" });
+      }
+
+      const apiKey = extractBearerToken(req.headers.authorization);
+      if (!apiKey) {
+        return sendJson(res, 401, { error: "Missing API key" });
+      }
+
+      try {
+        const authContext = await validateApiKey(apiKey);
+        if (!authContext) {
+          return sendJson(res, 401, { error: "Invalid API key" });
+        }
+
+        const { getFirestore } = await import("./firebase/client.js");
+        const db = getFirestore();
+
+        const snapshot = await db
+          .collection(`users/${authContext.userId}/messages`)
+          .where("direction", "==", "to_claude")
+          .where("status", "==", "pending")
+          .orderBy("createdAt", "asc")
+          .limit(5)
+          .get();
+
+        if (snapshot.empty) {
+          return sendJson(res, 200, { hasInterrupts: false, count: 0 });
+        }
+
+        const interrupts = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            message: data.content,
+            action: data.action || "queue",
+            priority: data.priority || "normal",
+            createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+          };
+        });
+
+        return sendJson(res, 200, {
+          hasInterrupts: true,
+          count: interrupts.length,
+          interrupts,
+        });
+      } catch (error) {
+        console.error("[interrupts/peek] Error:", error);
+        return sendJson(res, 500, { error: "Internal server error" });
+      }
+    }
+
+    // Debug endpoints - only available when explicitly opted in
+    if (process.env.NODE_ENV === "development") {
       // Debug auth endpoint
       if (req.url === "/v1/debug/auth") {
         const apiKey = extractBearerToken(req.headers.authorization);
@@ -831,6 +886,11 @@ async function main() {
 
     // MCP endpoints - require authentication (no env fallback for security)
     if (req.url?.startsWith("/v1/mcp") || req.url?.startsWith("/mcp")) {
+      const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+      if (!checkAuthRateLimit(clientIp)) {
+        return sendJson(res, 429, { error: "Too many requests" });
+      }
+
       const apiKey = extractBearerToken(req.headers.authorization);
       if (!apiKey) {
         return sendJson(res, 401, { error: "Missing API key", hint: "Set Authorization: Bearer YOUR_API_KEY header" });

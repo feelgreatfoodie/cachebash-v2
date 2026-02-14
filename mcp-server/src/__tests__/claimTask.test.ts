@@ -37,7 +37,7 @@ jest.mock("firebase-admin", () => ({
 describe("claimTask", () => {
   const mockAuth: AuthContext = {
     userId: "test-user-123",
-    apiKey: "test-api-key",
+    encryptionKey: Buffer.from("test-encryption-key-00000000000"),
     apiKeyHash: "test-api-key-hash",
   };
 

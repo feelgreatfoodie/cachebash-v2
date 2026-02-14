@@ -1,6 +1,8 @@
-/** In-memory rate limiter for MCP tool calls. */
+/** In-memory rate limiter for MCP tool calls and auth endpoints. */
 
 const WINDOW_MS = 60000; // 1 minute
+const AUTH_WINDOW_MS = 60000; // 1 minute
+const AUTH_MAX_ATTEMPTS = 10; // max failed auth attempts per IP per window
 
 const RATE_LIMITS: Record<string, number> = {
   ask_question: 10,
@@ -49,10 +51,32 @@ export function getRateLimitResetIn(userId: string, tool: string): number {
   return record ? record.resetAt - now : 0;
 }
 
+// --- Auth endpoint rate limiting (by IP) ---
+
+const authStore = new Map<string, { count: number; resetAt: number }>();
+
+/** Returns true if auth attempt is allowed, false if rate limited. */
+export function checkAuthRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = authStore.get(ip);
+
+  if (!record || now >= record.resetAt) {
+    authStore.set(ip, { count: 1, resetAt: now + AUTH_WINDOW_MS });
+    return true;
+  }
+
+  if (record.count >= AUTH_MAX_ATTEMPTS) return false;
+  record.count++;
+  return true;
+}
+
 /** Clean up expired records. Call periodically. */
 export function cleanupRateLimits(): void {
   const now = Date.now();
   for (const [key, record] of store.entries()) {
     if (now >= record.resetAt) store.delete(key);
+  }
+  for (const [key, record] of authStore.entries()) {
+    if (now >= record.resetAt) authStore.delete(key);
   }
 }
