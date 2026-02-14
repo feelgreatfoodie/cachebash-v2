@@ -32,6 +32,12 @@ service cloud.firestore {
           || request.resource.data.createdAt == resource.data.createdAt;
     }
 
+    // Ensure direction is not modified on updates
+    function directionUnchanged() {
+      return !('direction' in request.resource.data)
+          || request.resource.data.direction == resource.data.direction;
+    }
+
     // Users can only read/write their own data
     match /users/{userId} {
       allow read, write: if isOwner(userId);
@@ -79,9 +85,10 @@ service cloud.firestore {
           && validMessageDirection()
           && validMessagePriority()
           && validMessageStatus();
-        // Update must not modify createdAt
+        // Update must not modify createdAt or direction
         allow update: if isOwner(userId)
-          && createdAtUnchanged();
+          && createdAtUnchanged()
+          && directionUnchanged();
         allow delete: if isOwner(userId);
       }
 
@@ -93,6 +100,16 @@ service cloud.firestore {
         match /stories/{storyId} {
           allow read, write: if isOwner(userId);
         }
+      }
+
+      // Rate limits subcollection (server-only via Admin SDK)
+      match /rateLimits/{doc} {
+        allow read, write: if false;
+      }
+
+      // MCP sessions subcollection (server-only via Admin SDK)
+      match /mcp_sessions/{doc} {
+        allow read, write: if false;
       }
 
       // Analytics subcollection

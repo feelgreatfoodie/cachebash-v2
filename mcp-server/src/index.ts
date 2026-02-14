@@ -828,8 +828,8 @@ async function main() {
       }
     }
 
-    // Debug endpoints - only available in development
-    if (process.env.NODE_ENV !== "production") {
+    // Debug endpoints - only available when explicitly opted in
+    if (process.env.NODE_ENV === "development") {
       // Debug auth endpoint
       if (req.url === "/v1/debug/auth") {
         const apiKey = extractBearerToken(req.headers.authorization);

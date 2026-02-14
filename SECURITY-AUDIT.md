@@ -30,9 +30,9 @@ However, four **critical** findings require immediate attention:
 | 2 | **CRITICAL** | `mcp-server/src/auth/apiKeyValidator.ts:47` | API key hash comparison uses `!==` (string inequality). Timing differences leak information about correct hash prefix, enabling offline brute-force. | Replace with `crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))`. Ensure both buffers are equal length (pad/hash to fixed size). |
 | 3 | **CRITICAL** | `mcp-server/package.json` | `@modelcontextprotocol/sdk` 1.10.0–1.25.3 has HIGH vulnerability (GHSA-345p-7cg4-v4c7): cross-client data leak in shared server instances. | Upgrade to `@modelcontextprotocol/sdk` >=1.26.0. Run `npm audit fix` or pin to patched version. |
 | 4 | **CRITICAL** | `mcp-server/src/auth/apiKeyValidator.ts:7,55` | Full plaintext API key stored in `AuthContext` object in memory (used for E2E encryption key derivation). If process memory is dumped, all active keys are exposed. | Derive encryption key immediately during auth, store only the derived key, then discard the raw API key. Use `crypto.createSecretKey()` for safe in-memory key handling. |
-| 5 | **HIGH** | `mcp-server/src/index.ts:832-880` | Debug endpoints (`/v1/debug/auth`, `/v1/debug/messages`) are guarded only by `NODE_ENV !== "production"` runtime check. If env var is misconfigured or unset, debug routes are exposed. | Add defense-in-depth: combine env check with an admin auth token, or remove debug routes from the production Docker image entirely. |
-| 6 | **HIGH** | `firebase/firestore.rules:83-84` | Message `direction` field is mutable on update. A malicious client could change `direction: "to_claude"` to `"to_user"`, spoofing messages that appear to come from Claude. | Add Firestore rule: `!request.resource.data.diff(resource.data).affectedKeys().hasAny(['direction'])` on update operations. |
-| 7 | **HIGH** | `firebase/firestore.rules` | No explicit rules for `rateLimits` and `mcp_sessions` subcollections under `/users/{userId}`. These fall through to the default deny, but if a wildcard rule is ever added, they'd be exposed. | Add explicit `match /rateLimits/{doc}` and `match /mcp_sessions/{doc}` blocks with `allow read, write: if false` (server-only via Admin SDK). |
+| 5 | ~~HIGH~~ **FIXED** | `mcp-server/src/index.ts:832` | Debug endpoints guarded by `NODE_ENV !== "production"` — misconfiguration exposed them. | **Fixed:** Changed to allowlist `=== "development"`. Unset env var now defaults to disabled. |
+| 6 | ~~HIGH~~ **FIXED** | `firebase/firestore.rules` | Message `direction` field was mutable on update, enabling message spoofing. | **Fixed:** Added `directionUnchanged()` guard to update rule. |
+| 7 | ~~HIGH~~ **FIXED** | `firebase/firestore.rules` | No explicit rules for `rateLimits` and `mcp_sessions` subcollections. | **Fixed:** Added explicit `allow read, write: if false` blocks for both. |
 | 8 | **MEDIUM** | `mcp-server/src/middleware/rateLimiter.ts:18` | Rate limiting uses an in-memory `Map`. State resets on every Cloud Run cold start, and is not shared across instances. Under load, multiple instances each maintain independent counters. | Migrate to Firestore-backed or Redis-backed rate limiting, or use Cloud Run's built-in concurrency controls as a supplementary layer. |
 | 9 | **MEDIUM** | `mcp-server/package.json` | `hono` <=4.11.6 has 4 moderate vulnerabilities: XSS via malicious MIME type, web cache deception, IP spoofing via `X-Forwarded-For`, arbitrary key read. | Upgrade `hono` to latest (>=4.12.0). Review custom middleware for MIME type or IP-dependent logic. |
 | 10 | **MEDIUM** | `mcp-server/src/index.ts:775` | `/v1/health` endpoint returns `error.message` in 500 responses. Stack traces or internal paths could leak to unauthenticated callers. | Return a generic error message (`"Health check failed"`) in production. Log the full error server-side only. |
@@ -89,7 +89,7 @@ User isolation is enforced via `isOwner()`. However, field-level validation is m
 | Priority | Findings | Effort |
 |----------|----------|--------|
 | **Immediate** (before next deploy) | #1, #2, #3 | ~2 hours |
-| **This sprint** | #4, #5, #6, #7, #11 | ~4 hours |
+| **This sprint** | #4, ~~#5, #6, #7~~, #11 | ~4 hours (3 fixed) |
 | **Next sprint** | #8, #9, #10, #12 | ~3 hours |
 | **Backlog** | #13, #14, #15 | ~1 hour |
 
