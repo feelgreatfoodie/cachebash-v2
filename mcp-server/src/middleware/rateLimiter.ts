@@ -14,6 +14,8 @@ const RATE_LIMITS: Record<string, number> = {
   get_pending_tasks: 30,
   claim_task: 20,
   complete_task: 20,
+  send_message: 20,
+  create_task: 10,
 };
 const DEFAULT_LIMIT = 100;
 
@@ -70,6 +72,28 @@ export function checkAuthRateLimit(ip: string): boolean {
   return true;
 }
 
+// --- ISO endpoint rate limiting (by IP, 30 req/min) ---
+
+const ISO_WINDOW_MS = 60000;
+const ISO_MAX_REQUESTS = 30;
+
+const isoStore = new Map<string, { count: number; resetAt: number }>();
+
+/** Returns true if ISO request is allowed, false if rate limited. */
+export function checkIsoRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = isoStore.get(ip);
+
+  if (!record || now >= record.resetAt) {
+    isoStore.set(ip, { count: 1, resetAt: now + ISO_WINDOW_MS });
+    return true;
+  }
+
+  if (record.count >= ISO_MAX_REQUESTS) return false;
+  record.count++;
+  return true;
+}
+
 /** Clean up expired records. Call periodically. */
 export function cleanupRateLimits(): void {
   const now = Date.now();
@@ -78,5 +102,8 @@ export function cleanupRateLimits(): void {
   }
   for (const [key, record] of authStore.entries()) {
     if (now >= record.resetAt) authStore.delete(key);
+  }
+  for (const [key, record] of isoStore.entries()) {
+    if (now >= record.resetAt) isoStore.delete(key);
   }
 }

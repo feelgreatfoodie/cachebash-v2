@@ -57,6 +57,22 @@ export const CompleteTaskSchema = z.object({
   taskId: z.string().min(1, "Task ID required"),
 });
 
+export const SendMessageSchema = z.object({
+  message: z.string().min(1, "Message cannot be empty").max(2000, "Message too long (max 2000 chars)"),
+  priority: z.enum(["low", "normal", "high"]).default("normal"),
+  action: z.enum(["interrupt", "sprint", "parallel", "queue", "backlog"]).default("queue"),
+  context: z.string().max(500, "Context too long (max 500 chars)").optional(),
+  sessionId: z.string().max(100).optional(),
+});
+
+export const CreateTaskSchema = z.object({
+  title: z.string().min(1, "Title cannot be empty").max(200, "Title too long (max 200 chars)"),
+  instructions: z.string().max(4000, "Instructions too long (max 4000 chars)").optional(),
+  priority: z.enum(["low", "normal", "high"]).default("normal"),
+  action: z.enum(["interrupt", "sprint", "parallel", "queue", "backlog"]).default("queue"),
+  projectId: z.string().max(100).optional(),
+});
+
 export const SendAlertSchema = z.object({
   message: z.string().min(1, "Message cannot be empty").max(2000, "Message too long (max 2000 chars)"),
   alertType: z.enum(["error", "warning", "success", "info"]).default("info"),
@@ -132,6 +148,8 @@ export type GetInterruptsArgs = z.infer<typeof GetInterruptsSchema>;
 export type GetPendingTasksArgs = z.infer<typeof GetPendingTasksSchema>;
 export type ClaimTaskArgs = z.infer<typeof ClaimTaskSchema>;
 export type CompleteTaskArgs = z.infer<typeof CompleteTaskSchema>;
+export type SendMessageArgs = z.infer<typeof SendMessageSchema>;
+export type CreateTaskArgs = z.infer<typeof CreateTaskSchema>;
 export type SendAlertArgs = z.infer<typeof SendAlertSchema>;
 export type SendHeartbeatArgs = z.infer<typeof SendHeartbeatSchema>;
 export type SprintStoryArgs = z.infer<typeof SprintStorySchema>;

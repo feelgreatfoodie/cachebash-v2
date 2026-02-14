@@ -335,8 +335,45 @@ cachebash/
 | `update_sprint_story` | Update story progress |
 | `add_story_to_sprint` | Dynamic story insertion |
 | `complete_sprint` | Mark sprint complete |
+| `send_message` | Send message/instruction to a program (ISO only) |
+| `create_task` | Create a task for a program (ISO only) |
 
 For full API signatures, see `mcp-server/src/tools/`.
+
+---
+
+## ISO MCP Connector (claude.ai Desktop)
+
+ISO (claude.ai desktop) connects to CacheBash via a custom MCP connector, enabling direct communication with CLI programs without manual relay.
+
+### Endpoint
+```
+https://cachebash-mcp-922749444863.us-central1.run.app/v1/iso/mcp?token=YOUR_API_KEY
+```
+
+### Setup in claude.ai
+1. Open claude.ai Settings > Connectors > Add custom connector
+2. Set URL to the endpoint above (with your API key as query param)
+3. Auth type: None (auth is in the URL)
+4. Transport: Streamable HTTP
+
+### Available Tools (ISO whitelist only)
+| Tool | Purpose |
+|------|---------|
+| `get_pending_tasks` | Read pending tasks |
+| `get_interrupts` | Read pending interrupts |
+| `send_message` | Send message/instruction to a program |
+| `create_task` | Create a new task for a program |
+| `update_status` | Update ISO's own status |
+
+### Blocked Tools
+`ask_question`, `get_response`, `pin_task`, `resume_task`, `claim_task`, `complete_task`, `send_heartbeat`, `send_alert`, all sprint tools — these are program-only operations.
+
+### Security
+- Auth via `?token=` query param (API key from CacheBash app)
+- Rate limit: 30 req/min per IP
+- Messages tagged with `source: "iso"` in Firestore
+- Health check: `GET /v1/iso/health`
 
 ---
 
