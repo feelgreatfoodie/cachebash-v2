@@ -46,6 +46,7 @@ export const GetInterruptsSchema = z.object({
 export const GetPendingTasksSchema = z.object({
   status: z.enum(["pending", "in_progress", "all"]).default("pending"),
   limit: z.number().int().min(1).max(50).default(10),
+  target: z.string().max(100).optional(),
 });
 
 export const ClaimTaskSchema = z.object({
@@ -80,6 +81,8 @@ export const CreateTaskSchema = z.object({
   priority: z.enum(["low", "normal", "high"]).default("normal"),
   action: z.enum(["interrupt", "sprint", "parallel", "queue", "backlog"]).default("queue"),
   projectId: z.string().max(100).optional(),
+  target: z.string().max(100).optional(),
+  source: z.string().max(100).optional(),
 });
 
 export const SendAlertSchema = z.object({

@@ -12,7 +12,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { CustomHTTPTransport } from "../transport/CustomHTTPTransport.js";
 import { AuthContext } from "../auth/apiKeyValidator.js";
-import { getPendingTasks } from "../tools/getTasks.js";
+import { getPendingTasks, claimTask, completeTask } from "../tools/getTasks.js";
 import { getInterrupts } from "../tools/getInterrupts.js";
 import { updateStatus } from "../tools/updateStatus.js";
 import { sendMessage } from "../tools/sendMessage.js";
@@ -27,6 +27,8 @@ const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promis
   update_status: updateStatus,
   send_message: sendMessage,
   create_task: createTask,
+  claim_task: claimTask,
+  complete_task: completeTask,
 };
 
 // ISO tool definitions for ListTools
@@ -49,6 +51,11 @@ const ISO_TOOL_DEFINITIONS = [
           maximum: 50,
           description: "Maximum number of tasks to return",
           default: 10,
+        },
+        target: {
+          type: "string",
+          description: "Filter tasks by target program ID. Tasks with a target only appear when caller's target matches.",
+          maxLength: 100,
         },
       },
     },
@@ -195,8 +202,50 @@ const ISO_TOOL_DEFINITIONS = [
           type: "string",
           description: "Optional project ID to associate with",
         },
+        target: {
+          type: "string",
+          description: "Target program ID (e.g., 'basher', 'iso'). If set, only that program sees the task when filtering by target.",
+          maxLength: 100,
+        },
+        source: {
+          type: "string",
+          description: "Source program ID (e.g., 'iso', 'basher'). Defaults to 'iso' if not specified.",
+          maxLength: 100,
+        },
       },
       required: ["title"],
+    },
+  },
+  {
+    name: "claim_task",
+    description: "Claim a pending task to start working on it",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: {
+          type: "string",
+          description: "ID of the task to claim",
+        },
+        sessionId: {
+          type: "string",
+          description: "Optional session ID to associate with this task",
+        },
+      },
+      required: ["taskId"],
+    },
+  },
+  {
+    name: "complete_task",
+    description: "Mark a task as complete when finished",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: {
+          type: "string",
+          description: "ID of the task to complete",
+        },
+      },
+      required: ["taskId"],
     },
   },
 ];

@@ -343,6 +343,11 @@ async function main() {
                 description: "Maximum number of tasks to return",
                 default: 10,
               },
+              target: {
+                type: "string",
+                description: "Filter tasks by target program ID. Tasks with a target only appear when caller's target matches. Tasks with no target are always visible.",
+                maxLength: 100,
+              },
             },
           },
         },
@@ -738,6 +743,16 @@ async function main() {
               projectId: {
                 type: "string",
                 description: "Optional project ID to associate with",
+              },
+              target: {
+                type: "string",
+                description: "Target program ID (e.g., 'basher', 'iso'). If set, only that program sees the task when filtering by target.",
+                maxLength: 100,
+              },
+              source: {
+                type: "string",
+                description: "Source program ID (e.g., 'iso', 'basher'). Defaults to 'iso' if not specified.",
+                maxLength: 100,
               },
             },
             required: ["title"],

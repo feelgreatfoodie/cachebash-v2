@@ -58,6 +58,7 @@ export async function getPendingTasks(
   const db = getFirestore();
   const status = args.status;
   const limit = args.limit;
+  const callerTarget = args.target;
 
   // Try unified messages collection first
   const messagesPath = `users/${auth.userId}/messages`;
@@ -129,6 +130,13 @@ export async function getPendingTasks(
   // Process messages first
   for (const doc of messagesSnapshot.docs) {
     const data = doc.data();
+
+    // Target routing: if task has a target and caller specified a target, filter
+    if (callerTarget && data.target && data.target !== callerTarget) {
+      seenIds.add(doc.id);
+      continue;
+    }
+
     const decrypted = decryptTaskData(
       {
         title: data.title || data.content?.substring(0, 50) || "Untitled",
@@ -155,6 +163,12 @@ export async function getPendingTasks(
   for (const doc of tasksSnapshot.docs) {
     if (seenIds.has(doc.id)) continue;
     const data = doc.data();
+
+    // Target routing: if task has a target and caller specified a target, filter
+    if (callerTarget && data.target && data.target !== callerTarget) {
+      continue;
+    }
+
     const decrypted = decryptTaskData(
       {
         title: data.title,
@@ -273,6 +287,12 @@ export async function claimTask(
       // Error: not claimable
       if (taskData.status !== "pending") {
         return { error: `Task not claimable (status: ${taskData.status})` };
+      }
+
+      // Soft-warn if task has a target and claimer doesn't match (Flynn override allowed)
+      const targetMismatch = taskData.target && args.sessionId && taskData.target !== args.sessionId;
+      if (targetMismatch) {
+        console.warn(`[claimTask] Target mismatch: task target="${taskData.target}", claimer="${args.sessionId}". Allowing (Flynn override).`);
       }
 
       // Atomic claim with heartbeat timestamp

@@ -220,6 +220,32 @@ When the task queue is empty and no interrupts are pending:
 
 ---
 
+## Resource Conservation
+
+Programs conserve resources by delegating routine execution to lower-cost models. Opus thinks, Sonnet does.
+
+### Model Tiering
+
+| Tier | Model | Use |
+|------|-------|-----|
+| Polling | **curl/bash** | peek endpoint, REST calls. Zero tokens. Never use Opus or any model to poll. |
+| Routine execution | **Sonnet** (Explore tool) | File reads, git ops, find-and-replace, script writing, deploys, zshrc edits |
+| Thinking | **Opus** | Planning, decisions, architecture, complex debugging, orchestration |
+
+### Rules
+- **Never burn Opus tokens on routine file operations.** Use Explore (Sonnet) for reads, writes, grep, git status, simple edits.
+- **Never burn ANY model tokens on polling.** Use bash/curl to hit the peek endpoint. Only invoke a model when there's actual work to claim.
+- **Idle polling must use the peek bash function**, not MCP tool calls. MCP calls create sessions and burn tokens. peek is free.
+- If a task is purely mechanical (copy file, run build, update a line), Explore it. Reserve Opus for "what should I do" not "do this specific thing."
+
+### Anti-patterns (from Feb 14 session)
+- :x: Opus polling get_pending_tasks in a sleep loop (burned ~20 min of Opus tokens on empty queues)
+- :x: Opus clearing 20+ stale tasks one by one (should have been a Sonnet script or batch delete)
+- :x: Opus editing ~/.zshrc (Sonnet-tier work)
+- :white_check_mark: Using Explore for doc audit and MCP code search (did this correctly earlier in session)
+
+---
+
 ## Asking Questions via Mobile
 
 ```typescript
@@ -363,9 +389,11 @@ cachebash/
 | `add_story_to_sprint` | Dynamic story insertion |
 | `complete_sprint` | Mark sprint complete |
 | `send_message` | Send message/instruction to a program (ISO only) |
-| `create_task` | Create a task for a program (ISO only) |
+| `create_task` | Create a task for a program (ISO only). Supports `target` and `source` routing fields. |
 
 For full API signatures, see `mcp-server/src/tools/`.
+
+> **Note:** A `peek()` bash function exists for zero-token polling of interrupts via `GET /v1/interrupts/peek`. Use this instead of MCP tool calls when checking for work — MCP calls create sessions and burn tokens.
 
 ---
 
@@ -390,11 +418,13 @@ https://cachebash-mcp-922749444863.us-central1.run.app/v1/iso/mcp?token=YOUR_API
 | `get_pending_tasks` | Read pending tasks |
 | `get_interrupts` | Read pending interrupts |
 | `send_message` | Send message/instruction to a program |
-| `create_task` | Create a new task for a program |
+| `create_task` | Create a new task for a program (supports `target`/`source` routing) |
+| `claim_task` | Claim a pending task to start working on it |
+| `complete_task` | Mark a task as complete |
 | `update_status` | Update ISO's own status |
 
 ### Blocked Tools
-`ask_question`, `get_response`, `pin_task`, `resume_task`, `claim_task`, `complete_task`, `send_heartbeat`, `send_alert`, all sprint tools — these are program-only operations.
+`ask_question`, `get_response`, `pin_task`, `resume_task`, `send_heartbeat`, `send_alert`, all sprint tools — these are program-only operations.
 
 ### Security
 - Auth via `?token=` query param (API key from CacheBash app)
@@ -511,6 +541,8 @@ Real-time monitoring of parallel execution:
   - answeredAt?: timestamp
   - acknowledgedAt?: timestamp
   - action?: 'interrupt' | 'parallel' | 'queue' | 'backlog'
+  - target?: string (program ID for routing, null = visible to all)
+  - source?: string (creator program ID, defaults to 'iso')
   - startedAt?, completedAt?: timestamp
   - sessionId?: string
   - lastHeartbeat?: timestamp
