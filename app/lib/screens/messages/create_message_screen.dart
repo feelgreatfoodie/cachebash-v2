@@ -17,7 +17,12 @@ class CreateMessageScreen extends ConsumerStatefulWidget {
 class _CreateMessageScreenState extends ConsumerState<CreateMessageScreen> {
   final _instructionsController = TextEditingController();
   MessageAction _action = MessageAction.queue;
+  String? _selectedTarget;
   bool _isSubmitting = false;
+
+  static const _programs = [
+    'Any', 'basher', 'iso', 'alan', 'sark', 'able', 'beck', 'quorra', 'radia', 'casp', 'clu',
+  ];
 
   @override
   void dispose() {
@@ -67,6 +72,8 @@ class _CreateMessageScreenState extends ConsumerState<CreateMessageScreen> {
             title: title,
             instructions: instructions,
             action: _action,
+            target: _selectedTarget,
+            source: 'flynn',
           );
 
       HapticService.success();
@@ -179,6 +186,32 @@ class _CreateMessageScreenState extends ConsumerState<CreateMessageScreen> {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 24),
+
+            // Target program picker
+            Text(
+              'Target',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _programs.map((program) {
+                final isAny = program == 'Any';
+                final isSelected = isAny ? _selectedTarget == null : _selectedTarget == program;
+                return ChoiceChip(
+                  label: Text(program),
+                  selected: isSelected,
+                  onSelected: (_) {
+                    HapticService.selection();
+                    setState(() => _selectedTarget = isAny ? null : program);
+                  },
+                );
+              }).toList(),
             ),
             const SizedBox(height: 24),
 

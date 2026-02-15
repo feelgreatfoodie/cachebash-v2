@@ -99,6 +99,8 @@ class TasksService {
     String priority = 'normal',
     TaskAction action = TaskAction.queue,
     bool encrypt = false, // Disabled until key derivation is fixed
+    String? target,
+    String? source,
   }) async {
     _log('Creating task: $title (action: ${action.value})');
 
@@ -133,6 +135,8 @@ class TasksService {
       'completedAt': null,
       'sessionId': null,
       'encrypted': isEncrypted,
+      'target': target,
+      'source': source ?? 'flynn',
     });
 
     _log('Task created with ID ${taskRef.id}');

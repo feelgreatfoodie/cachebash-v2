@@ -415,6 +415,8 @@ class MessagesService {
     bool encrypt = false,
     String? threadId,
     String? inReplyTo,
+    String? target,
+    String? source,
   }) async {
     _log('Creating task message: $title (action: ${action.value})');
 
@@ -455,6 +457,8 @@ class MessagesService {
       'encrypted': isEncrypted,
       'threadId': threadId,
       'inReplyTo': inReplyTo,
+      'target': target,
+      'source': source ?? 'flynn',
     });
 
     _log('Task message created with ID ${messageRef.id}');
