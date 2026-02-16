@@ -367,6 +367,7 @@ gcloud run deploy cachebash \
   --region us-central1 \
   --project your-project-id \
   --set-env-vars FIREBASE_PROJECT_ID=your-project-id
+  --allow-unauthenticated
 ```
 
 ### Cloud Functions
