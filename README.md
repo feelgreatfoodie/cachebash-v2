@@ -45,7 +45,7 @@ CacheBash works with any MCP-compatible client:
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | MCP (HTTP) |
 | [Cursor](https://cursor.sh) | MCP (HTTP) |
 | [Windsurf](https://codeium.com/windsurf) | MCP (HTTP) |
-| [Cline](https://github.com/cline/cline) | MCP (stdio) |
+| [Cline](https://github.com/cline/cline) | MCP (HTTP) |
 | [ChatGPT](https://openai.com/chatgpt) | REST API |
 | [Gemini](https://gemini.google.com) | REST API |
 | Any HTTP client | REST API |
@@ -56,8 +56,8 @@ Not MCP-native? The REST API provides full parity — every tool has a correspon
 
 ```bash
 # Clone and install
-git clone https://github.com/feelgreatfoodie/cachebash.git
-cd cachebash/mcp-server
+git clone https://github.com/feelgreatfoodie/cachebash-v2.git
+cd cachebash-v2/mcp-server
 npm install
 
 # Configure Firebase (replace with your project ID)
@@ -170,7 +170,7 @@ Send a typed message to another agent. Messages are sorted by priority.
 | `source` | string | Yes | Sender agent ID |
 | `target` | string | Yes | Receiver agent ID or `"all"` |
 | `message` | string | Yes | Content (max 2000 chars) |
-| `messageType` | string | Yes | `PING` / `STATUS` / `QUERY` / `RESULT` / `DIRECTIVE` / `ACK` |
+| `messageType` | string | Yes | `PING` / `PONG` / `STATUS` / `QUERY` / `RESULT` / `DIRECTIVE` / `ACK` |
 | `priority` | string | No | `"low"` / `"normal"` / `"high"` |
 | `ttl` | number | No | Seconds until expiry (default: 86400) |
 
@@ -307,7 +307,6 @@ The Flutter app is the human interface. It connects directly to Firestore for re
 - **Tasks** — Full task list with status filters
 - **Settings** — Notification preferences, account management
 
-<!-- TODO: Add screenshots -->
 
 ## Tech Stack
 
@@ -330,12 +329,15 @@ cachebash/
 │   │   ├── index.ts          # Entry point, HTTP routing
 │   │   ├── tools.ts          # Tool registry (12 tools)
 │   │   ├── auth/             # API key validation
+│   │   ├── firebase/         # Firebase initialization
 │   │   ├── modules/          # Business logic (tasks, messages, sessions, questions)
 │   │   ├── transport/        # MCP HTTP transport + REST router
 │   │   ├── lifecycle/        # State machine engine
 │   │   ├── middleware/       # Rate limiting, audit logging
 │   │   └── types/            # TypeScript type definitions
+│   ├── .gcloudignore
 │   ├── Dockerfile
+│   ├── tsconfig.json
 │   └── package.json
 ├── app/                 # Flutter mobile app
 │   └── lib/
@@ -352,7 +354,7 @@ cachebash/
 ├── ARCHITECTURE.md      # Deep technical documentation
 ├── CONTRIBUTING.md      # Development setup and conventions
 └── LICENSE              # MIT
-```
+
 
 ## Deployment
 

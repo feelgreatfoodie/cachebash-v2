@@ -60,19 +60,17 @@ Ephemeral inter-agent messages. Short-lived, typically delivered within minutes.
 |-------|------|-------------|
 | source | string | Sender agent ID |
 | target | string | Receiver agent ID or `all` for broadcast |
-| message_type | string | Message category: `PING`, `PONG`, `HANDSHAKE`, `DIRECTIVE`, `STATUS`, `ACK`, `QUERY`, `RESULT` |
-| payload | string | Message content (max 2000 characters) |
+| messageType | string | Message category: `PING`, `PONG`, `STATUS`, `QUERY`, `RESULT`, `DIRECTIVE`, `ACK` |
+| message | string | Message content (max 2000 characters) |
 | priority | string | `low`, `normal`, `high` |
 | action | string | Dispatch mode (same as tasks) |
 | context | string? | Additional metadata (max 500 characters) |
 | sessionId | string? | Target session ID |
-| reply_to | string? | Message ID this is replying to |
+| replyTo | string? | Message ID this is replying to |
 | threadId | string? | Conversation thread |
 | status | string | `pending`, `delivered`, or `dead` |
 | ttl | number | Time-to-live in seconds (default 86400 = 24 hours) |
 | expiresAt | timestamp | Computed expiration time |
-| deliveryAttempts | number | Number of delivery attempts |
-| maxDeliveryAttempts | number | Max retries before dead-lettering (default 3) |
 | multicastId | string? | Group ID for fan-out messages |
 | multicastSource | string? | Original target for group messages |
 | provenance | object? | Metadata: `model`, `cost_tokens` |
@@ -141,14 +139,17 @@ Registered mobile devices for push notifications.
 
 ### users/{uid}/dead_letters
 
+**Note:** This collection is planned for a future release. The current implementation uses simple `pending → delivered` transitions only, with no retry counting or dead-letter queue.
+
+
 Failed messages that exceeded max delivery attempts.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | source | string | Original sender |
 | target | string | Intended recipient |
-| message_type | string | Message type |
-| payload | string | Message content |
+| messageType | string | Message type |
+| message | string | Message content |
 | priority | string | Message priority |
 | action | string | Dispatch mode |
 | context | string? | Additional metadata |
@@ -183,7 +184,7 @@ CacheBash implements JSON-RPC over HTTP with session management. Clients send MC
 - **Initialize**: Client sends `initialize` request without `Mcp-Session-Id` header. Server creates session, returns session ID in `Mcp-Session-Id` response header.
 - **Subsequent Requests**: Client includes `Mcp-Session-Id` header. Server validates session, updates last activity timestamp.
 - **Delete**: Client sends HTTP DELETE with `Mcp-Session-Id`. Server deletes session.
-- **Timeout**: Sessions expire after 60 minutes of inactivity. Cleanup job runs every 5 minutes.
+- **Timeout**: Sessions expire after 30 minutes of inactivity. Cleanup job runs every 5 minutes.
 
 ### REST Fallback
 
@@ -228,7 +229,6 @@ stateDiagram-v2
 
     active --> blocked : External dependency
     active --> completing : Work finished
-    active --> done : Simple completion
     active --> failed : Error occurred
 
     blocked --> active : Dependency resolved
@@ -258,7 +258,7 @@ stateDiagram-v2
 
 ### Transition Rules
 
-Transitions are entity-type specific. Tasks allow `active → done` (direct completion). Scheduled tasks require `active → completing → done` (validation step). Sessions skip `completing` entirely.
+Transitions are entity-type specific. Tasks MUST go through `active → completing → done` (cannot skip completing). Questions and Sessions CAN go `active → done` directly (no validation step required).
 
 The lifecycle engine validates all transitions at write time. Firestore transaction includes:
 
@@ -374,8 +374,8 @@ Legacy keys (mobile app, operator console) see all data. Agent keys see only the
 ## Rate Limiting
 
 In-memory rate limiter per user ID:
-- 100 requests per hour per tool
-- Sliding window
+- 100 requests per minute per user
+- Token bucket (refill rate: ~1.67 tokens/second)
 - Cleanup on every request (purge expired windows)
 
 Push notifications have separate limits:

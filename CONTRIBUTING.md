@@ -20,7 +20,6 @@ The MCP server is a TypeScript application that provides the core backend API.
 ```bash
 cd mcp-server
 npm install
-cp .env.example .env  # Configure Firebase project ID and other settings
 npm run dev            # Starts TypeScript watcher (auto-recompiles on file changes)
 npm start              # Runs compiled server on port 3001
 ```
@@ -318,8 +317,8 @@ npm test
 ```
 
 **Writing tests:**
-- Place tests in `src/__tests__/` or co-locate with modules (`module.test.ts`)
-- Use Jest
+- Test framework will be configured during initial setup
+- Tests will be co-located with modules (`module.test.ts`)
 - Mock Firestore operations with `@firebase/testing` or in-memory Firestore
 - Test validation, authorization, and business logic separately
 
@@ -488,13 +487,25 @@ Understanding the architecture helps you contribute effectively.
 
 ### Lifecycle Engine
 
-All task state transitions go through `lifecycle/engine.ts`. Valid transitions:
+All task state transitions go through `lifecycle/engine.ts`. Valid lifecycle states:
 
+- **created** — Initial state for new tasks
+- **active** — Agent is working on the task
+- **blocked** — Paused due to external dependency
+- **completing** — Validation step (tasks only, between active and done)
+- **done** — Successfully completed
+- **failed** — Error occurred
+- **archived** — Permanently removed
+
+Valid transitions:
 ```
-created → active → complete
-created → active → failed
-created → cancelled
-active → paused → active
+created → active → completing → done (tasks)
+created → active → done (questions/sessions)
+active → blocked → active
+active → failed
+created → archived
+done → archived
+failed → archived
 ```
 
 Invalid transitions throw errors. This ensures data integrity.
@@ -505,7 +516,7 @@ Invalid transitions throw errors. This ensures data integrity.
 
 - **Issues**: Open an issue for bugs or feature requests
 - **Discussions**: Use GitHub Discussions for questions or ideas
-- **Email**: [your-email@example.com]
+- Open a GitHub issue for questions or support
 
 ---
 
