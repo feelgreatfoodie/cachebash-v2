@@ -422,12 +422,12 @@ Deploy from the `mcp-server/` directory:
 
 ```bash
 cd mcp-server
-gcloud run deploy cachebash-mcp \
+gcloud run deploy cachebash \
   --source . \
   --region us-central1 \
   --project your-project-id \
+  --set-env-vars FIREBASE_PROJECT_ID=your-project-id \
   --allow-unauthenticated
-```
 
 **Note**: Must run from `mcp-server/` directory. Deployment from repo root fails because buildpacks can't find `package.json` in a subdirectory.
 

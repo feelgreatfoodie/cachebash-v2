@@ -389,11 +389,12 @@ Push notifications have separate limits:
 **MCP Server** (Cloud Run):
 ```bash
 cd mcp-server
-gcloud run deploy cachebash-mcp \
+gcloud run deploy cachebash \
   --source . \
   --region us-central1 \
-  --project your-project-id
-```
+  --project your-project-id \
+  --set-env-vars FIREBASE_PROJECT_ID=your-project-id \
+  --allow-unauthenticated
 
 Must run from `mcp-server/` directory. Buildpacks look for `package.json` at deploy root.
 
