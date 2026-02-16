@@ -1,0 +1,11 @@
+{
+  "flutter": {
+    "platforms": {
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "your-project-id"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+# Exclude source files — only deploy compiled dist/
+node_modules/
+src/
+.git
+.gitignore
+*.md
+tsconfig.json
