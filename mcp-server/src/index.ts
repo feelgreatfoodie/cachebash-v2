@@ -751,7 +751,7 @@ async function main() {
               },
               source: {
                 type: "string",
-                description: "Source agent ID (e.g., 'agent-1', 'agent-2'). Defaults to 'iso' if not specified.",
+                description: "Source agent ID (e.g., 'agent-1', 'agent-2'). Defaults to 'orchestrator' if not specified.",
                 maxLength: 100,
               },
             },
@@ -832,10 +832,10 @@ async function main() {
   // Connect server to transport
   await server.connect(transport);
 
-  // Initialize ISO MCP server (separate instance with whitelisted tools only)
+  // Initialize Orchestrator MCP server (separate instance with whitelisted tools only)
   const { transport: isoTransportInstance } = await createIsoServer();
   let isoTransport: typeof isoTransportInstance | null = isoTransportInstance;
-  console.log("[ISO] ISO MCP server initialized with whitelisted tools");
+  console.log("[Orchestrator] Orchestrator MCP server initialized with whitelisted tools");
 
   // Create HTTP server
   const httpServer = http.createServer(async (req, res) => {
@@ -860,12 +860,12 @@ async function main() {
       "Access-Control-Allow-Headers",
       "Content-Type, Authorization, Mcp-Session-Id"
     );
-    // ISO endpoints get permissive CORS (set per-route below)
+    // Orchestrator endpoints get permissive CORS (set per-route below)
     // Main MCP endpoints use minimal CORS
 
     // Handle preflight
     if (req.method === "OPTIONS") {
-      // Allow CORS preflight for ISO endpoints
+      // Allow CORS preflight for Orchestrator endpoints
       if (req.url?.startsWith("/v1/iso/")) {
         res.setHeader("Access-Control-Allow-Origin", "*");
       }
@@ -1116,13 +1116,13 @@ async function main() {
       }
     }
 
-    // --- ISO MCP Connector (authless via ?token= query param) ---
+    // --- Orchestrator connector (authless via ?token= query param) ---
     if (req.url?.startsWith("/v1/iso/")) {
       const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
 
       // Rate limit: 30 req/min per IP
       if (!checkIsoRateLimit(clientIp)) {
-        console.log(`[ISO] Rate limited: ${clientIp}`);
+        console.log(`[Orchestrator] Rate limited: ${clientIp}`);
         return sendJson(res, 429, { error: "Too many requests" });
       }
 
@@ -1133,9 +1133,9 @@ async function main() {
       const parsedUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
       const pathname = parsedUrl.pathname;
 
-      // ISO health check
+      // Orchestrator health check
       if (pathname === "/v1/iso/health") {
-        console.log(`[ISO] Health check from ${clientIp}`);
+        console.log(`[Orchestrator] Health check from ${clientIp}`);
         return sendJson(res, 200, {
           status: "ok",
           endpoint: "iso",
@@ -1144,11 +1144,11 @@ async function main() {
         });
       }
 
-      // ISO MCP endpoint
+      // Orchestrator MCP endpoint
       if (pathname === "/v1/iso/mcp") {
         const token = parsedUrl.searchParams.get("token");
         if (!token) {
-          console.log(`[ISO] Missing token from ${clientIp}`);
+          console.log(`[Orchestrator] Missing token from ${clientIp}`);
           return sendJson(res, 401, {
             error: "Missing token",
             hint: "Add ?token=YOUR_API_KEY to the connector URL",
@@ -1158,14 +1158,14 @@ async function main() {
         // Validate API key from query param
         const authContext = await validateApiKey(token);
         if (!authContext) {
-          console.log(`[ISO] Invalid token from ${clientIp}`);
+          console.log(`[Orchestrator] Invalid token from ${clientIp}`);
           return sendJson(res, 401, {
             error: "Invalid token",
             hint: "Regenerate API key in the CacheBash app",
           });
         }
 
-        console.log(`[ISO] Authenticated: user=${authContext.userId} ip=${clientIp}`);
+        console.log(`[Orchestrator] Authenticated: user=${authContext.userId} ip=${clientIp}`);
 
         // Store auth context for MCP session
         const sessionId = req.headers["mcp-session-id"] as string | undefined;
@@ -1178,7 +1178,7 @@ async function main() {
           const webResponse = await isoTransport!.handleRequest(webRequest, authContext);
           await webResponseToNodeResponse(webResponse, res);
         } catch (error) {
-          console.error("[ISO] Transport error:", error);
+          console.error("[Orchestrator] Transport error:", error);
           if (!res.headersSent) {
             sendJson(res, 500, { error: "Internal server error" });
           }
@@ -1186,7 +1186,7 @@ async function main() {
         return;
       }
 
-      return sendJson(res, 404, { error: "Not found", hint: "ISO MCP endpoint is at /v1/iso/mcp" });
+      return sendJson(res, 404, { error: "Not found", hint: "Orchestrator MCP endpoint is at /v1/iso/mcp" });
     }
 
     // MCP endpoints - require authentication (no env fallback for security)
@@ -1262,10 +1262,10 @@ async function main() {
       }
     }
 
-    const cleanedIsoSessions = cleanupIsoSessions(SESSION_TIMEOUT_MS);
+    const cleanedOrchestratorSessions = cleanupIsoSessions(SESSION_TIMEOUT_MS);
 
-    if (cleanedSessions > 0 || cleanedIsoSessions > 0) {
-      console.log(`[Sessions] Cleaned up ${cleanedSessions} main + ${cleanedIsoSessions} ISO inactive sessions`);
+    if (cleanedSessions > 0 || cleanedOrchestratorSessions > 0) {
+      console.log(`[Sessions] Cleaned up ${cleanedSessions} main + ${cleanedOrchestratorSessions} orchestrator inactive sessions`);
     }
 
     cleanupRateLimits();

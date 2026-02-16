@@ -102,12 +102,12 @@ service cloud.firestore {
         }
       }
 
-      // Dream sessions subcollection (Dream Mode Phase 1)
+      // Dream sessions subcollection (Scheduled task execution)
       match /dream_sessions/{dreamId} {
         allow read, write: if isOwner(userId);
       }
 
-      // Relay subcollection (inter-program mesh comms, Grid Relay v0.2)
+      // Relay subcollection (inter-agent message relay)
       // Admin SDK only — programs communicate via MCP server, not direct client access
       // 24h TTL auto-expiry via scheduled cleanup function
       match /relay/{messageId} {

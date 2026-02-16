@@ -4,7 +4,7 @@ import { SendMessageSchema } from "../validation/validators.js";
 
 /**
  * Send a message/instruction to a running program (Claude Code session).
- * Grid Relay v0.2 — requires source, target, message_type.
+ * Message relay v0.2 — requires source, target, message_type.
  *
  * Writes to:
  *   /users/{uid}/messages — control plane (Flutter app visibility, push notifications)

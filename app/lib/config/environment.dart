@@ -10,7 +10,7 @@ class Environment {
   /// Can be overridden with --dart-define=MCP_BASE_URL=...
   static const String mcpBaseUrl = String.fromEnvironment(
     'MCP_BASE_URL',
-    defaultValue: 'https://cachebash-mcp-922749444863.us-central1.run.app',
+    defaultValue: 'https://your-service-url.run.app',
   );
 
   /// Whether the app is running in debug mode.

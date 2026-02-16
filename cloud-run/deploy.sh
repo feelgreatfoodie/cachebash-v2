@@ -5,9 +5,9 @@
 set -e
 
 # Configuration
-PROJECT_ID="${1:-cachebash-app}"
+PROJECT_ID="${1:-your-project-id}"
 REGION="${2:-us-central1}"
-SERVICE_NAME="cachebash-mcp"
+SERVICE_NAME="cachebash"
 IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
 
 echo "=== CacheBash Cloud Run Deployment ==="
@@ -55,7 +55,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --region "$REGION" \
     --platform managed \
     --allow-unauthenticated \
-    --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=cachebash-app" \
+    --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=your-project-id" \
     --min-instances 0 \
     --max-instances 10 \
     --memory 256Mi \

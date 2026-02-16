@@ -1,6 +1,6 @@
 #!/bin/bash
 API_KEY=$(cat ~/.claude.json | jq -r '.projects | to_entries[] | select(.value.mcpServers.cachebash) | .value.mcpServers.cachebash.headers.Authorization' | sed 's/Bearer //' | head -n 1)
-BASE_URL="https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp"
+BASE_URL="https://your-service-url.run.app/v1/mcp"
 
 echo "Testing MCP tools with API key: ${API_KEY:0:20}..."
 

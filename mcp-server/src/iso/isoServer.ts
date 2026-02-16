@@ -1,5 +1,5 @@
 /**
- * ISO MCP Server — Scoped endpoint for claude.ai desktop connector.
+ * Orchestrator MCP Server — Scoped endpoint for orchestrator desktop connector.
  *
  * Creates a separate MCP Server instance with only whitelisted tools.
  * Auth is via ?token= query param instead of Bearer header.
@@ -20,8 +20,8 @@ import { createTask } from "../tools/createTask.js";
 import { checkRateLimit, getRateLimitResetIn } from "../middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "../logging/auditLogger.js";
 
-// Whitelisted tools for ISO endpoint
-const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promise<any>> = {
+// Whitelisted tools for orchestrator endpoint
+const ORCHESTRATOR_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promise<any>> = {
   get_pending_tasks: getPendingTasks,
   get_interrupts: getInterrupts,
   update_status: updateStatus,
@@ -31,8 +31,8 @@ const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promis
   complete_task: completeTask,
 };
 
-// ISO tool definitions for ListTools
-const ISO_TOOL_DEFINITIONS = [
+// Orchestrator tool definitions for ListTools
+const ORCHESTRATOR_TOOL_DEFINITIONS = [
   {
     name: "get_pending_tasks",
     description: "Get tasks created for programs to work on",
@@ -81,7 +81,7 @@ const ISO_TOOL_DEFINITIONS = [
   },
   {
     name: "update_status",
-    description: "Update ISO's working status visible in the app",
+    description: "Update orchestrator working status visible in the app",
     inputSchema: {
       type: "object",
       properties: {
@@ -209,7 +209,7 @@ const ISO_TOOL_DEFINITIONS = [
         },
         source: {
           type: "string",
-          description: "Source agent ID (e.g., 'agent-1', 'agent-2'). Defaults to 'iso' if not specified.",
+          description: "Source agent ID (e.g., 'agent-1', 'agent-2'). Defaults to 'orchestrator' if not specified.",
           maxLength: 100,
         },
       },
@@ -250,7 +250,7 @@ const ISO_TOOL_DEFINITIONS = [
   },
 ];
 
-// Per-session auth context for ISO (same pattern as main server)
+// Per-session auth context for orchestrator (same pattern as main server)
 const isoSessions = new Map<string, { authContext: AuthContext; lastActivity: number }>();
 
 const isoSessionAuthContexts = {
@@ -261,7 +261,7 @@ const isoSessionAuthContexts = {
 };
 
 /**
- * Create and configure the ISO MCP server.
+ * Create and configure the orchestrator MCP server.
  * Returns the transport for routing requests.
  */
 export async function createIsoServer(): Promise<{
@@ -269,13 +269,13 @@ export async function createIsoServer(): Promise<{
   sessions: typeof isoSessions;
 }> {
   const server = new Server(
-    { name: "cachebash-iso", version: "1.0.0" },
+    { name: "cachebash-orchestrator", version: "1.0.0" },
     { capabilities: { tools: {} } }
   );
 
   // Register whitelisted tools only
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: ISO_TOOL_DEFINITIONS,
+    tools: ORCHESTRATOR_TOOL_DEFINITIONS,
   }));
 
   // Handle tool calls with auth from session
@@ -303,7 +303,7 @@ export async function createIsoServer(): Promise<{
     // Check rate limit (reuse existing per-user-tool limiter)
     if (!checkRateLimit(authContext.userId, name)) {
       const resetIn = Math.ceil(getRateLimitResetIn(authContext.userId, name) / 1000);
-      audit.error(name, "RATE_LIMIT_EXCEEDED", { tool: name, metadata: { source: "iso" } });
+      audit.error(name, "RATE_LIMIT_EXCEEDED", { tool: name, metadata: { source: "orchestrator" } });
       return {
         content: [{ type: "text", text: `Rate limit exceeded for ${name}. Try again in ${resetIn} seconds.` }],
         isError: true,
@@ -311,11 +311,11 @@ export async function createIsoServer(): Promise<{
     }
 
     // Block non-whitelisted tools
-    const handler = ISO_TOOL_HANDLERS[name];
+    const handler = ORCHESTRATOR_TOOL_HANDLERS[name];
     if (!handler) {
-      audit.error(name, "TOOL_NOT_ALLOWED", { tool: name, metadata: { source: "iso" } });
+      audit.error(name, "TOOL_NOT_ALLOWED", { tool: name, metadata: { source: "orchestrator" } });
       return {
-        content: [{ type: "text", text: `Tool "${name}" is not available on the ISO endpoint.` }],
+        content: [{ type: "text", text: `Tool " + name + " is not available on the orchestrator endpoint.` }],
         isError: true,
       };
     }
@@ -323,14 +323,14 @@ export async function createIsoServer(): Promise<{
     try {
       const result = await handler(authContext, args);
       const durationMs = Date.now() - startTime;
-      audit.log(name, { tool: name, durationMs, metadata: { source: "iso" } });
+      audit.log(name, { tool: name, durationMs, metadata: { source: "orchestrator" } });
       return result;
     } catch (error) {
       const durationMs = Date.now() - startTime;
       audit.error(name, error instanceof Error ? error.name : "UNKNOWN_ERROR", {
         tool: name,
         durationMs,
-        metadata: { source: "iso" },
+        metadata: { source: "orchestrator" },
       });
       return {
         content: [{ type: "text", text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
@@ -353,14 +353,14 @@ export async function createIsoServer(): Promise<{
 }
 
 /**
- * Store auth context for an ISO session.
+ * Store auth context for an orchestrator session.
  */
 export function setIsoSessionAuth(sessionId: string, auth: AuthContext): void {
   isoSessionAuthContexts.set(sessionId, auth);
 }
 
 /**
- * Clean up expired ISO sessions. Call periodically.
+ * Clean up expired orchestrator sessions. Call periodically.
  */
 export function cleanupIsoSessions(timeoutMs: number): number {
   const now = Date.now();

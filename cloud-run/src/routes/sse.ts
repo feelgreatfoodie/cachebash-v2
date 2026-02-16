@@ -177,7 +177,7 @@ router.post("/messages", authMiddleware, (req: Request, res: Response) => {
           tools: {},
         },
         serverInfo: {
-          name: "cachebash-mcp",
+          name: "cachebash",
           version: "1.0.0",
         },
       },

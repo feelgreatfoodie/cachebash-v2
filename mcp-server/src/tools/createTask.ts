@@ -7,7 +7,7 @@ import { CreateTaskSchema } from "../validation/validators.js";
  * Writes to both /messages (unified) and /tasks (legacy) collections.
  *
  * This is the MCP equivalent of the mobile app's "Create Task" flow.
- * Used by ISO (claude.ai) to dispatch work to CLI programs.
+ * Used by orchestrators to dispatch work to agents.
  */
 export async function createTask(
   auth: AuthContext,
@@ -30,7 +30,7 @@ export async function createTask(
     action: args.action || "queue",
     status: "pending",
     projectId: args.projectId || null,
-    source: args.source || "iso",
+    source: args.source || "orchestrator",
     target: args.target || null,
     createdAt: serverTimestamp(),
     archived: false,
