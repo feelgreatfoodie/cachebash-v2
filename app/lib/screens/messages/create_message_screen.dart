@@ -21,7 +21,7 @@ class _CreateMessageScreenState extends ConsumerState<CreateMessageScreen> {
   bool _isSubmitting = false;
 
   static const _programs = [
-    'Any', 'basher', 'iso', 'alan', 'sark', 'able', 'beck', 'quorra', 'radia', 'casp', 'clu',
+    'Any', 'agent-1', 'agent-2', 'agent-3',
   ];
 
   @override

@@ -107,7 +107,7 @@ class SprintSummary {
   int get total => completed + failed + skipped;
 }
 
-/// Model representing a Basher sprint
+/// Model representing an agent sprint
 class SprintModel {
   final String id;
   final String projectName;

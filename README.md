@@ -28,7 +28,7 @@ cachebash/
 ├── mcp-server/           # MCP server for Claude Code integration
 ├── firebase/             # Firebase backend (Functions, Firestore)
 ├── app/                  # Flutter mobile app
-└── basher/               # Basher autonomous execution
+└── agent/                # Agent autonomous execution
 ```
 
 ## Quick Start

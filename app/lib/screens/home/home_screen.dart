@@ -186,7 +186,7 @@ class HomeScreen extends ConsumerWidget {
 
             const SizedBox(height: 24),
 
-            // Dream Mode Section
+            // Scheduled Tasks Section
             _buildDreamSection(context, ref, activeDreams),
 
             const SizedBox(height: 24),
@@ -303,7 +303,7 @@ class HomeScreen extends ConsumerWidget {
       children: [
         _buildSectionHeader(
           context,
-          'Dream Mode',
+          'Scheduled Tasks',
           Icons.nightlight_round,
         ),
         const SizedBox(height: 12),

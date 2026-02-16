@@ -44,7 +44,7 @@ class DreamSessionModel {
       type: data?['type'] ?? 'dream_session',
       version: data?['version'] ?? 1,
       status: data?['status'] ?? 'pending',
-      agent: data?['agent'] ?? 'basher',
+      agent: data?['agent'] ?? 'agent-1',
       taskId: data?['task_id'] as String?,
       budgetCapUsd: (data?['budget_cap_usd'] as num?)?.toDouble() ?? 5.0,
       budgetConsumedUsd:

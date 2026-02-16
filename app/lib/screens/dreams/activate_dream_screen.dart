@@ -15,19 +15,15 @@ class ActivateDreamScreen extends ConsumerStatefulWidget {
 }
 
 class _ActivateDreamScreenState extends ConsumerState<ActivateDreamScreen> {
-  String _selectedAgent = 'basher';
+  String _selectedAgent = 'agent-1';
   double _budgetCap = 5.0;
   final _taskController = TextEditingController();
   bool _isSubmitting = false;
 
   static const _agents = [
-    'basher',
-    'sark',
-    'able',
-    'beck',
-    'alan',
-    'quorra',
-    'radia',
+    'agent-1',
+    'agent-2',
+    'agent-3',
   ];
 
   static const _budgetOptions = [1.0, 2.0, 5.0, 10.0];

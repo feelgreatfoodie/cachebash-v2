@@ -6,7 +6,7 @@
  */
 
 const ALLOWED_HOSTS = [
-  'cachebash-mcp-922749444863.us-central1.run.app',
+  'cachebash-922749444863.us-central1.run.app',
   'localhost',
   '127.0.0.1',
   '::1',

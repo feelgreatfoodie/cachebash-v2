@@ -12,7 +12,7 @@ The CacheBash MCP (Model Context Protocol) server enables Claude Code to communi
 # Get API key from Flutter app: Settings → Copy API Key
 
 claude mcp add --transport http cachebash \
-  "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp" \
+  "https://cachebash-922749444863.us-central1.run.app/v1/mcp" \
   --header "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -558,13 +558,13 @@ const config = {
 ### Health Check
 
 ```bash
-cachebash-mcp --health
+cachebash --health
 ```
 
 ### Debug Mode
 
 ```bash
-CACHEBASH_DEBUG=true cachebash-mcp
+CACHEBASH_DEBUG=true cachebash
 ```
 
 ### Logs

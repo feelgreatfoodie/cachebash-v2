@@ -8,7 +8,7 @@ let db: admin.firestore.Firestore;
  */
 export function initializeFirebase(): void {
   if (admin.apps.length === 0) {
-    const projectId = process.env.FIREBASE_PROJECT_ID || "cachebash-app";
+    const projectId = process.env.FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID";
     console.log(`[Firebase] Initializing with projectId: ${projectId}`);
     admin.initializeApp({
       projectId,

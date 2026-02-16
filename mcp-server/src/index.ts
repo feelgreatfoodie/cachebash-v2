@@ -658,7 +658,7 @@ async function main() {
         {
           name: "send_message",
           description:
-            "Send a message or instruction to another program or session. Grid Relay v0.2 — requires source, target, and message_type.",
+            "Send a message or instruction to another program or session. Message relay v0.2 — requires source, target, and message_type.",
           inputSchema: {
             type: "object",
             properties: {
@@ -669,7 +669,7 @@ async function main() {
               },
               source: {
                 type: "string",
-                description: "Identifier of sending program (e.g., basher, desktop-iso, mobile-iso, flynn)",
+                description: "Identifier of sending program (e.g., agent-1, agent-2, user)",
                 maxLength: 100,
               },
               target: {
@@ -679,8 +679,8 @@ async function main() {
               },
               message_type: {
                 type: "string",
-                enum: ["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"],
-                description: "Grid Relay v0.2 message type",
+                enum: ["PING", "PONG", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"],
+                description: "Message relay v0.2 message type",
               },
               priority: {
                 type: "string",
@@ -746,12 +746,12 @@ async function main() {
               },
               target: {
                 type: "string",
-                description: "Target program ID (e.g., 'basher', 'iso'). If set, only that program sees the task when filtering by target.",
+                description: "Target program ID (e.g., 'agent-1', 'agent-2'). If set, only that program sees the task when filtering by target.",
                 maxLength: 100,
               },
               source: {
                 type: "string",
-                description: "Source program ID (e.g., 'iso', 'basher'). Defaults to 'iso' if not specified.",
+                description: "Source agent ID (e.g., 'agent-1', 'agent-2'). Defaults to 'iso' if not specified.",
                 maxLength: 100,
               },
             },
@@ -974,7 +974,7 @@ async function main() {
       }
     }
 
-    // Dream Mode peek endpoint — lightweight REST for watcher daemon (no MCP session needed)
+    // Scheduled task peek endpoint — lightweight REST for watcher daemon (no MCP session needed)
     if (req.url?.startsWith("/v1/dreams/peek") && req.method === "GET") {
       const apiKey = extractBearerToken(req.headers.authorization);
       if (!apiKey) {
@@ -1020,7 +1020,7 @@ async function main() {
       }
     }
 
-    // Dream Mode activate endpoint — atomic pending → active transition
+    // Scheduled task activate endpoint — atomic pending → active transition
     if (req.url?.startsWith("/v1/dreams/activate") && req.method === "POST") {
       const apiKey = extractBearerToken(req.headers.authorization);
       if (!apiKey) {

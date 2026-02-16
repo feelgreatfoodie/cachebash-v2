@@ -1,14 +1,14 @@
 # CacheBash Session Handoff
 
 **Last Updated:** 2026-02-02
-**Status:** All PRD items complete ✅ | AFK polling fix deployed
+**Status:** All PRD items complete ✅ | Autonomous polling fix deployed
 **Branch:** `main`
 
 ---
 
 ## PRD Status: COMPLETE
 
-All 14 user stories from `basher/prd.md` are complete:
+All 14 user stories from `prd.md` are complete:
 
 | Priority | Stories | Status |
 |----------|---------|--------|
@@ -19,7 +19,7 @@ All 14 user stories from `basher/prd.md` are complete:
 
 ---
 
-## CURRENT SESSION - AFK Polling Architecture Fix (2026-02-02)
+## CURRENT SESSION - Autonomous Polling Architecture Fix (2026-02-02)
 
 ### Root Cause
 `getInterrupts()` MCP tool was reading from wrong Firestore collection:
@@ -36,7 +36,7 @@ This caused "Get Status Update" requests from mobile to never reach Claude.
 5. **Flutter UI** - Added loading state and timestamp to status update button
 
 ### Deployments
-- ✅ MCP Server deployed to Cloud Run (revision `cachebash-mcp-00029-qnb`)
+- ✅ MCP Server deployed to Cloud Run (revision `cachebash-00029-qnb`)
 - ✅ Firestore indexes deployed
 - ⏳ TestFlight build in progress
 
@@ -50,8 +50,8 @@ This caused "Get Status Update" requests from mobile to never reach Claude.
 ### Root Cause
 MCP config in `~/.claude.json` was pointing to old Cloud Run service URL.
 
-- **Old (wrong):** `cachebash-mcp-94772408270.us-central1.run.app/v1/messages`
-- **New (correct):** `cachebash-mcp-922749444863.us-central1.run.app/v1/mcp`
+- **Old (wrong):** `cachebash-94772408270.us-central1.run.app/v1/messages`
+- **New (correct):** `cachebash-922749444863.us-central1.run.app/v1/mcp`
 
 ### What Was Fixed
 1. Updated `~/.claude.json` MCP config with correct URL
@@ -96,7 +96,7 @@ Fixed Claude Code MCP integration and added all 9 MCP tools with E2E encryption 
    - `decryptTaskData()` helper for task content
 
 4. **Fixed Deploy Script**:
-   - Added `FIREBASE_PROJECT_ID=cachebash-app` env var (was getting lost on deploy)
+   - Added `FIREBASE_PROJECT_ID=your-project-id` env var (was getting lost on deploy)
 
 5. **MCP Server Configuration**:
    - Added via: `claude mcp add --transport http cachebash .../v1/messages`
@@ -129,14 +129,14 @@ Fixed Claude Code MCP integration and added all 9 MCP tools with E2E encryption 
 
 ### Root Cause Analysis
 
-The Cloud Run service was deployed in GCP project `cache-bash-app` but Firestore lives in Firebase project `cachebash-app`. The service needed:
+The Cloud Run service was deployed in GCP project `your-project-id` but Firestore lives in Firebase project `your-project-id`. The service needed:
 1. `FIREBASE_PROJECT_ID` env var to point to the correct Firestore
 2. IAM permissions for cross-project Firestore access
 
 ### Verification Results
 
 ```
-$ curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/debug/auth \
+$ curl -s https://cachebash-922749444863.us-central1.run.app/v1/debug/auth \
   -H "Authorization: Bearer <key>" | jq
 {
   "keyProvided": true,
@@ -216,7 +216,7 @@ After restarting Claude Code with new API key:
 - TestFlight deployed
 
 ### Phase 2: Cloud-Hosted MCP Server - COMPLETE
-- Cloud Run deployment at `https://cachebash-mcp-922749444863.us-central1.run.app`
+- Cloud Run deployment at `https://cachebash-922749444863.us-central1.run.app`
 - SSE transport with Bearer token auth
 - All 17 stories complete
 - Projects feature with archive/delete
@@ -483,7 +483,7 @@ echo -n "YOUR_API_KEY" | shasum -a 256
 
 **Debug endpoint** (after deployment):
 ```bash
-curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/debug/auth \
+curl -s https://cachebash-922749444863.us-central1.run.app/v1/debug/auth \
   -H "Authorization: Bearer YOUR_API_KEY" | jq
 ```
 
@@ -509,14 +509,14 @@ echo -n "YOUR_API_KEY" | shasum -a 256
 
 ```bash
 # Health check (no auth)
-curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/health
+curl -s https://cachebash-922749444863.us-central1.run.app/v1/health
 
 # Auth diagnostic
-curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/debug/auth \
+curl -s https://cachebash-922749444863.us-central1.run.app/v1/debug/auth \
   -H "Authorization: Bearer YOUR_API_KEY" | jq
 
 # SSE connection test
-curl -s -m 5 https://cachebash-mcp-922749444863.us-central1.run.app/v1/sse \
+curl -s -m 5 https://cachebash-922749444863.us-central1.run.app/v1/sse \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Accept: text/event-stream"
 ```
@@ -534,7 +534,7 @@ curl -s -m 5 https://cachebash-mcp-922749444863.us-central1.run.app/v1/sse \
 ## Configuration
 
 - **Bundle ID:** `com.cachebash.app`
-- **Firebase Project:** `cachebash-app`
-- **Cloud Run:** `cache-bash-app` (GCP project)
+- **Firebase Project:** `your-project-id`
+- **Cloud Run:** `your-project-id` (GCP project)
 - **GitHub:** `feelgreatfoodie/cachebash`
 - **Git Author:** `feelgreatfoodie <chrisbourlier@hotmail.com>`

@@ -117,7 +117,7 @@ const ISO_TOOL_DEFINITIONS = [
   },
   {
     name: "send_message",
-    description: "Send a message or instruction to a running program. Grid Relay v0.2 — requires source, target, and message_type.",
+    description: "Send a message or instruction to a running program. Message relay v0.2 — requires source, target, and message_type.",
     inputSchema: {
       type: "object",
       properties: {
@@ -128,7 +128,7 @@ const ISO_TOOL_DEFINITIONS = [
         },
         source: {
           type: "string",
-          description: "Identifier of sending program (e.g., desktop-iso, mobile-iso, basher, flynn)",
+          description: "Identifier of sending program (e.g., agent-1, agent-2, user)",
           maxLength: 100,
         },
         target: {
@@ -138,8 +138,8 @@ const ISO_TOOL_DEFINITIONS = [
         },
         message_type: {
           type: "string",
-          enum: ["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"],
-          description: "Grid Relay v0.2 message type",
+          enum: ["PING", "PONG", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"],
+          description: "Message relay v0.2 message type",
         },
         priority: {
           type: "string",
@@ -204,12 +204,12 @@ const ISO_TOOL_DEFINITIONS = [
         },
         target: {
           type: "string",
-          description: "Target program ID (e.g., 'basher', 'iso'). If set, only that program sees the task when filtering by target.",
+          description: "Target program ID (e.g., 'agent-1', 'agent-2'). If set, only that program sees the task when filtering by target.",
           maxLength: 100,
         },
         source: {
           type: "string",
-          description: "Source program ID (e.g., 'iso', 'basher'). Defaults to 'iso' if not specified.",
+          description: "Source agent ID (e.g., 'agent-1', 'agent-2'). Defaults to 'iso' if not specified.",
           maxLength: 100,
         },
       },

@@ -2,9 +2,9 @@
 
 > Mobile companion app for Claude Code — Answer questions on the go, monitor progress from anywhere.
 
-## For Grid Programs
+## For AI Agents
 
-**Your identity comes from YOUR repo's CLAUDE.md, not this file.** This is project reference only. See your own repo for behavioral rules, comms protocol, AFK mode, and work completion checklists.
+**Your identity comes from YOUR repo's CLAUDE.md, not this file.** This is project reference only. See your own repo for behavioral rules, comms protocol, autonomous mode, and work completion checklists.
 
 ---
 
@@ -76,8 +76,8 @@ cachebash/
 | `update_sprint_story` | Update story progress |
 | `add_story_to_sprint` | Dynamic story insertion |
 | `complete_sprint` | Mark sprint complete |
-| `send_message` | Send message/instruction to a program |
-| `create_task` | Create a task for a program. Supports `target` and `source` routing. |
+| `send_message` | Send message/instruction to an agent |
+| `create_task` | Create a task for an agent. Supports `target` and `source` routing. |
 | `create_session` | Create/upsert session with optional `sessionId` and `programId` |
 | `list_sessions` | List sessions, filterable by `programId` |
 
@@ -95,7 +95,7 @@ Open CacheBash app -> Settings -> Copy API Key
 ### 2. Add MCP Server to Claude Code
 ```bash
 claude mcp add --transport http cachebash \
-  "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp" \
+  "https://cachebash-922749444863.us-central1.run.app/v1/mcp" \
   --header "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -118,7 +118,7 @@ ISO connects to CacheBash via a custom MCP connector for direct program communic
 
 ### Endpoint
 ```
-https://cachebash-mcp-922749444863.us-central1.run.app/v1/iso/mcp?token=YOUR_API_KEY
+https://cachebash-922749444863.us-central1.run.app/v1/iso/mcp?token=YOUR_API_KEY
 ```
 
 ### Setup in claude.ai
@@ -162,7 +162,7 @@ Wave session sync is **automatic** via the `onStoryUpdate` Cloud Function.
 | Standard subagents | Sonnet | Most story implementation |
 | Complex stories | Opus | High-complexity or retry scenarios |
 
-**Configuration in basher.config.json:**
+**Configuration in agent.config.json:**
 ```json
 {
   "claude": {
@@ -176,7 +176,7 @@ Wave session sync is **automatic** via the `onStoryUpdate` Cloud Function.
 
 ---
 
-## Dream Mode (Phase 1)
+## Scheduled Task Mode (Phase 1)
 
 Autonomous overnight task execution. Flynn queues a task from mobile, a watcher daemon detects it and wakes the target agent in a tmux session.
 
@@ -188,7 +188,7 @@ Autonomous overnight task execution. Flynn queues a task from mobile, a watcher 
 
 **Firestore Path:** `/users/{userId}/dream_sessions/{dreamId}`
 
-**Watcher daemon:** `~/1P projects/basher/dream-watcher.sh` — polls peek every 30s, activates + wakes agent via tmux. Runs as `com.cachebash.dream-watcher` launchd service.
+**Watcher daemon:** `~/cachebash/task-watcher.sh` — polls peek every 30s, activates + wakes agent via tmux. Runs as `com.cachebash.task-watcher` launchd service.
 
 **Branch naming:** `dream/{date}/{task-slug}`
 
@@ -196,15 +196,15 @@ Autonomous overnight task execution. Flynn queues a task from mobile, a watcher 
 
 ## Session Identity
 
-Sessions support custom IDs and program identity for clean Grid integration.
+Sessions support custom IDs and program identity for clean integration.
 
-**Naming convention:** `{program}[-{env}].{task}`
-- `basher.dream-deploy` — single env, no suffix
+**Naming convention:** `{agent}[-{env}].{task}`
+- `agent.dream-deploy` — single env, no suffix
 - `iso-cli.portal-synthesis` — ISO in terminal
 - `iso-mob.afternoon-check` — ISO on mobile
 
 **`programId`** is auto-extracted from the sessionId prefix (before first `-` or `.`):
-- `basher.dream-deploy` -> programId: `basher`
+- `agent.dream-deploy` -> programId: `agent`
 - `iso-cli.portal` -> programId: `iso`
 
 **Tools:** `create_session(sessionId, programId)`, `list_sessions(programId)`, `update_status(sessionId)`
@@ -325,7 +325,7 @@ Mobile interrupts are pushed into Claude's reasoning loop via PostToolUse hooks:
 - Action-level filtering: only `interrupt`, `sprint`, `parallel` trigger hooks. `queue` and `backlog` are ignored.
 
 ### MCP Server Deployment
-- GCP project: `cachebash-app` (NOT `cache-bash-app`)
+- GCP project: `your-project-id` (NOT `your-project-id`)
 - Deploy with `--clear-base-image` flag
 - `GET /v1/interrupts/peek` — lightweight REST for hooks (no MCP session)
 
@@ -344,12 +344,12 @@ Mobile interrupts are pushed into Claude's reasoning loop via PostToolUse hooks:
 
 ### Quick Health Check
 ```bash
-curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/health
+curl -s https://cachebash-922749444863.us-central1.run.app/v1/health
 ```
 
 ### Auth Diagnostic
 ```bash
-curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/debug/auth \
+curl -s https://cachebash-922749444863.us-central1.run.app/v1/debug/auth \
   -H "Authorization: Bearer YOUR_API_KEY" | jq
 ```
 
@@ -381,13 +381,13 @@ cd app && flutter run           # Run on device/simulator
 
 ```bash
 # Firestore indexes/rules
-cd firebase && firebase deploy --only firestore:rules,firestore:indexes --project cachebash-app
+cd firebase && firebase deploy --only firestore:rules,firestore:indexes --project YOUR_PROJECT_ID
 
 # MCP server
-cd mcp-server && gcloud run deploy cachebash-mcp --source . --region us-central1 --allow-unauthenticated --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=cachebash-app" --project cachebash-app --clear-base-image
+cd mcp-server && gcloud run deploy cachebash --source . --region us-central1 --allow-unauthenticated --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=YOUR_PROJECT_ID" --project YOUR_PROJECT_ID --clear-base-image
 
 # Firebase Functions
-cd firebase && firebase deploy --only functions --project cachebash-app
+cd firebase && firebase deploy --only functions --project YOUR_PROJECT_ID
 
 # Flutter (open Xcode for TestFlight)
 open app/ios/Runner.xcworkspace
@@ -398,7 +398,7 @@ open app/ios/Runner.xcworkspace
 - All commits authored by `feelgreatfoodie <feelgreatfoodie@users.noreply.github.com>`
 - **NEVER** use `Co-Authored-By:`
 - Stage specific files, never `-A` or `.`
-- Feature branches: `grid/<program>/<short-description>`
+- Feature branches: `feature/<short-description>`
 - Branch protection ON — use branches + PRs, no direct push to main
 
 ---

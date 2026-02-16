@@ -58,9 +58,9 @@ export const CompleteTaskSchema = z.object({
   taskId: z.string().min(1, "Task ID required"),
 });
 
-// Grid Relay v0.2 message type enum
+// Message relay v0.2 message type enum
 export const MessageTypeEnum = z.enum([
-  "PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT",
+  "PING", "PONG", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT",
 ]);
 
 export const SendMessageSchema = z.object({

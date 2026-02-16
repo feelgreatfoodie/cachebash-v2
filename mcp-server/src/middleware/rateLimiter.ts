@@ -2,8 +2,8 @@
  * Rate limiter — DISABLED for internal use (Flynn directive, 2026-02-14).
  *
  * All check functions return true (allowed). No state is tracked.
- * When productization approaches (Decision #10), SARK evaluates abuse vectors
- * and ALAN designs a tiered approach. Until then, the pipe is open.
+ * When productization approaches, the security team evaluates abuse vectors
+ * and designs a tiered approach. Until then, the pipe is open.
  */
 
 /** Always allowed — rate limiting disabled. */
